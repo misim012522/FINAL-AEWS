@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+:root {
+  --color-surface: 249 250 251;
+  --color-card: 255 255 255;
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --radius-card: 1rem;
+  --radius-button: 0.75rem;
+  /* Instructor theme */
+  --instructor-accent: 37 99 235;
+  --instructor-accent-muted: 219 234 254;
+  --instructor-surface: 248 250 252;
+}
+
+html {
+  scroll-behavior: smooth;
+  /* Enlarge content across the system (default 16px → 18px) */
+  font-size: 18px;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: rgb(243 244 246); /* gray-100 fallback */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Focus ring for accessibility */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid rgb(59 130 246);
+  outline-offset: 2px;
+}

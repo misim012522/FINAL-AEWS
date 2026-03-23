@@ -1,0 +1,22 @@
+# Web framework & server
+fastapi>=0.109.0,<1.0
+uvicorn[standard]>=0.27.0,<1.0
+
+# Validation & schemas (EmailStr included in pydantic)
+pydantic>=2.5.0,<3.0
+email-validator>=2.0.0
+
+# Database
+pymongo>=4.6.0,<5.0
+
+# Config
+python-dotenv>=1.0.0,<2.0
+
+# Auth (password hashing)
+bcrypt>=4.1.0,<5.0
+ 
+# Excel parsing for instructor class list uploads
+openpyxl>=3.1.0
+
+# Word document parsing
+python-docx>=0.8.11

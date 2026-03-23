@@ -1,0 +1,250 @@
+from typing import Literal, Optional
+from pydantic import BaseModel, EmailStr, Field
+
+
+# ----- User -----
+class UserBase(BaseModel):
+    name: str
+    email: EmailStr
+    role: Literal["instructor", "admin", "amu-staff"]
+    department: str
+    contact_number: str = ""
+    status: Literal["active", "inactive", "pending"] = "active"
+    profile_image: Optional[str] = None
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    role: Optional[Literal["instructor", "admin", "amu-staff"]] = None
+    department: Optional[str] = None
+    contact_number: Optional[str] = None
+    status: Optional[Literal["active", "inactive", "pending"]] = None
+    profile_image: Optional[str] = None  # data URL (base64) for avatar
+
+
+class UserResponse(UserBase):
+    id: str
+
+    class Config:
+        from_attributes = True
+
+
+# ----- Student -----
+class StudentBase(BaseModel):
+    name: str
+    email: EmailStr
+    department: str
+    course: str
+    risk: Literal["High", "Medium", "Low"]
+    instructor: str
+
+
+class StudentCreate(StudentBase):
+    pass
+
+
+class StudentUpdate(BaseModel):
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    department: Optional[str] = None
+    course: Optional[str] = None
+    risk: Optional[Literal["High", "Medium", "Low"]] = None
+    instructor: Optional[str] = None
+
+
+class StudentResponse(StudentBase):
+    id: str
+
+    class Config:
+        from_attributes = True
+
+
+# ----- Intervention -----
+class InterventionBase(BaseModel):
+    student: str
+    department: str
+    course: str
+    type: str
+    status: Literal["pending", "in-progress", "completed"]
+    instructor: str
+    due: Optional[str] = None
+    completed: Optional[str] = None
+
+
+class InterventionCreate(InterventionBase):
+    pass
+
+
+class InterventionUpdate(BaseModel):
+    student: Optional[str] = None
+    department: Optional[str] = None
+    course: Optional[str] = None
+    type: Optional[str] = None
+    status: Optional[Literal["pending", "in-progress", "completed"]] = None
+    instructor: Optional[str] = None
+    due: Optional[str] = None
+    completed: Optional[str] = None
+
+
+class InterventionResponse(InterventionBase):
+    id: str
+
+    class Config:
+        from_attributes = True
+
+
+# ----- Notification -----
+class NotificationBase(BaseModel):
+    title: str
+    body: str
+    type: str
+    time: str
+    read: bool = False
+
+
+class NotificationCreate(NotificationBase):
+    role: Literal["instructor", "admin", "amu-staff"]
+
+
+class NotificationUpdate(BaseModel):
+    read: Optional[bool] = None
+
+
+class NotificationResponse(NotificationBase):
+    id: str
+    role: str
+
+    class Config:
+        from_attributes = True
+
+
+# ----- Auth -----
+class SignUpRequest(BaseModel):
+    name: str = Field(..., min_length=1, description="Full name")
+    email: EmailStr
+    password: str = Field(..., min_length=1, description="Password")
+    contact_number: str = Field("", description="Contact/phone number")
+    department: str = Field("", description="Department (e.g. Information Technology)")
+    role: Literal["instructor", "admin", "amu-staff"]
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+    role: Literal["instructor", "admin", "amu-staff"]
+    recaptcha_token: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=1)
+
+
+# ----- Class (instructor courses) -----
+class ClassCreate(BaseModel):
+    subject_code: str = Field(..., min_length=1)
+    subject_name: str = Field(..., min_length=1)
+    instructor_id: str = Field(..., min_length=1)
+
+
+class ClassResponse(BaseModel):
+    id: str
+    subject_code: str
+    subject_name: str
+    instructor_id: str
+    status: Literal["active", "archived"] = "active"
+    section_code: Optional[str] = None
+    student_count: int = 0
+    at_risk_count: int = 0
+
+
+
+class BatchAddStudentsRequest(BaseModel):
+    emails: list[EmailStr] = Field(..., min_length=1, max_length=500)
+
+
+class UpdateEnrollmentRequest(BaseModel):
+    """Academic indicators and risk for a student in a class."""
+    gpa: Optional[float] = Field(None, ge=0, le=4)
+    attendance: Optional[float] = Field(None, ge=0, le=100)
+    lms_activity: Optional[float] = Field(None, ge=0, le=100)
+    previous_gpa: Optional[float] = Field(None, ge=0, le=4)
+    failed_subject_count: Optional[int] = Field(None, ge=0)
+    academic_challenge_score: Optional[float] = Field(None, ge=0, le=5)
+    external_factor_score: Optional[float] = Field(None, ge=0, le=5)
+    received_academic_support: Optional[bool] = None
+    difficulty_understanding_lectures: Optional[bool] = None
+    struggles_specific_subjects: Optional[bool] = None
+    weak_study_habits_time_management: Optional[bool] = None
+    low_motivation_engagement: Optional[bool] = None
+    poor_comprehension_writing_skills: Optional[bool] = None
+    financial_difficulties: Optional[bool] = None
+    physical_health_concerns: Optional[bool] = None
+    family_issues: Optional[bool] = None
+    part_time_work_affecting_studies: Optional[bool] = None
+    mental_health_concerns: Optional[bool] = None
+    risk: Optional[Literal["High", "Medium", "Low"]] = None
+    flagged_for_mentoring: Optional[bool] = None
+
+
+# ----- Gradesheet -----
+class GradeData(BaseModel):
+    """Student grade information for a class."""
+    id_number: Optional[str] = Field(None, description="Student ID number")
+    student_name: Optional[str] = Field(None, description="Student full name")
+    class_standing: Optional[float] = Field(None, ge=0, le=100, description="Class standing percentage")
+    laboratory: Optional[float] = Field(None, ge=0, le=100, description="Laboratory grade")
+    major_output: Optional[float] = Field(None, ge=0, le=100, description="Major output/project grade")
+    summary: Optional[float] = Field(None, ge=0, le=100, description="Summary/attendance component")
+    midterm_grade: Optional[float] = Field(None, ge=0, le=100, description="Midterm exam grade")
+    final_grade: Optional[float] = Field(None, ge=0, le=100, description="Final exam grade")
+    section_code: Optional[str] = Field(None, description="Class section code")
+    subject_code: Optional[str] = Field(None, description="Subject/course code")
+    class_time: Optional[str] = Field(None, description="Class time/schedule")
+
+
+class BulkGradeUpdateRequest(BaseModel):
+    """Request to update grades for multiple students."""
+    grades: list[GradeData]
+
+
+# ----- Attendance -----
+class MonthlyAttendance(BaseModel):
+    """Monthly attendance record for a student."""
+    month: str = Field(..., description="Month in format YYYY-MM (e.g., 2024-03)")
+    present_days: Optional[int] = Field(None, ge=0, description="Days present")
+    absent_days: Optional[int] = Field(None, ge=0, description="Days absent")
+    total_days: Optional[int] = Field(None, ge=0, description="Total class days")
+    attendance_percentage: Optional[float] = Field(None, ge=0, le=100, description="Attendance percentage")
+
+
+class AttendanceData(BaseModel):
+    """Student attendance information."""
+    id_number: Optional[str] = Field(None, description="Student ID number")
+    student_name: Optional[str] = Field(None, description="Student full name")
+    email: Optional[str] = Field(None, description="Student email")
+    section_code: Optional[str] = Field(None, description="Class section code")
+    subject_code: Optional[str] = Field(None, description="Subject/course code")
+    # Monthly attendance records
+    january: Optional[float] = Field(None, ge=0, le=100)
+    february: Optional[float] = Field(None, ge=0, le=100)
+    march: Optional[float] = Field(None, ge=0, le=100)
+    april: Optional[float] = Field(None, ge=0, le=100)
+    may: Optional[float] = Field(None, ge=0, le=100)
+    june: Optional[float] = Field(None, ge=0, le=100)
+    july: Optional[float] = Field(None, ge=0, le=100)
+    august: Optional[float] = Field(None, ge=0, le=100)
+    september: Optional[float] = Field(None, ge=0, le=100)
+    october: Optional[float] = Field(None, ge=0, le=100)
+    november: Optional[float] = Field(None, ge=0, le=100)
+    december: Optional[float] = Field(None, ge=0, le=100)
+    overall_attendance: Optional[float] = Field(None, ge=0, le=100, description="Overall attendance percentage")

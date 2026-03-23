@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Academic Early Warning System — Gantt Chart</title>
+  <style>
+    body { font-family: Calibri, 'Segoe UI', sans-serif; margin: 24px; color: #333; }
+    h1 { font-size: 18pt; margin-bottom: 6px; }
+    h2 { font-size: 14pt; margin-top: 20px; margin-bottom: 10px; border-bottom: 1px solid #ccc; }
+    h3 { font-size: 12pt; margin-top: 14px; margin-bottom: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+    th, td { border: 1px solid #999; padding: 6px 10px; text-align: left; }
+    th { background: #2563eb; color: white; font-size: 11pt; }
+    td { font-size: 10pt; }
+    tr:nth-child(even) { background: #f8fafc; }
+    .intro { margin-bottom: 20px; font-size: 10pt; color: #555; }
+  </style>
+</head>
+<body>
+
+  <h1>Academic Early Warning System</h1>
+  <p class="intro">Full Gantt chart — Frontend vs Backend. Part 1: Done. Part 2: To be done.</p>
+
+  <h2>PART 1: DONE</h2>
+
+  <h3>Auth &amp; account</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Login page – frontend</td></tr>
+      <tr><td>2</td><td>SignUp page – frontend</td></tr>
+      <tr><td>3</td><td>Check email page – frontend</td></tr>
+      <tr><td>4</td><td>Pending approval page – frontend</td></tr>
+      <tr><td>5</td><td>Verify email page – frontend</td></tr>
+      <tr><td>6</td><td>Forgot password page – frontend</td></tr>
+      <tr><td>7</td><td>Reset password page – frontend</td></tr>
+      <tr><td>8</td><td>Auth API: POST login – backend</td></tr>
+      <tr><td>9</td><td>Auth API: POST signup – backend</td></tr>
+      <tr><td>10</td><td>Auth API: GET verify-email – backend</td></tr>
+      <tr><td>11</td><td>Auth API: POST forgot-password – backend</td></tr>
+      <tr><td>12</td><td>Auth API: POST reset-password – backend</td></tr>
+      <tr><td>13</td><td>Auth API: GET email-status, GET test-email – backend</td></tr>
+      <tr><td>14</td><td>Auth context and protected routes – frontend</td></tr>
+      <tr><td>15</td><td>Admin approval flow: instructor/amu-staff signup → pending; admin confirm/decline – backend</td></tr>
+      <tr><td>16</td><td>Admin pending-accounts list API – backend</td></tr>
+      <tr><td>17</td><td>Admin pending-accounts approve/decline API – backend</td></tr>
+      <tr><td>18</td><td>Account decision emails (approved/declined) – backend</td></tr>
+      <tr><td>19</td><td>Admin Pending accounts tab – frontend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Instructor</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>20</td><td>Instructor dashboard page – frontend</td></tr>
+      <tr><td>21</td><td>Instructor My Classes tab – frontend</td></tr>
+      <tr><td>22</td><td>Instructor Risk Alerts tab – frontend</td></tr>
+      <tr><td>23</td><td>Instructor Student List tab – frontend</td></tr>
+      <tr><td>24</td><td>Instructor Interventions tab – frontend</td></tr>
+      <tr><td>25</td><td>Class details page – frontend</td></tr>
+      <tr><td>26</td><td>Add class modal – frontend</td></tr>
+      <tr><td>27</td><td>Add student / batch add students – frontend</td></tr>
+      <tr><td>28</td><td>Instructor intervention detail page – frontend</td></tr>
+      <tr><td>29</td><td>Instructor student profile page – frontend</td></tr>
+      <tr><td>30</td><td>Instructor settings page – frontend</td></tr>
+      <tr><td>31</td><td>Classes API: list, get, create – backend</td></tr>
+      <tr><td>32</td><td>Classes API: list students, risk-summary – backend</td></tr>
+      <tr><td>33</td><td>Classes API: add student, batch add, update enrollment – backend</td></tr>
+      <tr><td>34</td><td>Classes API: risk-alerts, instructor-students – backend</td></tr>
+      <tr><td>35</td><td>Interventions API: list, get – backend</td></tr>
+      <tr><td>36</td><td>Instructor first-login tutorial popup – frontend</td></tr>
+      <tr><td>37</td><td>Instructor settings tutorial section (play every login, play again) – frontend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Admin</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>38</td><td>Admin dashboard page – frontend</td></tr>
+      <tr><td>39</td><td>Admin System Overview tab – frontend</td></tr>
+      <tr><td>40</td><td>Admin department dropdown (instructor departments only) – frontend</td></tr>
+      <tr><td>41</td><td>Admin Students at Risk sub-tab – frontend</td></tr>
+      <tr><td>42</td><td>Admin Departments sub-tab – frontend</td></tr>
+      <tr><td>43</td><td>Admin Instructors sub-tab – frontend</td></tr>
+      <tr><td>44</td><td>Admin overview trends chart – frontend</td></tr>
+      <tr><td>45</td><td>Admin System Analytics tab – frontend</td></tr>
+      <tr><td>46</td><td>Admin Institution Reports tab – frontend</td></tr>
+      <tr><td>47</td><td>Admin User Accounts tab – frontend</td></tr>
+      <tr><td>48</td><td>Admin Interventions tab – frontend</td></tr>
+      <tr><td>49</td><td>Admin user detail page – frontend</td></tr>
+      <tr><td>50</td><td>Admin intervention detail page – frontend</td></tr>
+      <tr><td>51</td><td>Admin student detail page (by email) – frontend</td></tr>
+      <tr><td>52</td><td>Admin settings page – frontend</td></tr>
+      <tr><td>53</td><td>Admin API: departments (instructor only) – backend</td></tr>
+      <tr><td>54</td><td>Admin API: overview, students-at-risk, departments, instructors, trends – backend</td></tr>
+      <tr><td>55</td><td>Admin API: analytics department-chart, risk-distribution, accuracy – backend</td></tr>
+      <tr><td>56</td><td>Admin API: reports list, report download (CSV) – backend</td></tr>
+      <tr><td>57</td><td>Admin API: student by email (enrollments) – backend</td></tr>
+      <tr><td>58</td><td>Users API: list, get, create, update, delete – backend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>AMU Staff</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>59</td><td>AMU Staff dashboard page – frontend</td></tr>
+      <tr><td>60</td><td>AMU Staff Overview tab – frontend</td></tr>
+      <tr><td>61</td><td>AMU Staff Referrals tab – frontend</td></tr>
+      <tr><td>62</td><td>AMU Staff My Cases tab – frontend</td></tr>
+      <tr><td>63</td><td>AMU Staff Reports tab – frontend</td></tr>
+      <tr><td>64</td><td>AMU Staff student detail page – frontend</td></tr>
+      <tr><td>65</td><td>AMU Staff case detail page – frontend</td></tr>
+      <tr><td>66</td><td>AMU Staff settings page – frontend</td></tr>
+      <tr><td>67</td><td>AMU Staff first-login tutorial popup – frontend</td></tr>
+      <tr><td>68</td><td>AMU Staff settings tutorial section – frontend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Shared / infrastructure</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>69</td><td>Dashboard layout (header, nav, notifications, logout, help) – frontend</td></tr>
+      <tr><td>70</td><td>Notifications popover – frontend</td></tr>
+      <tr><td>71</td><td>Notifications API: list by role, create, mark read, mark all read – backend</td></tr>
+      <tr><td>72</td><td>Help / FAQ page – frontend</td></tr>
+      <tr><td>73</td><td>NotFound (404) page – frontend</td></tr>
+      <tr><td>74</td><td>Error boundary – frontend</td></tr>
+      <tr><td>75</td><td>Global background image and enlarged content – frontend</td></tr>
+      <tr><td>76</td><td>FastAPI app, CORS, health endpoint – backend</td></tr>
+      <tr><td>77</td><td>MongoDB connection and role collections – backend</td></tr>
+      <tr><td>78</td><td>User schemas and role-based collections – backend</td></tr>
+      <tr><td>79</td><td>Interventions API: create, update, delete – backend</td></tr>
+      <tr><td>80</td><td>Students API: list, get, create, update, delete – backend</td></tr>
+    </tbody>
+  </table>
+
+  <h2>PART 2: TO BE DONE</h2>
+
+  <h3>AI &amp; prediction</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>AI prediction pipeline (model, training, scoring) – backend</td></tr>
+      <tr><td>2</td><td>Store risk predictions in DB and prediction history – backend</td></tr>
+      <tr><td>3</td><td>Accuracy / metrics API (precision, recall over time) – backend</td></tr>
+      <tr><td>4</td><td>Admin AI Model tab – frontend</td></tr>
+      <tr><td>5</td><td>Admin AI Performance tab – frontend</td></tr>
+      <tr><td>6</td><td>System Analytics accuracy chart with real data – frontend</td></tr>
+      <tr><td>7</td><td>Instructor AI Feedback with real insights – frontend</td></tr>
+      <tr><td>8</td><td>AI-suggested interventions creation – backend</td></tr>
+      <tr><td>9</td><td>Interventions list “AI-suggested” source and create-from-AI – frontend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Interventions lifecycle</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>10</td><td>Create intervention form (instructor / admin) – frontend</td></tr>
+      <tr><td>11</td><td>Update intervention status and notes from detail page – frontend</td></tr>
+      <tr><td>12</td><td>Intervention success outcome (improved / no change / declined) – backend</td></tr>
+      <tr><td>13</td><td>Intervention Success KPI and reports – backend + frontend</td></tr>
+      <tr><td>14</td><td>Link intervention to student (e.g. student id) for “View student” – backend + frontend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Admin &amp; operations</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>15</td><td>Add user form and button in User Accounts – frontend</td></tr>
+      <tr><td>16</td><td>Edit user form on User Detail – frontend</td></tr>
+      <tr><td>17</td><td>Admin interventions filter by instructor – backend + frontend</td></tr>
+      <tr><td>18</td><td>Seed / demo data script – backend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>AMU Staff &amp; student experience</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>19</td><td>AMU Staff Cases, Referrals, Reports with real API data – backend</td></tr>
+      <tr><td>20</td><td>AMU Staff components wired to real APIs – frontend</td></tr>
+      <tr><td>21</td><td>Student-facing app (login, view own risk) – frontend + backend (if in scope)</td></tr>
+      <tr><td>22</td><td>Instructor Student Profile fully from real enrollment/risk APIs – frontend</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Polish &amp; scale</h3>
+  <table>
+    <thead><tr><th>#</th><th>Task</th></tr></thead>
+    <tbody>
+      <tr><td>23</td><td>Pagination for users, interventions, students lists – backend + frontend</td></tr>
+      <tr><td>24</td><td>Role-based API guards and 403 for admin-only – backend</td></tr>
+      <tr><td>25</td><td>Unit / integration tests – backend + frontend</td></tr>
+      <tr><td>26</td><td>Historical trends (time-series) for overview chart – backend</td></tr>
+    </tbody>
+  </table>
+
+</body>
+</html>

@@ -1,0 +1,4 @@
+student_email,previous_gpa,failed_subject_count,attendance,received_academic_support,difficulty_understanding_lectures,struggles_specific_subjects,weak_study_habits_time_management,low_motivation_engagement,poor_comprehension_writing_skills,financial_difficulties,physical_health_concerns,family_issues,part_time_work_affecting_studies,mental_health_concerns
+student1@example.com,2.25,2,78,1,1,0,1,1,0,1,0,1,0,1
+student2@example.com,1.75,3,65,0,1,1,1,1,1,1,0,0,1,1
+student3@example.com,3.00,0,92,1,0,0,0,0,0,0,0,0,0,0
