@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, FileSpreadsheet, Upload } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import InlineToast from '../components/InlineToast'
 import { useAuth } from '../context/AuthContext'
 import { getClass, getClassGrades, uploadClassFiles } from '../api'
 
@@ -14,15 +15,15 @@ const MIDTERM_COMPONENT_COLUMNS = [
   { key: 'class_standing', label: 'CS (30%) Midterm' },
   { key: 'laboratory', label: 'LAB (30%) Midterm' },
   { key: 'major_output', label: 'MO (40%) Midterm' },
-  { key: 'midterm_grade', label: 'Midterm Grade', computed: true },
+  { key: 'midterm_grade', label: 'Midterm Grade (MTG)', computed: true },
 ]
 
 const FINAL_COMPONENT_COLUMNS = [
   { key: 'final_class_standing', label: 'CS (30%) Final' },
   { key: 'final_laboratory', label: 'LAB (30%) Final' },
   { key: 'final_major_output', label: 'MO (40%) Final' },
-  { key: 'final_grade', label: 'Final Term Grade', computed: true },
-  { key: 'overall_grade', label: 'Overall Grade (Final)', computed: true },
+  { key: 'final_grade', label: 'Final Term Grade (FTG)', computed: true },
+  { key: 'overall_grade', label: 'Final Grade (FG)', computed: true },
 ]
 
 function formatScoreValue(value) {
@@ -75,19 +76,17 @@ export default function ClassGrades() {
     setTermFilter('midterm')
   }, [id])
 
+  useEffect(() => {
+    if (!gradesheetSuccess) return undefined
+    const timeoutId = window.setTimeout(() => setGradesheetSuccess(''), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [gradesheetSuccess])
+
   const students = gradesData?.students || []
 
-  const midtermComponentColumns = useMemo(() => {
-    return MIDTERM_COMPONENT_COLUMNS.filter(
-      (col) => students.some((s) => s[col.key] !== null && s[col.key] !== undefined && s[col.key] !== '')
-    )
-  }, [students])
+  const midtermComponentColumns = useMemo(() => MIDTERM_COMPONENT_COLUMNS, [])
 
-  const finalComponentColumns = useMemo(() => {
-    return FINAL_COMPONENT_COLUMNS.filter(
-      (col) => students.some((s) => s[col.key] !== null && s[col.key] !== undefined && s[col.key] !== '')
-    )
-  }, [students])
+  const finalComponentColumns = useMemo(() => FINAL_COMPONENT_COLUMNS, [])
 
   const visibleColumns = useMemo(() => {
     if (termFilter === 'midterm') {
@@ -168,8 +167,14 @@ export default function ClassGrades() {
                 }
                 setUploadingGradesheet(true)
                 try {
-                  await uploadClassFiles(id, files, 'gradesheet')
-                  setGradesheetSuccess('Gradesheet uploaded successfully.')
+                  const result = await uploadClassFiles(id, files, 'gradesheet')
+                  const updated = result?.updated ?? 0
+                  const notEnrolled = result?.not_enrolled?.length ?? 0
+                  const missingIdentifiers = result?.missing_identifiers ?? 0
+                  const parts = [`Gradesheet uploaded. Updated ${updated} student record(s).`]
+                  if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
+                  if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
+                  setGradesheetSuccess(parts.join(' '))
                   await loadData()
                 } catch (err) {
                   setGradesheetError(err.message || 'Upload failed')
@@ -191,7 +196,6 @@ export default function ClassGrades() {
           </div>
         </div>
         {gradesheetError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gradesheetError}</div>}
-        {gradesheetSuccess && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{gradesheetSuccess}</div>}
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
@@ -286,6 +290,11 @@ export default function ClassGrades() {
           )}
         </div>
       </div>
+      <InlineToast
+        message={gradesheetSuccess}
+        tone="success"
+        onClose={() => setGradesheetSuccess('')}
+      />
     </DashboardLayout>
   )
 }

@@ -2,7 +2,7 @@ import { X, BookOpen, AlertTriangle, ClipboardList, Users, BarChart3, HelpCircle
 
 const INSTRUCTOR_ITEMS = [
   { icon: BookOpen, term: 'My Classes', desc: 'Your courses. Each card shows student count and how many students are at risk.' },
-  { icon: AlertTriangle, term: 'At-risk / Risk level', desc: 'Students may be flagged as High, Medium, or Low risk based on grades, attendance, and engagement. Focus on High and Medium for follow-up.' },
+  { icon: AlertTriangle, term: 'At-risk / Risk level', desc: 'Students may be flagged as High or Low risk based on grades, attendance, and engagement. Focus on High risk students for follow-up.' },
   { icon: ClipboardList, term: 'Interventions', desc: 'Recommended or required actions (e.g. meeting with a student, referral). Status: Pending → In progress → Completed.' },
   { icon: AlertTriangle, term: 'Risk Alerts', desc: 'List of students who need attention. Use this tab to see who to reach out to first.' },
   { icon: Users, term: 'Student List', desc: 'All students across your classes with risk level and status in one place.' },

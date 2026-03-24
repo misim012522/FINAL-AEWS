@@ -327,3 +327,74 @@ def send_test_email(to_email: str | None = None) -> tuple[bool, str]:
     if ok:
         return True, f"Test email sent to {dest}. Check inbox (and spam)."
     return False, err or "Send failed."
+
+
+def send_student_support_email(to_email: str, user_name: str, subject: str, message: str) -> tuple[bool, str | None]:
+    """Send a student-support message from AMU Staff via configured SMTP."""
+    config = _get_gmail_config()
+    host, port, user, password, from_email = config
+    if host is None:
+        return False, "Gmail not configured"
+
+    plain_body = f"""Hello {user_name},
+
+{message}
+
+Academic Early Warning System
+"""
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5; padding: 24px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 520px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden;">
+          <tr>
+            <td style="padding: 32px 32px 24px; text-align: center; background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);">
+              <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff;">Academic Early Warning System</h1>
+              <p style="margin: 8px 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Student support update</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.5;">Hello {user_name},</p>
+              <p style="margin: 0; font-size: 15px; color: #6b7280; line-height: 1.7; white-space: pre-line;">{message}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 16px 32px; background-color: #f9fafb; border-top: 1px solid #e5e7eb; text-align: center;">
+              <p style="margin: 0; font-size: 12px; color: #6b7280;">Academic Early Warning System</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls()
+            server.ehlo()
+            server.login(user, password)
+            server.sendmail(from_email, to_email, msg.as_string())
+        logger.info("Student support email sent to %s", to_email)
+        return True, None
+    except Exception as e:
+        logger.exception("Gmail SMTP failed: %s", e)
+        return False, str(e)

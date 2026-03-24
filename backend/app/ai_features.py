@@ -11,7 +11,15 @@ MODEL_FEATURE_ORDER = [
     "attendance_rate",
     "academic_challenge_score",
     "external_factor_score",
-    "received_academic_support",
+    "class_standing",
+    "laboratory",
+    "major_output",
+    "midterm_grade",
+    "final_class_standing",
+    "final_laboratory",
+    "final_major_output",
+    "finalterm_grade",
+    "final_grade",
 ]
 
 ACADEMIC_CHALLENGE_FIELDS = [
@@ -75,9 +83,15 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
     if failed_subject_count is None:
         failed_subject_count = 0
 
-    attendance_rate = _to_float(enrollment.get("attendance"))
+    # Use instructor-provided attendance first. Self-reported needs-assessment attendance
+    # should only be a last resort and must not override the attendance sheet.
+    attendance_rate = _to_float(enrollment.get("attendance_overall"))
     if attendance_rate is None:
-        attendance_rate = _to_float(enrollment.get("attendance_rate")) or 0.0
+        attendance_rate = _to_float(enrollment.get("attendance"))
+    if attendance_rate is None:
+        attendance_rate = _to_float(enrollment.get("attendance_rate"))
+    if attendance_rate is None:
+        attendance_rate = _to_float(enrollment.get("self_reported_attendance")) or 0.0
 
     academic_challenge_score = _to_float(enrollment.get("academic_challenge_score"))
     if academic_challenge_score is None:
@@ -100,13 +114,51 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
             or enrollment.get("intervention_count", 0)
         )
 
+    class_standing = _to_float(enrollment.get("class_standing")) or 0.0
+    laboratory = _to_float(enrollment.get("laboratory")) or 0.0
+    major_output = _to_float(enrollment.get("major_output")) or 0.0
+    midterm_grade = _to_float(enrollment.get("midterm_grade")) or 0.0
+    final_class_standing = _to_float(enrollment.get("final_class_standing"))
+    if final_class_standing is None:
+        final_class_standing = class_standing
+
+    final_laboratory = _to_float(enrollment.get("final_laboratory"))
+    if final_laboratory is None:
+        final_laboratory = laboratory
+
+    final_major_output = _to_float(enrollment.get("final_major_output"))
+    if final_major_output is None:
+        final_major_output = major_output
+
+    finalterm_grade = _to_float(enrollment.get("final_grade"))
+    if finalterm_grade is None:
+        finalterm_grade = midterm_grade
+
+    final_grade = _to_float(enrollment.get("overall_grade"))
+    if final_grade is None:
+        final_grade = _to_float(enrollment.get("gpa"))
+    if final_grade is None:
+        final_grade = finalterm_grade
+    if final_grade is None:
+        final_grade = midterm_grade
+    if final_grade is None:
+        final_grade = 0.0
+
     return {
         "previous_gpa": float(previous_gpa),
         "failed_subject_count": int(failed_subject_count),
         "attendance_rate": float(attendance_rate),
         "academic_challenge_score": float(academic_challenge_score),
         "external_factor_score": float(external_factor_score),
-        "received_academic_support": int(bool(received_academic_support)),
+        "class_standing": float(class_standing),
+        "laboratory": float(laboratory),
+        "major_output": float(major_output),
+        "midterm_grade": float(midterm_grade),
+        "final_class_standing": float(final_class_standing),
+        "final_laboratory": float(final_laboratory),
+        "final_major_output": float(final_major_output),
+        "finalterm_grade": float(finalterm_grade),
+        "final_grade": float(final_grade),
     }
 
 

@@ -79,7 +79,7 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What is "risk level"?',
-        a: 'Students are assigned High, Medium, or Low risk based on GPA, attendance, and LMS activity. High and Medium risk students need attention. Focus on these first for follow-up and interventions.',
+        a: 'Students are assigned High or Low risk based on GPA, attendance, and LMS activity. High risk students need attention first for follow-up and interventions.',
       },
       {
         q: 'What are interventions?',

@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useMemo, useEffect, useCallback } from 'react'
-import { useAuth, AuthContext } from './AuthContext'
+import { AuthContext } from './AuthContext'
 import { listNotifications, markNotificationRead as apiMarkRead, markAllNotificationsRead as apiMarkAllRead } from '../api'
 
 const INITIAL = { instructor: [], admin: [], 'amu-staff': [] }
@@ -32,14 +32,44 @@ export function NotificationsProvider({ children }) {
   const role = auth?.role || null
   const [notifications, dispatch] = useReducer(notificationsReducer, INITIAL)
 
+  const refreshNotifications = useCallback(
+    async (targetRole = role) => {
+      if (!targetRole || !['instructor', 'admin', 'amu-staff'].includes(targetRole)) return []
+      const list = await listNotifications(targetRole)
+      dispatch({ type: 'SET_LIST', role: targetRole, payload: list })
+      return list
+    },
+    [role]
+  )
+
   useEffect(() => {
     if (!role || !['instructor', 'admin', 'amu-staff'].includes(role)) return
-    listNotifications(role)
-      .then((list) => {
-        dispatch({ type: 'SET_LIST', role, payload: list })
-      })
-      .catch(() => {})
-  }, [role])
+
+    refreshNotifications(role).catch(() => {})
+
+    const intervalId = window.setInterval(() => {
+      refreshNotifications(role).catch(() => {})
+    }, 15000)
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshNotifications(role).catch(() => {})
+      }
+    }
+
+    const handleFocus = () => {
+      refreshNotifications(role).catch(() => {})
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility)
+    window.addEventListener('focus', handleFocus)
+
+    return () => {
+      window.clearInterval(intervalId)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [role, refreshNotifications])
 
   const markAsRead = useCallback(
     async (r, notificationId) => {
@@ -48,10 +78,10 @@ export function NotificationsProvider({ children }) {
         await apiMarkRead(notificationId)
       } catch {
         // Revert on failure: refetch list
-        if (role === r) listNotifications(r).then((list) => dispatch({ type: 'SET_LIST', role: r, payload: list }))
+        if (role === r) refreshNotifications(r).catch(() => {})
       }
     },
-    [role]
+    [refreshNotifications, role]
   )
 
   const markAllAsRead = useCallback(
@@ -60,10 +90,10 @@ export function NotificationsProvider({ children }) {
       try {
         await apiMarkAllRead(r)
       } catch {
-        if (role === r) listNotifications(r).then((list) => dispatch({ type: 'SET_LIST', role: r, payload: list }))
+        if (role === r) refreshNotifications(r).catch(() => {})
       }
     },
-    [role]
+    [refreshNotifications, role]
   )
 
   const api = useMemo(
@@ -77,8 +107,9 @@ export function NotificationsProvider({ children }) {
       },
       markAsRead,
       markAllAsRead,
+      refreshNotifications,
     }),
-    [notifications, markAsRead, markAllAsRead]
+    [notifications, markAsRead, markAllAsRead, refreshNotifications]
   )
 
   return (
@@ -97,6 +128,7 @@ export function useNotifications() {
       getUnreadCount() { return 0 },
       markAsRead() {},
       markAllAsRead() {},
+      refreshNotifications() { return Promise.resolve([]) },
     }
   }
   return ctx

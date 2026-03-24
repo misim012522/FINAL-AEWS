@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse
 
 from app.database import get_db
 from app.ai_model import predict_student_risk
+from app.notification_utils import create_notification
 from app.schemas import (
     BatchAddStudentsRequest,
     ClassCreate,
@@ -193,7 +194,7 @@ def _to_int(value) -> int | None:
 _AI_UPLOAD_FIELD_MAPPINGS = {
     "previous_gpa": ["previous gpa", "previous_gpa", "gpa"],
     "failed_subject_count": ["failed subject count", "failed_subject_count", "failed subjects", "failed_subjects"],
-    "attendance": ["attendance", "attendance rate", "attendance_rate"],
+    "self_reported_attendance": ["attendance", "attendance rate", "attendance_rate"],
     "received_academic_support": ["received academic support", "received_academic_support", "academic support"],
     "difficulty_understanding_lectures": ["difficulty in understanding lectures", "difficulty_understanding_lectures"],
     "struggles_specific_subjects": ["struggles with specific subjects", "struggles_specific_subjects"],
@@ -210,7 +211,7 @@ _AI_UPLOAD_FIELD_MAPPINGS = {
 
 def _build_ai_input_update_data(row: dict, keys: list[str]) -> dict:
     update_data = {}
-    numeric_fields = {"previous_gpa", "attendance"}
+    numeric_fields = {"previous_gpa", "self_reported_attendance"}
     integer_fields = {"failed_subject_count"}
     boolean_fields = set(_AI_UPLOAD_FIELD_MAPPINGS.keys()) - numeric_fields - integer_fields
 
@@ -657,16 +658,16 @@ def _legacy_grade_score_map(enrollment: dict) -> dict:
 
 _GRADESHEET_FIELD_MAPPINGS = {
     'id_number': ['id', 'id number', 'student no.', 'student id', 'student_id', 'school id', 'sid'],
-    'class_standing': ['class standing', 'cs (30%)', 'class stand', 'standing', 'cs'],
+    'class_standing': ['class standing', 'cs (0%)', 'cs (30%)', 'class stand', 'standing', 'cs'],
     'laboratory': ['lab (30%)', 'lab', 'laboratory', 'lab grade'],
-    'major_output': ['mo (40%)', 'major output', 'major', 'mo', 'project'],
+    'major_output': ['mo(40%)', 'mo (40%)', 'major output', 'major', 'mo', 'project'],
     'summary': ['summary', 'summ', 'attendance', 'attend'],
     'midterm_grade': ['mtg', 'midterm grade', 'midterm', 'mid', 'mt'],
     'final_grade': ['ftg', 'final grade', 'finals', 'final', 'fin'],
     'overall_grade': ['fg'],
-    'final_class_standing': ['cs (30%)_2', 'cs_2', 'cs2'],
+    'final_class_standing': ['cs (30%)_2', 'cs (30%)', 'cs_2', 'cs2'],
     'final_laboratory': ['lab (30%)_2', 'lab_2', 'lab2', 'laboratory_2'],
-    'final_major_output': ['mo (40%)_2', 'mo_2', 'mo2', 'major output_2'],
+    'final_major_output': ['mo(40%)', 'mo (40%)', 'mo (40%)_2', 'mo_2', 'mo2', 'major output_2'],
     'midterm_weighted': ['mtg(1/3)'],
     'final_weighted': ['ftg(2/3)'],
     'section_code': ['section', 'section code', 'sec'],
@@ -680,8 +681,8 @@ def _build_gradesheet_update_payload(row, keys, score_aliases, score_alias_terms
     unset_data = {}
 
     for db_field, keywords in _GRADESHEET_FIELD_MAPPINGS.items():
-        col_name = _find_column(keys, keywords)
-        raw_value = row.get(col_name, '').strip() if col_name else ''
+        col_name = db_field if db_field in row else _find_column(keys, keywords)
+        raw_value = _normalize_cell(row.get(col_name, "")) if col_name else ""
 
         if not raw_value:
             unset_data[db_field] = ""
@@ -703,7 +704,7 @@ def _build_gradesheet_update_payload(row, keys, score_aliases, score_alias_terms
     for source_col, score_col in score_aliases.items():
         if active_score_source_cols and source_col not in active_score_source_cols:
             continue
-        raw = row.get(source_col, '').strip()
+        raw = _normalize_cell(row.get(source_col, ""))
         if not raw:
             continue
         parsed = _to_number_or_text(raw)
@@ -961,17 +962,17 @@ def _build_full_name(row, keys):
     if first_col or last_col:
         parts = []
         if first_col:
-            parts.append(row.get(first_col, '').strip())
+            parts.append(_normalize_cell(row.get(first_col, '')))
         if middle_col:
-            parts.append(row.get(middle_col, '').strip())
+            parts.append(_normalize_cell(row.get(middle_col, '')))
         if last_col:
-            parts.append(row.get(last_col, '').strip())
+            parts.append(_normalize_cell(row.get(last_col, '')))
         full = ' '.join(p for p in parts if p)
         return full or None
     # Fallback: single "name" column or "name of students"
     name_col = _find_column(keys, ['name of students', 'name', 'full name'])
     if name_col:
-        return row.get(name_col, '').strip() or None
+        return _normalize_cell(row.get(name_col, '')) or None
     return None
 
 
@@ -982,11 +983,11 @@ def _extract_student_identity(row, keys):
     id_col = _find_column(keys, ['id number', 'student id', 'student_id', 'school id', 'sid', 'id', 'number', 'no.', 'no'])
     name_col = _find_column(keys, ['name of students', 'name of student', 'student name', 'student_name', 'full name', 'name'])
 
-    student_email = row.get(email_col, '').strip().lower() if email_col else ''
+    student_email = _normalize_cell(row.get(email_col, '')).lower() if email_col else ''
     student_name = _build_full_name(row, keys)
     if not student_name and name_col:
-        student_name = row.get(name_col, '').strip()
-    student_id = row.get(id_col, '').strip() if id_col else ''
+        student_name = _normalize_cell(row.get(name_col, ''))
+    student_id = _normalize_cell(row.get(id_col, '')) if id_col else ''
 
     return (
         student_email or None,
@@ -1021,6 +1022,11 @@ def _find_matching_enrollment(db, class_id: str, row, keys):
         lookup_identifier = student_email
 
     return enrollment, lookup_identifier, student_email, student_name, student_id
+
+
+def _row_identifier_label(row, keys) -> str | None:
+    student_email, student_name, student_id = _extract_student_identity(row, keys)
+    return student_id or student_name or student_email or None
 
 
 def _get_enrollment_identity(doc):
@@ -1199,6 +1205,7 @@ async def upload_class_files(
     # gradesheet/attendance tracking
     updated_count = 0
     not_enrolled = []
+    missing_identifiers = 0
 
     try:
         db = get_db()
@@ -1211,7 +1218,7 @@ async def upload_class_files(
     for upload in files:
         ext = os.path.splitext(upload.filename)[1].lower()
         if ext not in [".csv", ".xlsx", ".docx"]:
-            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}. Please upload CSV, XLSX, or DOCX files only.")
         unique_name = f"{class_id}_{type}_{uuid.uuid4().hex}{ext}"
         dest = UPLOAD_DIR / unique_name
         with dest.open("wb") as buffer:
@@ -1220,11 +1227,11 @@ async def upload_class_files(
 
         try:
             rows = _parse_file_to_rows(dest, preferred_type=type)
-        except Exception:
-            raise HTTPException(status_code=400, detail=f"Failed to parse {ext} file.")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Failed to parse {upload.filename}: {exc}")
 
         if not rows:
-            continue
+            raise HTTPException(status_code=400, detail=f"{upload.filename} did not contain any readable rows.")
 
         keys = list(rows[0].keys())
         email_col = _find_column(keys, ['email'])
@@ -1242,13 +1249,13 @@ async def upload_class_files(
                 # Extract student identity (name and/or ID)
                 student_name = _build_full_name(row, keys)
                 student_id_col = _find_column(keys, ['id number', 'student id', 'student_id', 'school id', 'sid', 'id', 'number', 'no.', 'no'])
-                student_id = row.get(student_id_col, '').strip() if student_id_col else None
+                student_id = _normalize_cell(row.get(student_id_col, '')) if student_id_col else None
                 
-                email_col_data = row.get(email_col, '').strip().lower() if email_col else ''
+                email_col_data = _normalize_cell(row.get(email_col, '')).lower() if email_col else ''
                 student_email = email_col_data if email_col_data and '@' in email_col_data else None
                 
                 section_col = _find_column(keys, ['section', 'section code', 'sec', 'section_code'])
-                section_code = row.get(section_col, '').strip() if section_col else None
+                section_code = _normalize_cell(row.get(section_col, '')) if section_col else None
                 
                 # Skip rows with no student identity
                 if not student_name and not student_id:
@@ -1329,38 +1336,10 @@ async def upload_class_files(
             )
 
             for row in rows:
-                # Try to identify student by email, name, or ID
-                enrollment = None
-                lookup_identifier = None
-                student_name = row.get(name_col, '').strip() if name_col else ''
-                id_number = row.get(id_col, '').strip() if id_col else ''
-                
-                # Try email first if available
-                if email_col:
-                    email = row.get(email_col, '').strip().lower()
-                    if email:
-                        enrollment = db.enrollments.find_one({"class_id": class_id, "student_email": email})
-                        lookup_identifier = email
-                
-                # Try student name if email didn't work
-                if not enrollment and name_col:
-                    if student_name:
-                        enrollment = db.enrollments.find_one({
-                            "class_id": class_id,
-                            "student_name": {"$regex": f"^{re.escape(student_name)}$", "$options": "i"}
-                        })
-                        lookup_identifier = student_name
-                
-                # Try ID number if name didn't work
-                if not enrollment and id_col:
-                    if id_number:
-                        enrollment = db.enrollments.find_one({
-                            "class_id": class_id,
-                            "$or": [{"id_number": id_number}, {"student_id": id_number}]
-                        })
-                        lookup_identifier = id_number
-                
+                enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
                 if not enrollment:
+                    if not _row_identifier_label(row, keys):
+                        missing_identifiers += 1
                     if lookup_identifier:
                         not_enrolled.append(lookup_identifier)
                     continue
@@ -1393,35 +1372,12 @@ async def upload_class_files(
             is_daily_format = _is_daily_attendance_format(keys)
             
             for row in rows:
-                # Try to identify student by email, name, or ID
-                enrollment = None
-                lookup_identifier = None
-                
                 name_col = _find_column(keys, ['name of students', 'name', 'student name', 'student_name', 'full name', 'name of student'])
                 id_col = _find_column(keys, ['number', 'no', 'no.', 'id', 'id number', 'student id', 'sid'])
-                
-                # Try email first if available
-                if email_col:
-                    email = row.get(email_col, '').strip().lower()
-                    if email:
-                        enrollment = db.enrollments.find_one({"class_id": class_id, "student_email": email})
-                        lookup_identifier = email
-                
-                # Try student name if email didn't work
-                if not enrollment and name_col:
-                    student_name = row.get(name_col, '').strip()
-                    if student_name:
-                        enrollment = db.enrollments.find_one({"class_id": class_id, "student_name": {"$regex": student_name, "$options": "i"}})
-                        lookup_identifier = student_name
-                
-                # Try ID number if name didn't work
-                if not enrollment and id_col:
-                    id_number = row.get(id_col, '').strip()
-                    if id_number:
-                        enrollment = db.enrollments.find_one({"class_id": class_id, "id_number": id_number})
-                        lookup_identifier = id_number
-                
+                enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
                 if not enrollment:
+                    if not _row_identifier_label(row, keys):
+                        missing_identifiers += 1
                     if lookup_identifier:
                         not_enrolled.append(lookup_identifier)
                     continue
@@ -1443,8 +1399,9 @@ async def upload_class_files(
                     monthly_values = []
                     for month in months:
                         col_name = _find_column(keys, [month])
-                        if col_name and row.get(col_name, '').strip():
-                            val = row.get(col_name, '').strip()
+                        raw_month_value = _normalize_cell(row.get(col_name, '')) if col_name else ''
+                        if col_name and raw_month_value:
+                            val = raw_month_value
                             try:
                                 attendance_pct = float(val.replace('%', ''))
                                 update_data[f'attendance_{month}'] = attendance_pct
@@ -1457,16 +1414,16 @@ async def upload_class_files(
                         update_data['attendance'] = update_data['attendance_overall']
                 
                 # Extract attendance-related fields
-                if id_col and row.get(id_col, '').strip():
-                    update_data['id_number'] = row.get(id_col, '').strip()
+                if id_col and _normalize_cell(row.get(id_col, '')):
+                    update_data['id_number'] = _normalize_cell(row.get(id_col, ''))
                 
                 section_col = _find_column(keys, ['section', 'section code', 'sec'])
-                if section_col and row.get(section_col, '').strip():
-                    update_data['section_code'] = row.get(section_col, '').strip()
+                if section_col and _normalize_cell(row.get(section_col, '')):
+                    update_data['section_code'] = _normalize_cell(row.get(section_col, ''))
                 
                 subject_col = _find_column(keys, ['subject code', 'subject_code', 'subjectcode', 'subject', 'course code', 'course_code', 'coursecode', 'code', 'course'])
-                if subject_col and row.get(subject_col, '').strip():
-                    update_data['subject_code'] = row.get(subject_col, '').strip()
+                if subject_col and _normalize_cell(row.get(subject_col, '')):
+                    update_data['subject_code'] = _normalize_cell(row.get(subject_col, ''))
                 
                 if update_data:
                     db.enrollments.update_one(
@@ -1484,7 +1441,9 @@ async def upload_class_files(
     else:
         result["updated"] = updated_count
         if not_enrolled:
-            result["not_enrolled"] = not_enrolled
+            result["not_enrolled"] = sorted(set(not_enrolled))[:25]
+        if missing_identifiers:
+            result["missing_identifiers"] = missing_identifiers
     return JSONResponse(result)
 
 
@@ -1895,7 +1854,7 @@ def _doc_to_class_response(doc, student_count: int = 0, at_risk_count: int = 0, 
 
 @router.get("/risk-alerts")
 def list_instructor_risk_alerts(instructor_id: str):
-    """List all medium/high risk students across the instructor's classes (for Risk Alerts page)."""
+    """List all high-risk students across the instructor's classes (for Risk Alerts page)."""
     try:
         db = get_db()
         classes_cursor = db.classes.find({"instructor_id": instructor_id}).sort("subject_code", 1)
@@ -1905,7 +1864,7 @@ def list_instructor_risk_alerts(instructor_id: str):
             subject_code = c.get("subject_code", "")
             subject_name = c.get("subject_name", "")
             cursor = db.enrollments.find(
-                {"class_id": class_id, "risk": {"$in": ["High", "Medium"]}}
+                {"class_id": class_id, "risk": "High"}
             ).sort("student_email", 1)
             for doc in cursor:
                 student_email, student_name, student_id, student_key = _get_enrollment_identity(doc)
@@ -1976,7 +1935,7 @@ def list_classes(instructor_id: str):
             class_id = str(doc["_id"])
             count = db.enrollments.count_documents({"class_id": class_id})
             at_risk = db.enrollments.count_documents(
-                {"class_id": class_id, "risk": {"$in": ["High", "Medium"]}}
+                {"class_id": class_id, "risk": "High"}
             )
             # Get section_code from first enrollment that has it
             enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -1999,7 +1958,7 @@ def get_class(class_id: str):
             raise HTTPException(status_code=404, detail="Class not found")
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
-            {"class_id": class_id, "risk": {"$in": ["High", "Medium"]}}
+            {"class_id": class_id, "risk": "High"}
         )
         # Get section_code from first enrollment that has it
         enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2041,7 +2000,7 @@ def list_archived_classes(instructor_id: str):
             class_id = str(doc["_id"])
             count = db.enrollments.count_documents({"class_id": class_id})
             at_risk = db.enrollments.count_documents(
-                {"class_id": class_id, "risk": {"$in": ["High", "Medium"]}}
+                {"class_id": class_id, "risk": "High"}
             )
             # Get section_code from first enrollment that has it
             enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2071,7 +2030,7 @@ def archive_class(class_id: str):
         doc = db.classes.find_one({"_id": ObjectId(class_id)})
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
-            {"class_id": class_id, "risk": {"$in": ["High", "Medium"]}}
+            {"class_id": class_id, "risk": "High"}
         )
         # Get section_code from first enrollment that has it
         enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2100,7 +2059,7 @@ def restore_class(class_id: str):
         doc = db.classes.find_one({"_id": ObjectId(class_id)})
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
-            {"class_id": class_id, "risk": {"$in": ["High", "Medium"]}}
+            {"class_id": class_id, "risk": "High"}
         )
         # Get section_code from first enrollment that has it
         enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2150,6 +2109,34 @@ def list_class_students(class_id: str):
         # Sort by _id (insertion order) instead of student_email which may not exist
         cursor = db.enrollments.find({"class_id": class_id}).sort("_id", 1)
         out = []
+        ai_fields = [
+            "previous_gpa",
+            "failed_subject_count",
+            "attendance",
+            "attendance_overall",
+            "self_reported_attendance",
+            "class_standing",
+            "laboratory",
+            "major_output",
+            "midterm_grade",
+            "final_class_standing",
+            "final_laboratory",
+            "final_major_output",
+            "final_grade",
+            "overall_grade",
+            "model_features",
+            "received_academic_support",
+            "difficulty_understanding_lectures",
+            "struggles_specific_subjects",
+            "weak_study_habits_time_management",
+            "low_motivation_engagement",
+            "poor_comprehension_writing_skills",
+            "financial_difficulties",
+            "physical_health_concerns",
+            "family_issues",
+            "part_time_work_affecting_studies",
+            "mental_health_concerns",
+        ]
         for doc in cursor:
             student_email, student_name, student_id, student_key = _get_enrollment_identity(doc)
             resolved_name = _enrich_student_name(db, student_email, student_id, student_name)
@@ -2168,6 +2155,13 @@ def list_class_students(class_id: str):
                 row["lms_activity"] = doc["lms_activity"]
             if doc.get("flagged_for_mentoring") is not None:
                 row["flagged_for_mentoring"] = doc["flagged_for_mentoring"]
+            if doc.get("referral_note") is not None:
+                row["referral_note"] = doc["referral_note"]
+            if doc.get("risk_probability_percent") is not None:
+                row["risk_probability_percent"] = doc["risk_probability_percent"]
+            for field in ai_fields:
+                if doc.get(field) is not None:
+                    row[field] = doc[field]
             out.append(row)
         return out
     except ServerSelectionTimeoutError:
@@ -2176,7 +2170,7 @@ def list_class_students(class_id: str):
 
 @router.get("/{class_id}/risk-summary")
 def get_class_risk_summary(class_id: str):
-    """Class-level risk summary: counts by risk level and list of at-risk students."""
+    """Class-level risk summary for the binary High/Low prediction model."""
     try:
         db = get_db()
         if not ObjectId.is_valid(class_id):
@@ -2360,15 +2354,32 @@ def get_class_grades_with_analytics(class_id: str):
                 "gpa": enrollment.get("gpa"),
                 "risk": enrollment.get("risk"),
             }
+
+            for numeric_key in (
+                "class_standing",
+                "laboratory",
+                "major_output",
+                "final_class_standing",
+                "final_laboratory",
+                "final_major_output",
+                "summary",
+                "midterm_grade",
+                "final_grade",
+                "midterm_weighted",
+                "final_weighted",
+                "overall_grade",
+                "gpa",
+            ):
+                student[numeric_key] = _to_float(student.get(numeric_key))
             
             students.append(student)
             
             # Collect grades for analytics
-            if student["gpa"] is not None:
+            if isinstance(student["gpa"], (int, float)):
                 grade_values.append(student["gpa"])
-            if student["midterm_grade"] is not None:
+            if isinstance(student["midterm_grade"], (int, float)):
                 midterm_grades.append(student["midterm_grade"])
-            if student["final_grade"] is not None:
+            if isinstance(student["final_grade"], (int, float)):
                 final_grades.append(student["final_grade"])
             
             # Count pass/fail for both 1.0-5.0 and 0-100 grade scales.
@@ -2572,8 +2583,8 @@ def batch_add_students_to_class(class_id: str, body: BatchAddStudentsRequest):
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
-@router.patch("/{class_id}/students/{student_email:path}")
-def update_enrollment(class_id: str, student_email: str, body: UpdateEnrollmentRequest):
+@router.patch("/{class_id}/students/{student_identifier:path}")
+def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnrollmentRequest):
     """Update academic indicators, risk, or flagged_for_mentoring for a student in the class."""
     try:
         db = get_db()
@@ -2581,22 +2592,35 @@ def update_enrollment(class_id: str, student_email: str, body: UpdateEnrollmentR
             raise HTTPException(status_code=404, detail="Class not found")
         if not db.classes.find_one({"_id": ObjectId(class_id)}):
             raise HTTPException(status_code=404, detail="Class not found")
-        email = student_email.strip().lower()
-        doc = db.enrollments.find_one({"class_id": class_id, "student_email": email})
+
+        identifier = _normalize_cell(student_identifier).strip()
+        identifier_lower = identifier.lower()
+        match_filter = {
+            "class_id": class_id,
+            "$or": [
+                {"student_email": identifier_lower},
+                {"student_id": identifier},
+                {"student_id": identifier_lower},
+            ],
+        }
+        doc = db.enrollments.find_one(match_filter)
         if not doc:
             raise HTTPException(status_code=404, detail="Student not enrolled in this class.")
         payload = body.model_dump(exclude_unset=True)
+        student_email = (doc.get("student_email") or "").strip().lower()
+        student_id = _normalize_cell(doc.get("student_id"))
+        student_label = student_email or student_id or identifier
         if not payload:
-            return {"message": "No updates.", "student_email": email}
+            return {"message": "No updates.", "student_email": student_email or None, "student_id": student_id or None}
         db.enrollments.update_one(
-            {"class_id": class_id, "student_email": email},
+            {"_id": doc["_id"]},
             {"$set": payload},
         )
         # When instructor flags a student for mentoring, set referred_at and notify AMU staff
         if payload.get("flagged_for_mentoring") is True:
             now = datetime.now(timezone.utc)
             db.enrollments.update_one(
-                {"class_id": class_id, "student_email": email},
+                {"_id": doc["_id"]},
                 {"$set": {"referred_at": now}},
             )
             class_doc = db.classes.find_one({"_id": ObjectId(class_id)})
@@ -2608,16 +2632,14 @@ def update_enrollment(class_id: str, student_email: str, body: UpdateEnrollmentR
             subject_code = (class_doc or {}).get("subject_code") or "Class"
             subject_name = (class_doc or {}).get("subject_name") or ""
             class_label = f"{subject_code}" + (f": {subject_name}" if subject_name else "")
-            now_str = now.strftime("%b %d, %H:%M UTC")
-            db.notifications.insert_one({
-                "role": "amu-staff",
-                "title": "Student flagged by instructor",
-                "body": f'Student {email} was flagged by {instructor_name} ({class_label}). Please review or assign a case.',
-                "type": "alert",
-                "time": now_str,
-                "read": False,
-            })
-        return {"message": "Enrollment updated.", "student_email": email}
+            create_notification(
+                db,
+                role="amu-staff",
+                title="Student flagged by instructor",
+                body=f"Student {student_label} was flagged by {instructor_name} ({class_label}). Please review or assign a case.",
+                type="alert",
+            )
+        return {"message": "Enrollment updated.", "student_email": student_email or None, "student_id": student_id or None}
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
@@ -2686,11 +2708,12 @@ async def upload_needs_assessment_file(
     saved_files = []
     updated = 0
     not_enrolled = []
+    missing_identifiers = 0
 
     for upload in files:
         ext = os.path.splitext(upload.filename or "")[1].lower()
         if ext not in [".csv", ".xlsx"]:
-            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}. Please upload CSV or XLSX files only.")
 
         unique_name = f"{class_id}_needs_assessment_{uuid.uuid4().hex}{ext}"
         dest = UPLOAD_DIR / unique_name
@@ -2700,16 +2723,18 @@ async def upload_needs_assessment_file(
 
         try:
             rows = _parse_file_to_rows(dest, preferred_type="classlist")
-        except Exception:
-            raise HTTPException(status_code=400, detail=f"Failed to parse {upload.filename}.")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Failed to parse {upload.filename}: {exc}")
 
         if not rows:
-            continue
+            raise HTTPException(status_code=400, detail=f"{upload.filename} did not contain any readable rows.")
 
         keys = list(rows[0].keys())
         for row in rows:
             enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
             if not enrollment:
+                if not _row_identifier_label(row, keys):
+                    missing_identifiers += 1
                 if lookup_identifier:
                     not_enrolled.append(lookup_identifier)
                 continue
@@ -2725,13 +2750,14 @@ async def upload_needs_assessment_file(
         "message": "Needs Assessment file(s) uploaded successfully.",
         "files": saved_files,
         "updated": updated,
-        "not_enrolled": not_enrolled,
+        "not_enrolled": sorted(set(not_enrolled))[:25],
+        "missing_identifiers": missing_identifiers,
     }
 
 
 @router.post("/{class_id}/predict-risk", status_code=200)
 def predict_class_risk(class_id: str):
-    """Run risk prediction for all students in a class with an email identity."""
+    """Run risk prediction for all students enrolled in a class."""
     try:
         db = get_db()
         if not ObjectId.is_valid(class_id):
@@ -2746,16 +2772,14 @@ def predict_class_risk(class_id: str):
 
         for doc in cursor:
             email = (doc.get("student_email") or "").strip().lower()
-            if not email:
-                skipped.append(doc.get("student_id") or doc.get("student_name") or str(doc.get("_id")))
-                continue
+            student_key = email or doc.get("student_id") or doc.get("student_name") or str(doc.get("_id"))
 
             try:
                 result = predict_student_risk(doc)
             except FileNotFoundError as exc:
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
             except Exception as exc:
-                skipped.append(email)
+                skipped.append(student_key)
                 continue
 
             db.enrollments.update_one(
@@ -2772,7 +2796,8 @@ def predict_class_risk(class_id: str):
             )
             predicted += 1
             results.append({
-                "student_email": email,
+                "student_email": email or None,
+                "student_key": student_key,
                 "risk": result["risk"],
                 "probability_percent": result["probability_percent"],
             })

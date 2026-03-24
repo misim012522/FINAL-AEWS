@@ -430,9 +430,9 @@ export async function getClassRoster(classId) {
   return data
 }
 
-export async function updateEnrollment(classId, studentEmail, payload) {
-  const emailEnc = encodeURIComponent(studentEmail)
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/students/${emailEnc}`, {
+export async function updateEnrollment(classId, studentIdentifier, payload) {
+  const identifierEnc = encodeURIComponent(studentIdentifier)
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/students/${identifierEnc}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify(payload || {}),
@@ -520,6 +520,23 @@ export async function getAmuStaffReferral(refId) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Referral not found')
+  return data
+}
+
+export async function sendAmuStaffReferralEmail(refId, payload) {
+  const res = await fetch(`${API_BASE}/api/amu-staff/referrals/${encodeURIComponent(refId)}/notify`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      subject: String(payload?.subject ?? '').trim(),
+      message: String(payload?.message ?? '').trim(),
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to send email')
   return data
 }
 

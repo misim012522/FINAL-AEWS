@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pymongo import ReturnDocument
 
 from app.database import get_db
+from app.notification_utils import create_notification
 from app.schemas import NotificationCreate, NotificationResponse, NotificationUpdate
 
 router = APIRouter()
@@ -16,9 +17,30 @@ def _doc_to_response(doc) -> dict:
 
 @router.get("", response_model=list[NotificationResponse])
 def list_notifications(role: str):
+    role = (role or "").strip().lower()
+    if role == "amustaff":
+        role = "amu-staff"
     if role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
     db = get_db()
+    if role == "admin":
+        pending_count = db.instructor.count_documents({"status": "pending"}) + db.amustaff.count_documents({"status": "pending"})
+        if pending_count > 0:
+            body = (
+                f"There {'is' if pending_count == 1 else 'are'} {pending_count} pending "
+                f"account{'s' if pending_count != 1 else ''} waiting for approval."
+            )
+            existing = db.notifications.find_one(
+                {"role": "admin", "title": "Pending account approvals", "body": body, "read": False}
+            )
+            if not existing:
+                create_notification(
+                    db,
+                    role="admin",
+                    title="Pending account approvals",
+                    body=body,
+                    type="system",
+                )
     cursor = db.notifications.find({"role": role}).sort("_id", -1)
     return [_doc_to_response(d) for d in cursor]
 
@@ -50,6 +72,9 @@ def mark_notification_read(notification_id: str, body: NotificationUpdate):
 
 @router.post("/{role}/mark-all-read")
 def mark_all_read(role: str):
+    role = (role or "").strip().lower()
+    if role == "amustaff":
+        role = "amu-staff"
     if role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
     db = get_db()

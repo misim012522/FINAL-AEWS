@@ -6,7 +6,6 @@ import { getInstructorRiskAlerts, listClasses } from '../../api'
 
 const riskClass = {
   High: 'bg-red-100 text-red-800',
-  Medium: 'bg-blue-100 text-blue-800',
 }
 
 export default function InstructorRiskAlerts() {
@@ -68,7 +67,7 @@ export default function InstructorRiskAlerts() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Risk Alerts</h2>
-            <p className="text-sm text-slate-500 mt-0.5">Medium or high risk students across your classes</p>
+            <p className="text-sm text-slate-500 mt-0.5">High risk students across your classes</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="sr-only" htmlFor="risk-alerts-course">Filter by course</label>
@@ -94,7 +93,6 @@ export default function InstructorRiskAlerts() {
             >
               <option value="">All risk levels</option>
               <option value="High">High</option>
-              <option value="Medium">Medium</option>
             </select>
           </div>
         </div>
@@ -117,7 +115,7 @@ export default function InstructorRiskAlerts() {
               <AlertTriangle className="w-6 h-6" />
             </div>
             <p className="text-sm font-medium text-slate-700">No risk alerts right now</p>
-            <p className="text-xs text-slate-500 mt-1">Alerts appear here as students are scanned as medium or high risk.</p>
+            <p className="text-xs text-slate-500 mt-1">Alerts appear here as students are predicted as high risk.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -134,9 +132,7 @@ export default function InstructorRiskAlerts() {
                 {filteredAlerts.map((alert, index) => (
                   <tr
                     key={`${alert.class_id}-${alert.student_id || alert.student_name || index}`}
-                    className={`hover:bg-slate-50/80 transition-colors border-l-4 ${
-                      alert.risk === 'High' ? 'border-l-red-500' : 'border-l-blue-500'
-                    }`}
+                    className="hover:bg-slate-50/80 transition-colors border-l-4 border-l-red-500"
                   >
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">

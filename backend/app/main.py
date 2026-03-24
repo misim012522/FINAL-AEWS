@@ -35,15 +35,26 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS: use CORS_ORIGINS (comma-separated) or FRONTEND_URL, fallback to localhost
-_cors_origins = os.getenv("CORS_ORIGINS", "").strip() or os.getenv("FRONTEND_URL", "").strip()
-if _cors_origins:
-    _origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
-else:
-    _origins = ["http://localhost:5173", "http://127.0.0.1:5173"]
+# CORS: always allow common local frontend origins for development, then extend with env values.
+_origins = {
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+}
+_cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+_frontend_url = os.getenv("FRONTEND_URL", "").strip()
+for raw_value in (_cors_origins, _frontend_url):
+    if not raw_value:
+        continue
+    for origin in raw_value.split(","):
+        cleaned = origin.strip()
+        if cleaned:
+            _origins.add(cleaned)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,
+    allow_origins=sorted(_origins),
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

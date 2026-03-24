@@ -1,33 +1,47 @@
+import { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationsProvider } from './context/NotificationsContext'
-import Login from './pages/Login'
-import SignUp from './pages/SignUp'
-import CheckEmail from './pages/CheckEmail'
-import PendingApproval from './pages/PendingApproval'
-import VerifyEmail from './pages/VerifyEmail'
-import ForgotPassword from './pages/ForgotPassword'
-import ResetPassword from './pages/ResetPassword'
-import Help from './pages/Help'
-import NotFound from './pages/NotFound'
-import InstructorDashboard from './pages/InstructorDashboard'
-import InstructorSettings from './pages/InstructorSettings'
-import ClassDetails from './pages/ClassDetails'
-import ClassGrades from './pages/ClassGrades'
-import ClassAttendance from './pages/ClassAttendance'
-import StudentProfile from './pages/StudentProfile'
-import InterventionDetail from './pages/InterventionDetail'
-import AdminDashboard from './pages/AdminDashboard'
-import AdminSettings from './pages/AdminSettings'
-import AdminStudentDetail from './pages/AdminStudentDetail'
-import AdminUserDetail from './pages/AdminUserDetail'
-import AdminInterventionDetail from './pages/AdminInterventionDetail'
-import AmuStaffDashboard from './pages/AmuStaffDashboard'
-import AmuStaffSettings from './pages/AmuStaffSettings'
-import AmuStaffStudentDetail from './pages/AmuStaffStudentDetail'
-import AmuStaffCaseDetail from './pages/AmuStaffCaseDetail'
-import ArchivedClasses from './pages/ArchivedClasses'
+
+const Login = lazy(() => import('./pages/Login'))
+const SignUp = lazy(() => import('./pages/SignUp'))
+const CheckEmail = lazy(() => import('./pages/CheckEmail'))
+const PendingApproval = lazy(() => import('./pages/PendingApproval'))
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const Help = lazy(() => import('./pages/Help'))
+const NotFound = lazy(() => import('./pages/NotFound'))
+const InstructorDashboard = lazy(() => import('./pages/InstructorDashboard'))
+const InstructorReports = lazy(() => import('./pages/InstructorReports'))
+const InstructorSettings = lazy(() => import('./pages/InstructorSettings'))
+const ClassDetails = lazy(() => import('./pages/ClassDetails'))
+const ClassGrades = lazy(() => import('./pages/ClassGrades'))
+const ClassAttendance = lazy(() => import('./pages/ClassAttendance'))
+const StudentProfile = lazy(() => import('./pages/StudentProfile'))
+const InterventionDetail = lazy(() => import('./pages/InterventionDetail'))
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const AdminSettings = lazy(() => import('./pages/AdminSettings'))
+const AdminStudentDetail = lazy(() => import('./pages/AdminStudentDetail'))
+const AdminUserDetail = lazy(() => import('./pages/AdminUserDetail'))
+const AdminInterventionDetail = lazy(() => import('./pages/AdminInterventionDetail'))
+const AmuStaffDashboard = lazy(() => import('./pages/AmuStaffDashboard'))
+const AmuStaffSettings = lazy(() => import('./pages/AmuStaffSettings'))
+const AmuStaffStudentDetail = lazy(() => import('./pages/AmuStaffStudentDetail'))
+const AmuStaffCaseDetail = lazy(() => import('./pages/AmuStaffCaseDetail'))
+const ArchivedClasses = lazy(() => import('./pages/ArchivedClasses'))
+
+function RouteFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-600" role="status" aria-live="polite">
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+        <span className="text-sm font-medium">Loading page...</span>
+      </div>
+    </div>
+  )
+}
 
 export default function App() {
   return (
@@ -35,6 +49,7 @@ export default function App() {
       <BrowserRouter>
         <AuthProvider>
         <NotificationsProvider>
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
@@ -44,6 +59,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/instructor" element={<InstructorDashboard />} />
+        <Route path="/instructor/reports" element={<InstructorReports />} />
         <Route path="/instructor/settings" element={<InstructorSettings />} />
         <Route path="/instructor/archived" element={<ArchivedClasses />} />
         <Route path="/instructor/class/:id" element={<ClassDetails />} />
@@ -63,6 +79,7 @@ export default function App() {
         <Route path="/help" element={<Help />} />
         <Route path="*" element={<NotFound />} />
         </Routes>
+        </Suspense>
         </NotificationsProvider>
         </AuthProvider>
       </BrowserRouter>

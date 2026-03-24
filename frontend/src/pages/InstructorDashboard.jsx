@@ -12,6 +12,7 @@ import {
   Search,
   GraduationCap,
   Archive,
+  FileSpreadsheet,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import TutorialModal from '../components/TutorialModal'
@@ -33,6 +34,7 @@ const TABS = [
   { id: 'alerts', label: 'Risk Alerts', icon: Bell },
   { id: 'students', label: 'Student List', icon: Users },
   { id: 'interventions', label: 'Interventions', icon: ClipboardList },
+  { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
 ]
 
 const colorClasses = {
@@ -263,7 +265,13 @@ export default function InstructorDashboard() {
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.id === 'reports') {
+                    navigate('/instructor/reports')
+                    return
+                  }
+                  setActiveTab(tab.id)
+                }}
                 className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
                   isActive
                     ? 'bg-blue-600 text-white border-blue-600 shadow-sm'

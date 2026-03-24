@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, CalendarCheck, Users, Calendar, AlertCircle, CheckCircle, RefreshCw, Upload } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import InlineToast from '../components/InlineToast'
 import AttendanceTableView from '../components/instructor/AttendanceTableView'
 import { useAuth } from '../context/AuthContext'
 import { getClass, getClassAttendance, uploadClassFiles } from '../api'
@@ -57,6 +58,12 @@ export default function ClassAttendance() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!attendanceSuccess) return undefined
+    const timeoutId = window.setTimeout(() => setAttendanceSuccess(''), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [attendanceSuccess])
 
   if (loading) {
     return (
@@ -122,11 +129,15 @@ export default function ClassAttendance() {
                 }
                 setUploadingAttendance(true)
                 try {
-                  await uploadClassFiles(id, files, 'attendance')
-                  setAttendanceSuccess('Attendance sheet uploaded successfully.')
-                  // Reload data after upload
-                  await new Promise(resolve => setTimeout(resolve, 1000))
-                  window.location.reload()
+                  const result = await uploadClassFiles(id, files, 'attendance')
+                  const updated = result?.updated ?? 0
+                  const notEnrolled = result?.not_enrolled?.length ?? 0
+                  const missingIdentifiers = result?.missing_identifiers ?? 0
+                  const parts = [`Attendance sheet uploaded. Updated ${updated} student record(s).`]
+                  if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
+                  if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
+                  setAttendanceSuccess(parts.join(' '))
+                  await loadData()
                 } catch (err) {
                   setAttendanceError(err.message || 'Upload failed')
                 } finally {
@@ -142,7 +153,7 @@ export default function ClassAttendance() {
               onClick={() => attendanceInputRef.current && attendanceInputRef.current.click()}
             >
               <Upload className="w-4 h-4" />
-              {uploadingAttendance ? 'Uploading…' : 'Upload attendance sheet'}
+              {uploadingAttendance ? 'Uploading...' : 'Upload attendance sheet'}
             </button>
             <button
               type="button"
@@ -156,7 +167,6 @@ export default function ClassAttendance() {
           </div>
         </div>
         {attendanceError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{attendanceError}</div>}
-        {attendanceSuccess && <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{attendanceSuccess}</div>}
 
         {/* Class Header Card */}
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 shadow-sm">
@@ -176,7 +186,7 @@ export default function ClassAttendance() {
                 ? 'bg-purple-100 text-purple-700' 
                 : 'bg-blue-100 text-blue-700'
             }`}>
-              {attendanceFormat === 'daily' ? '📋 Daily Tracking' : '📊 Monthly Summary'}
+              {attendanceFormat === 'daily' ? 'Daily Tracking' : 'Monthly Summary'}
             </span>
           </div>
         </div>
@@ -261,6 +271,11 @@ export default function ClassAttendance() {
           <AttendanceTableView students={students} format={attendanceFormat} />
         </div>
       </div>
+      <InlineToast
+        message={attendanceSuccess}
+        tone="success"
+        onClose={() => setAttendanceSuccess('')}
+      />
     </DashboardLayout>
   )
 }

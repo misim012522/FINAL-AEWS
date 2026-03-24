@@ -8,6 +8,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
+from app.notification_utils import create_notification
 
 
 # ----- RBAC Helper: Ensure caller is admin -----
@@ -18,9 +19,10 @@ def require_admin_role(x_user_role: str = Header(None, alias="X-User-Role")):
     Frontend must send X-User-Role header.
     For production, use JWT and verify the token instead of trusting headers.
     """
-    if x_user_role != "admin":
+    normalized_role = (x_user_role or "").strip().lower()
+    if normalized_role not in {"admin", "administrator"}:
         raise HTTPException(status_code=403, detail="Admin access required")
-    return x_user_role
+    return normalized_role
 
 
 router = APIRouter(dependencies=[Depends(require_admin_role)])
@@ -38,17 +40,39 @@ def _instructor_ids_by_department(db, department: str | None):
     return [str(doc["_id"]) for doc in cursor]
 
 
-@router.get("/students/{student_email:path}")
-def get_student_by_email(student_email: str):
-    """Get enrollment summary for a student (by email) across all classes. For admin student detail page."""
+def _student_identifier(doc: dict) -> str:
+    student_email = str(doc.get("student_email") or "").strip().lower()
+    if student_email:
+        return student_email
+    student_id = str(doc.get("student_id") or "").strip()
+    if student_id.endswith(".0") and student_id[:-2].isdigit():
+        student_id = student_id[:-2]
+    if student_id:
+        return student_id
+    student_name = str(doc.get("student_name") or "").strip()
+    if student_name:
+        return student_name
+    return str(doc.get("_id") or "")
+
+
+@router.get("/students/{student_identifier:path}")
+def get_student_by_email(student_identifier: str):
+    """Get enrollment summary for a student across all classes by email or student id."""
     try:
         from urllib.parse import unquote
-        email = unquote(student_email).strip().lower()
-        if not email:
+        identifier = unquote(student_identifier).strip()
+        identifier_lower = identifier.lower()
+        if not identifier:
             from fastapi import HTTPException
-            raise HTTPException(status_code=400, detail="Invalid student email")
+            raise HTTPException(status_code=400, detail="Invalid student identifier")
         db = get_db()
-        enrollments = list(db.enrollments.find({"student_email": email}))
+        enrollments = list(db.enrollments.find({
+            "$or": [
+                {"student_email": identifier_lower},
+                {"student_id": identifier},
+                {"student_id": identifier_lower},
+            ]
+        }))
         if not enrollments:
             from fastapi import HTTPException
             raise HTTPException(status_code=404, detail="Student not found")
@@ -71,6 +95,8 @@ def get_student_by_email(student_email: str):
             inst = instructors.get(c.get("instructor_id") or "")
             rows.append({
                 "class_id": e["class_id"],
+                "student_id": e.get("student_id"),
+                "student_name": e.get("student_name"),
                 "subject_code": c.get("subject_code", ""),
                 "subject_name": c.get("subject_name", ""),
                 "course": (c.get("subject_code", "") + " " + c.get("subject_name", "")).strip(),
@@ -82,7 +108,13 @@ def get_student_by_email(student_email: str):
                 "attendance": e.get("attendance"),
                 "lms_activity": e.get("lms_activity"),
             })
-        return {"student_email": email, "enrollments": rows}
+        first = enrollments[0]
+        return {
+            "student_email": first.get("student_email"),
+            "student_id": first.get("student_id"),
+            "student_name": first.get("student_name"),
+            "enrollments": rows,
+        }
     except ServerSelectionTimeoutError:
         from fastapi import HTTPException
         raise HTTPException(status_code=503, detail="Database unavailable.")
@@ -169,9 +201,12 @@ def list_students_at_risk(department: str | None = None):
             inst_name = (inst.get("name") or "") if inst else ""
             dept = (inst.get("department") or "") if inst else ""
             course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
+            student_identifier = _student_identifier(doc)
             rows.append({
-                "id": doc["student_email"],
-                "student_email": doc["student_email"],
+                "id": student_identifier,
+                "student_email": doc.get("student_email"),
+                "student_id": doc.get("student_id"),
+                "student_name": doc.get("student_name"),
                 "department": dept,
                 "course": course.strip(),
                 "risk": doc.get("risk") or "Medium",
@@ -809,6 +844,13 @@ def approve_pending_account(user_id: str):
         if not sent:
             import logging
             logging.getLogger(__name__).warning("Account approved but notification email not sent to %s", email)
+        create_notification(
+            db,
+            role=doc.get("role", "instructor"),
+            title="Account approved",
+            body="Your account request has been approved. You can now sign in to the system.",
+            type="success",
+        )
         return {"message": "Account approved.", "email_sent": sent}
     except HTTPException:
         raise
@@ -834,6 +876,13 @@ def decline_pending_account(user_id: str):
         if not sent:
             import logging
             logging.getLogger(__name__).warning("Account declined but notification email not sent to %s", email)
+        create_notification(
+            db,
+            role=doc.get("role", "instructor"),
+            title="Account request declined",
+            body="An account request was declined. Please contact the administrator if you need assistance.",
+            type="alert",
+        )
         return {"message": "Account declined.", "email_sent": sent}
     except HTTPException:
         raise

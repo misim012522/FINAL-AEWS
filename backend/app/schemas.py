@@ -194,6 +194,12 @@ class UpdateEnrollmentRequest(BaseModel):
     mental_health_concerns: Optional[bool] = None
     risk: Optional[Literal["High", "Medium", "Low"]] = None
     flagged_for_mentoring: Optional[bool] = None
+    referral_note: Optional[str] = Field(None, max_length=2000)
+
+
+class ReferralEmailRequest(BaseModel):
+    subject: str = Field(..., min_length=1, max_length=200)
+    message: str = Field(..., min_length=1, max_length=5000)
 
 
 # ----- Gradesheet -----

@@ -17,7 +17,7 @@ export default function AdminStudentsAtRisk({ department = 'all' }) {
     getAdminStudentsAtRisk(department)
       .then((data) => {
         if (isMounted) {
-          setStudents(data)
+          setStudents(Array.isArray(data) ? data.slice(0, 3) : [])
           setError(null)
         }
       })
@@ -48,6 +48,7 @@ export default function AdminStudentsAtRisk({ department = 'all' }) {
           <AlertTriangle className="w-3 h-3 text-amber-600" />
           Students at Risk
         </h2>
+        <p className="mt-0.5 text-[10px] text-gray-500">Showing 3 recent students only.</p>
       </div>
       {loading ? (
         <div className="p-4 text-center text-[11px] text-gray-500 flex items-center justify-center gap-2">

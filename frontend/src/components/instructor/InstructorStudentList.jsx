@@ -6,13 +6,11 @@ import { getInstructorStudentList } from '../../api'
 
 const statusBadge = {
   ok: 'bg-slate-100 text-slate-700',
-  'at-risk': 'bg-amber-100 text-amber-800',
   critical: 'bg-red-100 text-red-800',
 }
 
 function riskToStatus(risk) {
   if (risk === 'High') return 'critical'
-  if (risk === 'Medium') return 'at-risk'
   return 'ok'
 }
 
@@ -98,7 +96,6 @@ export default function InstructorStudentList() {
             >
               <option value="all">All statuses</option>
               <option value="ok">Performing well</option>
-              <option value="at-risk">At risk</option>
               <option value="critical">Critical</option>
             </select>
           </div>
@@ -165,8 +162,7 @@ export default function InstructorStudentList() {
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold ${statusBadge[status]}`}>
                           {status === 'critical' && <AlertTriangle className="w-3.5 h-3.5" />}
                           {status === 'ok' && <CheckCircle className="w-3.5 h-3.5" />}
-                          {status === 'at-risk' && <AlertTriangle className="w-3.5 h-3.5" />}
-                          {status === 'ok' ? 'OK' : status === 'at-risk' ? 'At Risk' : 'Critical'}
+                          {status === 'ok' ? 'OK' : 'Critical'}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">

@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import is_smtp_configured, send_password_reset_email, send_test_email, send_verification_email
+from app.notification_utils import create_notification
 from app.schemas import ForgotPasswordRequest, LoginRequest, ResetPasswordRequest, SignUpRequest
 
 router = APIRouter()
@@ -119,7 +120,7 @@ def _signup_admin_flow(db, coll, body, existing, doc_base):
     return doc, response
 
 
-def _signup_instructor_amu_flow(coll, body, existing, doc_base):
+def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
     """Instructor/AMU Staff signup: pending admin approval. No verification email. Returns (doc, response_dict)."""
     doc = {
         **doc_base,
@@ -132,6 +133,13 @@ def _signup_instructor_amu_flow(coll, body, existing, doc_base):
     else:
         result = coll.insert_one(doc)
         doc["_id"] = result.inserted_id
+    create_notification(
+        db,
+        role="admin",
+        title="New account pending approval",
+        body=f"{body.name} ({body.role}) signed up and is waiting for approval.",
+        type="system",
+    )
     response = {
         "id": str(doc["_id"]),
         "name": doc["name"],
@@ -169,7 +177,7 @@ def signup(body: SignUpRequest):
             return response
         else:
             # instructor or amu-staff: pending admin approval
-            doc, response = _signup_instructor_amu_flow(coll, body, existing, doc_base)
+            doc, response = _signup_instructor_amu_flow(db, coll, body, existing, doc_base)
             return response
     except ServerSelectionTimeoutError:
         raise HTTPException(
