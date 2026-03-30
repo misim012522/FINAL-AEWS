@@ -118,6 +118,7 @@ export default function ClassDetails() {
   const [rosterError, setRosterError] = useState('')
   const [riskSummary, setRiskSummary] = useState(null)
   const [riskSummaryLoading, setRiskSummaryLoading] = useState(false)
+  const [activeRiskFilter, setActiveRiskFilter] = useState('High')
 
   const [activeAIStudent, setActiveAIStudent] = useState(null)
   const [referringStudentKey, setReferringStudentKey] = useState('')
@@ -263,21 +264,26 @@ export default function ClassDetails() {
   const subjectCode = course.subject_code ?? ''
   const subjectName = course.subject_name ?? ''
   const studentCount = course.student_count ?? 0
+  const filteredRiskList = Array.isArray(riskSummary?.at_risk_list)
+    ? riskSummary.at_risk_list.filter((student) => student.risk === activeRiskFilter)
+    : []
 
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-4">
-        <button
-          type="button"
-          onClick={() => navigate('/instructor')}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to My Classes
-        </button>
-
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+          <div className="px-6 pt-5">
+            <button
+              type="button"
+              onClick={() => navigate('/instructor')}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to My Classes
+            </button>
+          </div>
+
+          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">
               {subjectCode}: {subjectName}
             </h2>
@@ -300,23 +306,6 @@ export default function ClassDetails() {
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
-                    onClick={() => navigate(`/instructor/class/${classId}/grades`)}
-                  >
-                    <BarChart3 className="w-4 h-4" />
-                    Grades page
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
-                    onClick={() => navigate(`/instructor/class/${classId}/attendance`)}
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                    Attendance page
-                  </button>
-
                   <input
                     type="file"
                     ref={classlistInputRef}
@@ -359,6 +348,22 @@ export default function ClassDetails() {
                   >
                     <Upload className="w-4 h-4" />
                     {uploadingClasslist ? 'Uploading...' : 'Upload class list'}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
+                    onClick={() => navigate(`/instructor/class/${classId}/grades`)}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    Grades page
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
+                    onClick={() => navigate(`/instructor/class/${classId}/attendance`)}
+                  >
+                    <TrendingUp className="w-4 h-4" />
+                    Attendance page
                   </button>
 
                   <input
@@ -442,41 +447,58 @@ export default function ClassDetails() {
                 <p className="text-xs text-slate-500">Loading...</p>
               ) : riskSummary ? (
                 <div className="flex flex-wrap gap-2">
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200/80">
-                    <span className="text-xs font-medium text-slate-500">Total</span>
-                    <span className="text-base font-bold text-slate-900">{riskSummary.total}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200/80">
+                  <button
+                    type="button"
+                    onClick={() => setActiveRiskFilter('High')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${activeRiskFilter === 'High' ? 'bg-red-100 border-red-300 shadow-sm' : 'bg-red-50 border-red-200/80 hover:bg-red-100'}`}
+                  >
                     <span className="text-xs font-medium text-red-700">High risk</span>
                     <span className="text-base font-bold text-red-800">{riskSummary.high_risk}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200/80">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveRiskFilter('Medium')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${activeRiskFilter === 'Medium' ? 'bg-amber-100 border-amber-300 shadow-sm' : 'bg-amber-50 border-amber-200/80 hover:bg-amber-100'}`}
+                  >
                     <span className="text-xs font-medium text-amber-700">Medium risk</span>
                     <span className="text-base font-bold text-amber-800">{riskSummary.medium_risk}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 border border-slate-200/80">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveRiskFilter('Low')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${activeRiskFilter === 'Low' ? 'bg-slate-200 border-slate-300 shadow-sm' : 'bg-slate-100 border-slate-200/80 hover:bg-slate-200'}`}
+                  >
                     <span className="text-xs font-medium text-slate-600">Low risk</span>
                     <span className="text-base font-bold text-slate-800">{riskSummary.low_risk}</span>
-                  </div>
+                  </button>
                   {riskSummary.at_risk_list && riskSummary.at_risk_list.length > 0 && (
                     <div className="w-full mt-1.5 pt-3 border-t border-slate-200">
-                      <p className="text-xs font-semibold text-slate-700 mb-1.5">Predicted students with risk labels</p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {riskSummary.at_risk_list.map((s, index) => {
-                          const studentLabel = s.student_name || s.student_id || 'Unknown student'
-                          const studentNumberText = s.student_id ? ` (${s.student_id})` : ''
-                          return (
-                            <span
-                              key={`${s.student_id || s.student_name || 'student'}-${index}`}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[s.risk] || 'bg-slate-100 text-slate-700'}`}
-                            >
-                              <TrendingUp className="w-3.5 h-3.5" />
-                              {studentLabel}
-                              {studentNumberText}
-                            </span>
-                          )
-                        })}
-                      </div>
+                      <p className="text-xs font-semibold text-slate-700 mb-1.5">
+                        Predicted students with risk labels
+                        {` - ${activeRiskFilter} risk`}
+                      </p>
+                      {filteredRiskList.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {filteredRiskList.map((s, index) => {
+                            const studentLabel = s.student_name || s.student_id || 'Unknown student'
+                            const studentNumberText = s.student_id ? ` (${s.student_id})` : ''
+                            return (
+                              <span
+                                key={`${s.student_id || s.student_name || 'student'}-${index}`}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[s.risk] || 'bg-slate-100 text-slate-700'}`}
+                              >
+                                <TrendingUp className="w-3.5 h-3.5" />
+                                {studentLabel}
+                                {studentNumberText}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500">
+                          No students found for the selected risk level.
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

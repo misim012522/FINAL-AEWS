@@ -160,8 +160,8 @@ export default function AdminUserAccounts() {
           {error}
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[140px]">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="relative w-full sm:w-72">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
           <input
             type="search"
@@ -174,7 +174,7 @@ export default function AdminUserAccounts() {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="rounded-lg border border-gray-200 px-2 py-1.5 text-[11px] font-medium text-gray-700 bg-white hover:border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+          className="w-full sm:w-40 rounded-lg border border-gray-200 px-2 py-1.5 text-[11px] font-medium text-gray-700 bg-white hover:border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
         >
           <option value="all">All roles</option>
           <option value="instructor">Instructor</option>

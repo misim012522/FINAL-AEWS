@@ -101,17 +101,7 @@ export default function ClassAttendance() {
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-6">
         {/* Header Navigation */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(`/instructor/class/${id}`)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 transition"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Class Details
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="flex items-center gap-2">
             {/* Upload attendance sheet */}
             <input
@@ -170,6 +160,14 @@ export default function ClassAttendance() {
 
         {/* Class Header Card */}
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 shadow-sm">
+          <button
+            type="button"
+            onClick={() => navigate(`/instructor/class/${id}`)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-white/70 transition mb-4"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Class Details
+          </button>
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-4">
               <div className="rounded-lg bg-blue-100 p-3">

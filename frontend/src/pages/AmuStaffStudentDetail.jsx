@@ -102,16 +102,17 @@ export default function AmuStaffStudentDetail() {
   return (
     <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" icon={Users} variant="amu-staff">
       <div className="space-y-2">
-        <button
-          type="button"
-          onClick={() => navigate('/amu-staff')}
-          className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-        >
-          <ArrowLeft className="w-2.5 h-2.5" />
-          Back to dashboard
-        </button>
-
         <div className="bg-white rounded-md border border-gray-200/80 shadow-sm hover:shadow-md transition-all overflow-hidden border-l-4 border-l-teal-500">
+          <div className="px-2 pt-2">
+            <button
+              type="button"
+              onClick={() => navigate('/amu-staff')}
+              className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            >
+              <ArrowLeft className="w-2.5 h-2.5" />
+              Back to dashboard
+            </button>
+          </div>
           <div className="p-2 border-b border-gray-200">
             <div className="flex items-start gap-1.5">
               <div className="w-9 h-9 rounded-md bg-teal-100 flex items-center justify-center text-teal-600 ring-1 ring-teal-200/50">
@@ -139,7 +140,7 @@ export default function AmuStaffStudentDetail() {
                 className="flex items-center gap-0.5 px-1.5 py-1 rounded bg-teal-600 text-white text-[10px] font-semibold hover:bg-teal-700 shadow-sm transition-all"
               >
                 <ClipboardList className="w-2.5 h-2.5" />
-                Open case
+                Open interventions
               </button>
             </div>
 
@@ -315,3 +316,5 @@ export default function AmuStaffStudentDetail() {
     </DashboardLayout>
   )
 }
+
+

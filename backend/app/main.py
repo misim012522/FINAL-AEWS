@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import get_db
+from app.intervention_backfill import backfill_intervention_referral_ids
 from app.routers import auth, users, students, interventions, notifications, classes, admin, amu_staff
 
 # Load .env from backend directory so SMTP and other config work regardless of cwd
@@ -17,6 +18,11 @@ load_dotenv(_backend_dir / ".env")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     get_db()
+    backfill_result = backfill_intervention_referral_ids()
+    print(
+        "[Interventions] Referral ID backfill scanned "
+        f"{backfill_result['scanned']} intervention(s), updated {backfill_result['updated']}."
+    )
     # Confirm SMTP from .env is connected for verification emails
     smtp_user = (os.getenv("SMTP_USER") or "").strip()
     smtp_pass = (os.getenv("SMTP_PASSWORD") or "").strip()

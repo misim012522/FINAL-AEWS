@@ -258,20 +258,6 @@ export async function getInstructorStudentList(instructorId) {
   return Array.isArray(data) ? data : []
 }
 
-/** List interventions. Pass status or 'all'. Backend may add instructor_id filter later. */
-export async function getInstructorInterventions(instructorId, status = 'all') {
-  const params = new URLSearchParams()
-  if (status && status !== 'all') params.set('status', status)
-  const qs = params.toString()
-  const url = `${API_BASE}/api/interventions${qs ? `?${qs}` : ''}`
-  const res = await fetch(url)
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load interventions')
-  }
-  return Array.isArray(data) ? data : []
-}
-
 /** List all interventions (admin). Optional status: 'all' | 'pending' | 'in-progress' | 'completed'. */
 export async function listInterventions(status = 'all') {
   const params = new URLSearchParams()
@@ -286,6 +272,20 @@ export async function listInterventions(status = 'all') {
   return Array.isArray(data) ? data : []
 }
 
+
+/** Create a new intervention case from an AMU referral. */
+export async function createIntervention(payload) {
+  const res = await fetch(`${API_BASE}/api/interventions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify(payload || {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to create intervention')
+  }
+  return data
+}
 /** Get a single intervention by id. */
 export async function getIntervention(interventionId) {
   const res = await fetch(`${API_BASE}/api/interventions/${encodeURIComponent(interventionId)}`)
@@ -849,3 +849,4 @@ export async function getAdminStudentByEmail(studentEmail) {
   }
   return data
 }
+

@@ -57,16 +57,16 @@ export default function AmuStaffOverview() {
   const coursesMonitored = data?.courses_monitored ?? 0
 
   const cards = [
-    { label: 'At Risk Referred', value: String(referralsCount), sub: 'Referred for intervention', icon: AlertTriangle, color: 'amber' },
-    { label: 'Active Cases', value: String(interventionsCount), sub: 'Total interventions', icon: UsersIcon, color: 'teal' },
+    { label: 'At Risk Referred', value: String(referralsCount), sub: 'Students referred by instructors', icon: AlertTriangle, color: 'amber' },
+    { label: 'Active Interventions', value: String(interventionsCount), sub: 'AMU-managed support cases', icon: UsersIcon, color: 'teal' },
     { label: 'Courses Monitored', value: String(coursesMonitored), sub: 'With referrals', icon: BookOpen, color: 'teal' },
-    { label: 'Cases Resolved', value: String(casesResolved), sub: 'Successful outcomes', icon: CheckCircle, color: 'green' },
+    { label: 'Interventions Closed', value: String(casesResolved), sub: 'Completed support cases', icon: CheckCircle, color: 'green' },
   ]
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
       {/* Header strip (instructor-style) */}
-      <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+      <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
         <h2 className="text-xl font-bold text-slate-900 tracking-tight">Overview</h2>
         <p className="text-sm text-slate-500 mt-0.5">Monitor student support metrics and referrals</p>
       </div>
@@ -111,3 +111,5 @@ export default function AmuStaffOverview() {
     </div>
   )
 }
+
+

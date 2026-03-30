@@ -4,7 +4,6 @@ import {
   BookOpen,
   Bell,
   Users,
-  ClipboardList,
   Users as UsersIcon,
   AlertTriangle,
   ChevronRight,
@@ -25,7 +24,6 @@ import {
   setTutorialDismissedThisSession,
 } from '../lib/tutorialPrefs'
 import InstructorStudentList from '../components/instructor/InstructorStudentList'
-import InstructorInterventions from '../components/instructor/InstructorInterventions'
 import { useAuth } from '../context/AuthContext'
 import { listClasses, createClass, archiveClass } from '../api'
 
@@ -33,7 +31,6 @@ const TABS = [
   { id: 'classes', label: 'My Classes', icon: BookOpen },
   { id: 'alerts', label: 'Risk Alerts', icon: Bell },
   { id: 'students', label: 'Student List', icon: Users },
-  { id: 'interventions', label: 'Interventions', icon: ClipboardList },
   { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
 ]
 
@@ -172,7 +169,7 @@ export default function InstructorDashboard() {
   // Sync active tab from navigation state (e.g. deep link)
   useEffect(() => {
     const t = location.state?.tab
-    if (t && ['classes', 'alerts', 'students', 'interventions'].includes(t)) setActiveTab(t)
+    if (t && ['classes', 'alerts', 'students'].includes(t)) setActiveTab(t)
   }, [location.state?.tab])
 
   useEffect(() => {
@@ -486,8 +483,9 @@ export default function InstructorDashboard() {
 
         {activeTab === 'alerts' && <InstructorRiskAlerts />}
         {activeTab === 'students' && <InstructorStudentList />}
-        {activeTab === 'interventions' && <InstructorInterventions />}
       </div>
     </DashboardLayout>
   )
 }
+
+

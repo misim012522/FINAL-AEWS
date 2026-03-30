@@ -15,11 +15,6 @@ MODEL_FEATURE_ORDER = [
     "laboratory",
     "major_output",
     "midterm_grade",
-    "final_class_standing",
-    "final_laboratory",
-    "final_major_output",
-    "finalterm_grade",
-    "final_grade",
 ]
 
 ACADEMIC_CHALLENGE_FIELDS = [

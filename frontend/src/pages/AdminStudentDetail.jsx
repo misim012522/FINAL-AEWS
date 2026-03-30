@@ -76,12 +76,13 @@ export default function AdminStudentDetail() {
   return (
     <DashboardLayout title="Administrator Dashboard" subtitle="System Overview & Management" icon={Shield} variant="admin">
       <div className="space-y-4">
-        <button type="button" onClick={() => navigate('/admin')} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-colors">
-          <ArrowLeft className="w-4 h-4" /> Back to dashboard
-        </button>
-
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+          <div className="px-6 pt-5">
+            <button type="button" onClick={() => navigate('/admin')} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Back to dashboard
+            </button>
+          </div>
+          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Student details</h2>
             <p className="text-sm text-slate-500 mt-0.5">{studentSubtext || 'No student identifier available'}</p>
           </div>

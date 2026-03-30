@@ -63,19 +63,19 @@ export default function InstructorRiskAlerts() {
 
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-      <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+      <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900 tracking-tight">Risk Alerts</h2>
             <p className="text-sm text-slate-500 mt-0.5">High risk students across your classes</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <label className="sr-only" htmlFor="risk-alerts-course">Filter by course</label>
             <select
               id="risk-alerts-course"
               value={filterClassId}
               onChange={(e) => setFilterClassId(e.target.value)}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white hover:border-slate-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors"
+              className="w-full sm:w-40 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white hover:border-slate-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors"
             >
               <option value="">All courses</option>
               {classes.map((c) => (
@@ -89,7 +89,7 @@ export default function InstructorRiskAlerts() {
               id="risk-alerts-level"
               value={filterRisk}
               onChange={(e) => setFilterRisk(e.target.value)}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white hover:border-slate-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors"
+              className="w-full sm:w-40 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 bg-white hover:border-slate-300 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors"
             >
               <option value="">All risk levels</option>
               <option value="High">High</option>

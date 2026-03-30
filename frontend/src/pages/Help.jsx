@@ -17,7 +17,7 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What is the Academic Early Warning System?',
-        a: 'The Academic Early Warning System (AEWS) helps institutions identify students at risk of academic difficulty. It uses indicators like GPA, attendance, and LMS activity to flag students who may need support, and supports instructors and AMU staff in tracking interventions.',
+        a: 'The Academic Early Warning System (AEWS) helps institutions identify students at risk of academic difficulty. It uses indicators like GPA, attendance, and LMS activity to flag students who may need support, and supports instructors in referring students to AMU while AMU staff track interventions.',
       },
       {
         q: 'How do I sign in?',
@@ -61,7 +61,7 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What can Instructors do?',
-        a: 'Instructors can manage their classes, view enrolled students, track risk levels, create and track interventions, and generate class reports. They see students at risk and can take action from the Risk Alerts and Student List tabs.',
+        a: 'Instructors can manage their classes, view enrolled students, track risk levels, refer students to AMU, and generate class reports. They see students at risk and can take action from the Risk Alerts, Student List, and class detail pages.',
       },
       {
         q: 'What can Admins do?',
@@ -69,7 +69,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: 'What can AMU Staff do?',
-        a: 'AMU Staff can view student referrals, manage support cases, track intervention outcomes, and coordinate with instructors. They focus on students who have been referred for additional support.',
+        a: 'AMU Staff can view student referrals, manage AMU-owned intervention cases, track intervention outcomes, and coordinate with instructors. They focus on students who have been referred for additional support.',
       },
     ],
   },
@@ -79,11 +79,11 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What is "risk level"?',
-        a: 'Students are assigned High or Low risk based on GPA, attendance, and LMS activity. High risk students need attention first for follow-up and interventions.',
+        a: 'Students are assigned High or Low risk based on GPA, attendance, and LMS activity. High risk students need attention first for follow-up and possible referral to AMU.',
       },
       {
         q: 'What are interventions?',
-        a: 'Interventions are recommended actions (e.g., meeting with a student, referral to support). They progress through statuses: Pending → In progress → Completed. Track them to ensure follow-through.',
+        a: 'Interventions are AMU-managed support cases opened after a student is referred for additional help. They progress through statuses like Pending, In progress, and Completed so AMU can track follow-through and outcomes.',
       },
       {
         q: 'How do I view archived users?',
@@ -228,3 +228,6 @@ export default function Help() {
     </div>
   )
 }
+
+
+

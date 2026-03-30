@@ -20,7 +20,6 @@ const ClassDetails = lazy(() => import('./pages/ClassDetails'))
 const ClassGrades = lazy(() => import('./pages/ClassGrades'))
 const ClassAttendance = lazy(() => import('./pages/ClassAttendance'))
 const StudentProfile = lazy(() => import('./pages/StudentProfile'))
-const InterventionDetail = lazy(() => import('./pages/InterventionDetail'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminSettings = lazy(() => import('./pages/AdminSettings'))
 const AdminStudentDetail = lazy(() => import('./pages/AdminStudentDetail'))
@@ -66,7 +65,6 @@ export default function App() {
         <Route path="/instructor/class/:id/grades" element={<ClassGrades />} />
         <Route path="/instructor/class/:id/attendance" element={<ClassAttendance />} />
         <Route path="/instructor/student/:id" element={<StudentProfile />} />
-        <Route path="/instructor/intervention/:id" element={<InterventionDetail />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/settings" element={<AdminSettings />} />
         <Route path="/admin/student/:id" element={<AdminStudentDetail />} />
@@ -86,3 +84,5 @@ export default function App() {
     </ErrorBoundary>
   )
 }
+
+

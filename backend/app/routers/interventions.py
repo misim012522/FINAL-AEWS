@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from pymongo import ReturnDocument
 
 from app.database import get_db
+from app.email_sender import send_student_support_email
 from app.notification_utils import create_notification
 from app.schemas import InterventionCreate, InterventionResponse, InterventionUpdate
 
@@ -13,6 +14,62 @@ def _doc_to_response(doc) -> dict:
     out = {k: v for k, v in doc.items() if k != "_id"}
     out["id"] = str(doc["_id"])
     return out
+
+
+def _normalize_value(value) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text.endswith(".0") and text[:-2].isdigit():
+        return text[:-2]
+    return text
+
+
+def _fallback_student_email(student_id: str) -> str:
+    normalized_student_id = _normalize_value(student_id)
+    if not normalized_student_id:
+        return ""
+    return f"{normalized_student_id}@student.buksu.edu.ph"
+
+
+def _resolve_student_contact(db, payload: dict) -> tuple[str, str]:
+    student_email = _normalize_value(payload.get("student_email")).lower()
+    student_id = _normalize_value(payload.get("student_id"))
+    referral_id = _normalize_value(payload.get("referral_id"))
+    student_name = _normalize_value(payload.get("student"))
+
+    if referral_id and "::" in referral_id:
+        class_id, identifier = referral_id.split("::", 1)
+        identifier = _normalize_value(identifier)
+        enrollment = db.enrollments.find_one({
+            "class_id": class_id,
+            "flagged_for_mentoring": True,
+            "$or": [
+                {"student_email": identifier.lower()},
+                {"student_id": identifier},
+                {"student_id": identifier.lower()},
+            ],
+        })
+        if enrollment:
+            student_email = student_email or _normalize_value(enrollment.get("student_email")).lower()
+            student_id = student_id or _normalize_value(enrollment.get("student_id"))
+            student_name = student_name or _normalize_value(enrollment.get("student_name"))
+
+    if not student_email and student_id:
+        student_email = _fallback_student_email(student_id)
+
+    return student_email, student_name or "Student"
+
+
+def _send_intervention_student_email(db, payload: dict):
+    to_email, student_name = _resolve_student_contact(db, payload)
+    subject = _normalize_value(payload.get("notification_subject"))
+    message = _normalize_value(payload.get("notification_message"))
+
+    if not to_email or not subject or not message:
+        return False, "Missing student email or notification content."
+
+    return send_student_support_email(to_email, student_name, subject, message)
 
 
 def _notify_intervention_created(db, doc: dict):
@@ -84,9 +141,23 @@ def get_intervention(intervention_id: str):
 def create_intervention(body: InterventionCreate):
     db = get_db()
     doc = body.model_dump()
+    email_payload = {
+        "student": doc.get("student"),
+        "student_id": doc.get("student_id"),
+        "student_email": doc.get("student_email"),
+        "referral_id": doc.get("referral_id"),
+        "notification_subject": doc.get("notification_subject"),
+        "notification_message": doc.get("notification_message"),
+    }
+    for transient_key in ("student_id", "student_email", "notification_subject", "notification_message"):
+        doc.pop(transient_key, None)
     result = db.interventions.insert_one(doc)
     doc["_id"] = result.inserted_id
     _notify_intervention_created(db, doc)
+    sent, email_error = _send_intervention_student_email(db, email_payload)
+    doc["student_notified"] = bool(sent)
+    if email_error:
+        doc["student_notification_error"] = email_error
     return _doc_to_response(doc)
 
 

@@ -3,7 +3,7 @@ import { X, BookOpen, AlertTriangle, ClipboardList, Users, BarChart3, HelpCircle
 const INSTRUCTOR_ITEMS = [
   { icon: BookOpen, term: 'My Classes', desc: 'Your courses. Each card shows student count and how many students are at risk.' },
   { icon: AlertTriangle, term: 'At-risk / Risk level', desc: 'Students may be flagged as High or Low risk based on grades, attendance, and engagement. Focus on High risk students for follow-up.' },
-  { icon: ClipboardList, term: 'Interventions', desc: 'Recommended or required actions (e.g. meeting with a student, referral). Status: Pending → In progress → Completed.' },
+  { icon: ClipboardList, term: 'Referrals to AMU', desc: 'When a student needs support, send a referral to AMU with a note so they can open and manage the intervention case.' },
   { icon: AlertTriangle, term: 'Risk Alerts', desc: 'List of students who need attention. Use this tab to see who to reach out to first.' },
   { icon: Users, term: 'Student List', desc: 'All students across your classes with risk level and status in one place.' },
 ]
@@ -20,9 +20,9 @@ const ADMIN_ITEMS = [
 ]
 
 const AMUSTAFF_ITEMS = [
-  { icon: BarChart3, term: 'Overview', desc: 'Summary of referrals and cases. Your home view after login.' },
-  { icon: AlertTriangle, term: 'Referrals', desc: 'Students referred to AMU for support. You can track and manage these referrals.' },
-  { icon: ClipboardList, term: 'My Cases', desc: 'Cases assigned to you. Track progress and outcomes.' },
+  { icon: BarChart3, term: 'Overview', desc: 'Summary of referrals and AMU-managed interventions. Your home view after login.' },
+  { icon: AlertTriangle, term: 'Referrals', desc: 'Students referred to AMU for support. Review these referrals and use them to guide intervention work.' },
+  { icon: ClipboardList, term: 'Interventions', desc: 'AMU-owned support cases. Track progress, update status, and record outcomes here.' },
   { icon: Users, term: 'Reports', desc: 'Generate or view reports for your work.' },
 ]
 
@@ -90,3 +90,6 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
     </div>
   )
 }
+
+
+

@@ -139,17 +139,7 @@ export default function ClassGrades() {
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(`/instructor/class/${id}`)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Class Details
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <div className="flex items-center gap-2">
             {/* Upload gradesheet */}
             <input
@@ -198,6 +188,14 @@ export default function ClassGrades() {
         {gradesheetError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gradesheetError}</div>}
 
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            onClick={() => navigate(`/instructor/class/${id}`)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 mb-3"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Class Details
+          </button>
           <div className="flex items-center gap-2 mb-2">
             <FileSpreadsheet className="w-5 h-5 text-blue-600" />
             <h2 className="text-lg font-bold text-slate-900">Grades - {subjectCode}: {subjectName}</h2>

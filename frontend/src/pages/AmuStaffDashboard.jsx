@@ -19,7 +19,7 @@ import AmuStaffReports from '../components/amu-staff/AmuStaffReports'
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'referrals', label: 'Referrals', icon: AlertTriangle },
-  { id: 'cases', label: 'My Cases', icon: ClipboardList },
+  { id: 'cases', label: 'Interventions', icon: ClipboardList },
   { id: 'reports', label: 'Reports', icon: FileText },
 ]
 
@@ -119,3 +119,5 @@ export default function AmuStaffDashboard() {
     </DashboardLayout>
   )
 }
+
+

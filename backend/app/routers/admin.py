@@ -8,6 +8,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
+from app.intervention_backfill import get_intervention_backfill_status
 from app.notification_utils import create_notification
 
 
@@ -53,6 +54,15 @@ def _student_identifier(doc: dict) -> str:
     if student_name:
         return student_name
     return str(doc.get("_id") or "")
+
+
+@router.get("/debug/interventions/backfill-status")
+def get_intervention_backfill_debug_status():
+    """Admin-only status for referral-id backfill coverage on interventions."""
+    try:
+        return get_intervention_backfill_status()
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
 @router.get("/students/{student_identifier:path}")

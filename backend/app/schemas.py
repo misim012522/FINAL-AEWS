@@ -1,5 +1,5 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ----- User -----
@@ -30,8 +30,7 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----- Student -----
@@ -60,8 +59,7 @@ class StudentUpdate(BaseModel):
 class StudentResponse(StudentBase):
     id: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----- Intervention -----
@@ -74,10 +72,15 @@ class InterventionBase(BaseModel):
     instructor: str
     due: Optional[str] = None
     completed: Optional[str] = None
+    notes: Optional[str] = None
+    referral_id: Optional[str] = None
 
 
 class InterventionCreate(InterventionBase):
-    pass
+    student_id: Optional[str] = None
+    student_email: Optional[str] = None
+    notification_subject: Optional[str] = None
+    notification_message: Optional[str] = None
 
 
 class InterventionUpdate(BaseModel):
@@ -89,13 +92,14 @@ class InterventionUpdate(BaseModel):
     instructor: Optional[str] = None
     due: Optional[str] = None
     completed: Optional[str] = None
+    notes: Optional[str] = None
+    referral_id: Optional[str] = None
 
 
 class InterventionResponse(InterventionBase):
     id: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----- Notification -----
@@ -119,8 +123,7 @@ class NotificationResponse(NotificationBase):
     id: str
     role: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ----- Auth -----
