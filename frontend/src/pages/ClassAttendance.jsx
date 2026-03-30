@@ -25,7 +25,6 @@ export default function ClassAttendance() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
-  // Attendance upload state
   const [uploadingAttendance, setUploadingAttendance] = useState(false)
   const [attendanceError, setAttendanceError] = useState('')
   const [attendanceSuccess, setAttendanceSuccess] = useState('')
@@ -53,6 +52,33 @@ export default function ClassAttendance() {
     setRefreshing(true)
     await loadData()
     setRefreshing(false)
+  }
+
+  const handleAttendanceUpload = async (e) => {
+    setAttendanceError('')
+    setAttendanceSuccess('')
+    const files = e.target.files
+    if (!files || files.length === 0) {
+      setAttendanceError('Please select an attendance sheet file (CSV, XLSX, or DOCX).')
+      return
+    }
+    setUploadingAttendance(true)
+    try {
+      const result = await uploadClassFiles(id, files, 'attendance')
+      const updated = result?.updated ?? 0
+      const notEnrolled = result?.not_enrolled?.length ?? 0
+      const missingIdentifiers = result?.missing_identifiers ?? 0
+      const parts = [`Attendance sheet uploaded. Updated ${updated} student record(s).`]
+      if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
+      if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
+      setAttendanceSuccess(parts.join(' '))
+      await loadData()
+    } catch (err) {
+      setAttendanceError(err.message || 'Upload failed')
+    } finally {
+      setUploadingAttendance(false)
+      if (attendanceInputRef.current) attendanceInputRef.current.value = ''
+    }
   }
 
   useEffect(() => {
@@ -100,96 +126,67 @@ export default function ClassAttendance() {
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-6">
-        {/* Header Navigation */}
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <div className="flex items-center gap-2">
-            {/* Upload attendance sheet */}
-            <input
-              type="file"
-              ref={attendanceInputRef}
-              accept=".csv,.xlsx,.docx"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                setAttendanceError('')
-                setAttendanceSuccess('')
-                const files = e.target.files
-                if (!files || files.length === 0) {
-                  setAttendanceError('Please select an attendance sheet file (CSV, XLSX, or DOCX).')
-                  return
-                }
-                setUploadingAttendance(true)
-                try {
-                  const result = await uploadClassFiles(id, files, 'attendance')
-                  const updated = result?.updated ?? 0
-                  const notEnrolled = result?.not_enrolled?.length ?? 0
-                  const missingIdentifiers = result?.missing_identifiers ?? 0
-                  const parts = [`Attendance sheet uploaded. Updated ${updated} student record(s).`]
-                  if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
-                  if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
-                  setAttendanceSuccess(parts.join(' '))
-                  await loadData()
-                } catch (err) {
-                  setAttendanceError(err.message || 'Upload failed')
-                } finally {
-                  setUploadingAttendance(false)
-                  attendanceInputRef.current.value = ''
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
-              disabled={uploadingAttendance}
-              onClick={() => attendanceInputRef.current && attendanceInputRef.current.click()}
-            >
-              <Upload className="w-4 h-4" />
-              {uploadingAttendance ? 'Uploading...' : 'Upload attendance sheet'}
-            </button>
-            <button
-              type="button"
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50 transition"
-            >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-          </div>
-        </div>
         {attendanceError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{attendanceError}</div>}
 
-        {/* Class Header Card */}
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 shadow-sm">
-          <button
-            type="button"
-            onClick={() => navigate(`/instructor/class/${id}`)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-white/70 transition mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Class Details
-          </button>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-start gap-4">
-              <div className="rounded-lg bg-blue-100 p-3">
-                <CalendarCheck className="w-6 h-6 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Attendance Report</p>
-                <h1 className="text-2xl font-bold text-slate-900 mt-1">{subjectCode}</h1>
-                <p className="text-sm text-slate-600 mt-1">{subjectName}</p>
+          <input
+            type="file"
+            ref={attendanceInputRef}
+            accept=".csv,.xlsx,.docx"
+            style={{ display: 'none' }}
+            onChange={handleAttendanceUpload}
+          />
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex-1 min-w-[240px]">
+              <button
+                type="button"
+                onClick={() => navigate(`/instructor/class/${id}`)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-white/70 transition mb-4"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Class Details
+              </button>
+              <div className="flex items-start gap-4">
+                <div className="rounded-lg bg-blue-100 p-3">
+                  <CalendarCheck className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Attendance Report</p>
+                  <h1 className="text-2xl font-bold text-slate-900 mt-1">{subjectCode}</h1>
+                  <p className="text-sm text-slate-600 mt-1">{subjectName}</p>
+                </div>
               </div>
             </div>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-              attendanceFormat === 'daily' 
-                ? 'bg-purple-100 text-purple-700' 
-                : 'bg-blue-100 text-blue-700'
-            }`}>
-              {attendanceFormat === 'daily' ? 'Daily Tracking' : 'Monthly Summary'}
-            </span>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                attendanceFormat === 'daily'
+                  ? 'bg-purple-100 text-purple-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}>
+                {attendanceFormat === 'daily' ? 'Daily Tracking' : 'Monthly Summary'}
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
+                disabled={uploadingAttendance}
+                onClick={() => attendanceInputRef.current && attendanceInputRef.current.click()}
+              >
+                <Upload className="w-4 h-4" />
+                {uploadingAttendance ? 'Uploading...' : 'Upload attendance sheet'}
+              </button>
+              <button
+                type="button"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-white/70 disabled:opacity-50 transition"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Analytics Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {attendanceFormat === 'daily' ? (
             <>
@@ -264,7 +261,6 @@ export default function ClassAttendance() {
           )}
         </div>
 
-        {/* Table */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <AttendanceTableView students={students} format={attendanceFormat} />
         </div>

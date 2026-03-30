@@ -21,11 +21,11 @@ const FAQ_SECTIONS = [
       },
       {
         q: 'How do I sign in?',
-        a: 'Enter your university email and password on the login page. Select your role (Instructor, Admin, or AMU Staff) and click the corresponding sign-in button. If your account is pending approval, you\'ll see a message to wait for admin confirmation.',
+        a: 'Enter your university email and password on the login page. The system detects your account role automatically after sign-in. If your account is pending approval, you\'ll see a message to wait for admin confirmation.',
       },
       {
         q: 'How do I create an account?',
-        a: 'Click "Sign up" on the login page. Choose your role (Instructor or AMU Staff), fill in your name, email, department, and password. Instructors and AMU Staff require admin approval before they can sign in. Admin accounts are created through a verification link sent to your email.',
+        a: 'Click "Sign up" on the login page. Choose either Instructor or AMU Staff and fill in your details. Instructors register under their department, while AMU Staff register under their assigned college. Both require admin approval before they can sign in. Administrator accounts are assigned directly by your team and are not self-registered from the signup page.',
       },
       {
         q: 'My account is pending approval. What happens next?',

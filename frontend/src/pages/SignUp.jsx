@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { Brain, GraduationCap, Mail, Lock, User, ArrowLeft, Phone, Building2 } from 'lucide-react'
 import { signup } from '../api'
@@ -38,6 +38,18 @@ export default function SignUp() {
   const [role, setRole] = useState('instructor')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const isAmuStaff = role === 'amu-staff'
+  const organizationLabel = isAmuStaff ? 'College' : 'Department'
+  const organizationPlaceholder = isAmuStaff
+    ? 'e.g. College of Technology'
+    : 'e.g. Information Technology'
+  const organizationHelp = isAmuStaff
+    ? 'AMU Staff accounts are assigned by college.'
+    : 'Instructor accounts are assigned by department.'
+
+  useEffect(() => {
+    setDepartment('')
+  }, [role])
 
   const fullContactNumber = contactNumber.trim()
     ? `${countryCode.replace(/\s/g, '')}${contactNumber.trim().replace(/\s/g, '')}`
@@ -105,6 +117,17 @@ export default function SignUp() {
               </div>
             )}
             <div>
+              <label className="block text-base font-medium text-gray-700 mb-2">Account type</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 bg-white"
+              >
+                <option value="instructor">Instructor</option>
+                <option value="amu-staff">AMU Staff</option>
+              </select>
+            </div>
+            <div>
               <label className="block text-base font-medium text-gray-700 mb-2">Full name</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
@@ -158,17 +181,18 @@ export default function SignUp() {
               </div>
             </div>
             <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">Department</label>
+              <label className="block text-base font-medium text-gray-700 mb-2">{organizationLabel}</label>
               <div className="relative">
                 <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
                   value={department}
                   onChange={(e) => setDepartment(e.target.value)}
-                  placeholder="e.g. Information Technology"
+                  placeholder={organizationPlaceholder}
                   className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 placeholder:text-gray-400"
                 />
               </div>
+              <p className="mt-2 text-sm text-gray-500">{organizationHelp}</p>
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 mb-2">Password</label>
@@ -196,19 +220,6 @@ export default function SignUp() {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">Account type</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="w-full px-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 bg-white"
-              >
-                <option value="instructor">Instructor</option>
-                <option value="admin">Administrator</option>
-                <option value="amu-staff">AMU Staff</option>
-              </select>
-            </div>
-
             <button
               type="submit"
               disabled={loading}

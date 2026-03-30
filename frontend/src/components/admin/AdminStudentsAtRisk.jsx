@@ -2,17 +2,27 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Mail, Building2, BookOpen, AlertTriangle, ChevronRight } from 'lucide-react'
 import { getAdminStudentsAtRisk } from '../../api'
+import { useAuth } from '../../context/AuthContext'
 
 const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
 
 export default function AdminStudentsAtRisk({ department = 'all' }) {
   const navigate = useNavigate()
+  const { role } = useAuth()
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     let isMounted = true
+    if (role !== 'admin') {
+      setStudents([])
+      setError(null)
+      setLoading(false)
+      return () => {
+        isMounted = false
+      }
+    }
     setLoading(true)
     getAdminStudentsAtRisk(department)
       .then((data) => {
@@ -33,7 +43,7 @@ export default function AdminStudentsAtRisk({ department = 'all' }) {
     return () => {
       isMounted = false
     }
-  }, [department])
+  }, [department, role])
 
   return (
     <div className="bg-white rounded-lg border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
@@ -73,8 +83,8 @@ export default function AdminStudentsAtRisk({ department = 'all' }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {students.map((s) => (
-                <tr key={s.student_email + (s.class_id || '')} className="hover:bg-blue-50/50 transition-colors">
+              {students.map((s, index) => (
+                <tr key={`${s.student_email || s.student_id || s.id || 'student'}-${s.class_id || 'class'}-${index}`} className="hover:bg-blue-50/50 transition-colors">
                   <td className="px-2 py-1.5">
                     <div className="flex items-center gap-1.5">
                       <div className="w-6 h-6 rounded-md bg-blue-100 flex items-center justify-center text-blue-600">

@@ -161,15 +161,16 @@ def signup(body: SignUpRequest):
         db = get_db()
         coll_name = get_collection_for_role(body.role)
         coll = db[coll_name]
+        organization_value = (body.department or "").strip()
         existing = coll.find_one({"email": body.email})
         if existing and existing.get("email_verified") is True:
             raise HTTPException(status_code=400, detail="Email already registered")
         doc_base = {
-            "name": body.name,
+            "name": body.name.strip(),
             "email": body.email,
             "role": body.role,
-            "department": (body.department or "").strip(),
-            "contact_number": body.contact_number or "",
+            "department": organization_value,
+            "contact_number": (body.contact_number or "").strip(),
             "password_hash": _hash_password(body.password),
         }
         if body.role == "admin":
@@ -314,16 +315,19 @@ def login(body: LoginRequest):
             )
     try:
         db = get_db()
-        coll_name = get_collection_for_role(body.role)
-        coll = db[coll_name]
-        user = coll.find_one({"email": body.email})
+        user = None
+        for coll_name in ROLE_COLLECTIONS:
+            coll = db[coll_name]
+            user = coll.find_one({"email": body.email})
+            if user:
+                break
     except ServerSelectionTimeoutError:
         raise HTTPException(
             status_code=503,
             detail="Database unavailable. Set MONGODB_URI in backend .env to your Atlas connection string.",
         )
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or role")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     if user.get("archived"):
         raise HTTPException(status_code=403, detail="This account has been archived. Contact your administrator.")
     if user.get("email_verified") is False:
@@ -333,7 +337,7 @@ def login(body: LoginRequest):
         )
     password_hash = user.get("password_hash")
     if not password_hash or not _check_password(body.password, password_hash):
-        raise HTTPException(status_code=401, detail="Invalid password")
+        raise HTTPException(status_code=401, detail="Invalid email or password")
     return {
         "user": {
             "id": str(user["_id"]),

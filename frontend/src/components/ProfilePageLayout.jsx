@@ -165,7 +165,7 @@ export default function ProfilePageLayout({
                 </div>
               </div>
               <div>
-                <label className={labelClass}>Department</label>
+                <label className={labelClass}>{user?.role === 'amu-staff' ? 'College' : 'Department'}</label>
                 <div className="relative">
                   <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   <input

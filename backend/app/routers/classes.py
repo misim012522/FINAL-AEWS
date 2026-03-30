@@ -2125,6 +2125,11 @@ def list_class_students(class_id: str):
             "final_grade",
             "overall_grade",
             "model_features",
+            "risk_source",
+            "risk_source_label",
+            "risk_drivers",
+            "academic_risk_drivers",
+            "external_risk_drivers",
             "received_academic_support",
             "difficulty_understanding_lectures",
             "struggles_specific_subjects",
@@ -2157,6 +2162,12 @@ def list_class_students(class_id: str):
                 row["flagged_for_mentoring"] = doc["flagged_for_mentoring"]
             if doc.get("referral_note") is not None:
                 row["referral_note"] = doc["referral_note"]
+            if doc.get("assigned_amu_staff_id") is not None:
+                row["assigned_amu_staff_id"] = doc["assigned_amu_staff_id"]
+            if doc.get("assigned_amu_staff_name") is not None:
+                row["assigned_amu_staff_name"] = doc["assigned_amu_staff_name"]
+            if doc.get("assigned_amu_staff_college") is not None:
+                row["assigned_amu_staff_college"] = doc["assigned_amu_staff_college"]
             if doc.get("risk_probability_percent") is not None:
                 row["risk_probability_percent"] = doc["risk_probability_percent"]
             for field in ai_fields:
@@ -2612,6 +2623,24 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
         student_label = student_email or student_id or identifier
         if not payload:
             return {"message": "No updates.", "student_email": student_email or None, "student_id": student_id or None}
+        if payload.get("flagged_for_mentoring") is True:
+            current_risk = str(doc.get("risk") or "").strip()
+            if not current_risk:
+                raise HTTPException(
+                    status_code=400,
+                    detail="This student cannot be referred to AMU until a risk result is available.",
+                )
+            assigned_amu_staff_id = str(payload.get("assigned_amu_staff_id") or "").strip()
+            assigned_amu_staff_name = str(payload.get("assigned_amu_staff_name") or "").strip()
+            assigned_amu_staff_college = str(payload.get("assigned_amu_staff_college") or "").strip()
+            if not assigned_amu_staff_id or not assigned_amu_staff_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please choose an AMU staff member before sending the referral.",
+                )
+            payload["assigned_amu_staff_id"] = assigned_amu_staff_id
+            payload["assigned_amu_staff_name"] = assigned_amu_staff_name
+            payload["assigned_amu_staff_college"] = assigned_amu_staff_college or None
         db.enrollments.update_one(
             {"_id": doc["_id"]},
             {"$set": payload},
@@ -2632,11 +2661,15 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
             subject_code = (class_doc or {}).get("subject_code") or "Class"
             subject_name = (class_doc or {}).get("subject_name") or ""
             class_label = f"{subject_code}" + (f": {subject_name}" if subject_name else "")
+            assigned_label = payload.get("assigned_amu_staff_name") or "an AMU staff member"
+            assigned_college = payload.get("assigned_amu_staff_college")
+            if assigned_college:
+                assigned_label = f"{assigned_label} - {assigned_college}"
             create_notification(
                 db,
                 role="amu-staff",
                 title="Student flagged by instructor",
-                body=f"Student {student_label} was flagged by {instructor_name} ({class_label}). Please review or assign a case.",
+                body=f"Student {student_label} was flagged by {instructor_name} ({class_label}) and assigned to {assigned_label}. Please review the case.",
                 type="alert",
             )
         return {"message": "Enrollment updated.", "student_email": student_email or None, "student_id": student_id or None}
@@ -2675,6 +2708,11 @@ def predict_enrollment_risk(class_id: str, student_email: str):
                     "risk_probability": result["probability"],
                     "risk_probability_percent": result["probability_percent"],
                     "model_features": result["features"],
+                    "risk_source": result.get("risk_source"),
+                    "risk_source_label": result.get("risk_source_label"),
+                    "risk_drivers": result.get("risk_drivers"),
+                    "academic_risk_drivers": result.get("academic_risk_drivers"),
+                    "external_risk_drivers": result.get("external_risk_drivers"),
                 }
             },
         )
@@ -2791,6 +2829,11 @@ def predict_class_risk(class_id: str):
                         "risk_probability": result["probability"],
                         "risk_probability_percent": result["probability_percent"],
                         "model_features": result["features"],
+                        "risk_source": result.get("risk_source"),
+                        "risk_source_label": result.get("risk_source_label"),
+                        "risk_drivers": result.get("risk_drivers"),
+                        "academic_risk_drivers": result.get("academic_risk_drivers"),
+                        "external_risk_drivers": result.get("external_risk_drivers"),
                     }
                 },
             )

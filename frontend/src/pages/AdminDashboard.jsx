@@ -54,7 +54,7 @@ const ROLE_PATH = { instructor: '/instructor', admin: '/admin', 'amu-staff': '/a
 export default function AdminDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { user } = useAuth()
+  const { user, role } = useAuth()
   const [showTutorial, setShowTutorial] = useState(false)
   const [department] = useState('all')
   const [mainTab, setMainTab] = useState('overview')
@@ -67,10 +67,10 @@ export default function AdminDashboard() {
       navigate('/', { replace: true })
       return
     }
-    if (user.role && user.role !== 'admin') {
-      navigate(ROLE_PATH[user.role] || '/admin', { replace: true })
+    if (role && role !== 'admin') {
+      navigate(ROLE_PATH[role] || '/admin', { replace: true })
     }
-  }, [user, navigate])
+  }, [user, role, navigate])
 
   useEffect(() => setChartMounted(true), [])
 
@@ -107,13 +107,17 @@ export default function AdminDashboard() {
   }
 
   const fetchTrends = useCallback(async () => {
+    if (role !== 'admin') {
+      setTrendData([])
+      return
+    }
     try {
       const data = await getAdminOverviewTrends(department)
       setTrendData(Array.isArray(data) ? data : [])
     } catch {
       setTrendData([])
     }
-  }, [department])
+  }, [department, role])
 
   useEffect(() => {
     if (mainTab === 'overview') fetchTrends()
@@ -170,7 +174,7 @@ export default function AdminDashboard() {
               <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left: Overview sections (sub-tabs + content) */}
-                  <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col min-h-0">
+                  <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col min-h-0 min-w-0">
                     <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex-shrink-0">
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Overview sections</p>
                       <nav className="flex flex-wrap gap-2">
@@ -205,10 +209,10 @@ export default function AdminDashboard() {
                       </h3>
                       <p className="text-sm text-slate-500 mt-0.5">{department === 'all' ? 'All Departments' : department}</p>
                     </div>
-                    <div className="p-6 flex-1 min-h-[200px]">
-                      <div className="h-44 min-h-[176px] w-full">
+                    <div className="p-6 flex-1 min-h-[200px] min-w-0">
+                      <div className="h-44 min-h-[176px] w-full min-w-0">
                         {chartMounted && (
-                          <ResponsiveContainer width="100%" height="100%">
+                          <ResponsiveContainer width="100%" height={176} minWidth={240}>
                             <BarChart data={trendData.length ? trendData : [{ name: '—', atRisk: 0, total: 0, improved: 0 }]} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
                               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                               <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 10 }} />

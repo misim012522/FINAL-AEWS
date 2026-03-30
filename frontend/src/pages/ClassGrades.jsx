@@ -44,7 +44,6 @@ export default function ClassGrades() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [termFilter, setTermFilter] = useState('midterm')
-  // Gradesheet upload state
   const [uploadingGradesheet, setUploadingGradesheet] = useState(false)
   const [gradesheetError, setGradesheetError] = useState('')
   const [gradesheetSuccess, setGradesheetSuccess] = useState('')
@@ -82,10 +81,36 @@ export default function ClassGrades() {
     return () => window.clearTimeout(timeoutId)
   }, [gradesheetSuccess])
 
+  const handleGradesheetUpload = async (e) => {
+    setGradesheetError('')
+    setGradesheetSuccess('')
+    const files = e.target.files
+    if (!files || files.length === 0) {
+      setGradesheetError('Please select a gradesheet file (CSV or XLSX).')
+      return
+    }
+    setUploadingGradesheet(true)
+    try {
+      const result = await uploadClassFiles(id, files, 'gradesheet')
+      const updated = result?.updated ?? 0
+      const notEnrolled = result?.not_enrolled?.length ?? 0
+      const missingIdentifiers = result?.missing_identifiers ?? 0
+      const parts = [`Gradesheet uploaded. Updated ${updated} student record(s).`]
+      if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
+      if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
+      setGradesheetSuccess(parts.join(' '))
+      await loadData()
+    } catch (err) {
+      setGradesheetError(err.message || 'Upload failed')
+    } finally {
+      setUploadingGradesheet(false)
+      if (gradesheetInputRef.current) gradesheetInputRef.current.value = ''
+    }
+  }
+
   const students = gradesData?.students || []
 
   const midtermComponentColumns = useMemo(() => MIDTERM_COMPONENT_COLUMNS, [])
-
   const finalComponentColumns = useMemo(() => FINAL_COMPONENT_COLUMNS, [])
 
   const visibleColumns = useMemo(() => {
@@ -139,68 +164,42 @@ export default function ClassGrades() {
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <div className="flex items-center gap-2">
-            {/* Upload gradesheet */}
-            <input
-              type="file"
-              ref={gradesheetInputRef}
-              accept=".csv,.xlsx"
-              style={{ display: 'none' }}
-              onChange={async (e) => {
-                setGradesheetError('')
-                setGradesheetSuccess('')
-                const files = e.target.files
-                if (!files || files.length === 0) {
-                  setGradesheetError('Please select a gradesheet file (CSV or XLSX).')
-                  return
-                }
-                setUploadingGradesheet(true)
-                try {
-                  const result = await uploadClassFiles(id, files, 'gradesheet')
-                  const updated = result?.updated ?? 0
-                  const notEnrolled = result?.not_enrolled?.length ?? 0
-                  const missingIdentifiers = result?.missing_identifiers ?? 0
-                  const parts = [`Gradesheet uploaded. Updated ${updated} student record(s).`]
-                  if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
-                  if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
-                  setGradesheetSuccess(parts.join(' '))
-                  await loadData()
-                } catch (err) {
-                  setGradesheetError(err.message || 'Upload failed')
-                } finally {
-                  setUploadingGradesheet(false)
-                  gradesheetInputRef.current.value = ''
-                }
-              }}
-            />
+        {gradesheetError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gradesheetError}</div>}
+
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <input
+            type="file"
+            ref={gradesheetInputRef}
+            accept=".csv,.xlsx"
+            style={{ display: 'none' }}
+            onChange={handleGradesheetUpload}
+          />
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <button
+                type="button"
+                onClick={() => navigate(`/instructor/class/${id}`)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 mb-3"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Class Details
+              </button>
+              <div className="flex items-center gap-2 mb-2">
+                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                <h2 className="text-lg font-bold text-slate-900">Grades - {subjectCode}: {subjectName}</h2>
+              </div>
+              <p className="text-sm text-slate-600">Midterm and Final term grades with component scores (Class Standing, Laboratory, Major Output).</p>
+            </div>
             <button
               type="button"
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
               disabled={uploadingGradesheet}
               onClick={() => gradesheetInputRef.current && gradesheetInputRef.current.click()}
             >
               <Upload className="w-4 h-4" />
-              {uploadingGradesheet ? 'Uploading…' : 'Upload gradesheet'}
+              {uploadingGradesheet ? 'Uploading...' : 'Upload gradesheet'}
             </button>
           </div>
-        </div>
-        {gradesheetError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{gradesheetError}</div>}
-
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <button
-            type="button"
-            onClick={() => navigate(`/instructor/class/${id}`)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 mb-3"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Class Details
-          </button>
-          <div className="flex items-center gap-2 mb-2">
-            <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-bold text-slate-900">Grades - {subjectCode}: {subjectName}</h2>
-          </div>
-          <p className="text-sm text-slate-600">Midterm and Final term grades with component scores (Class Standing, Laboratory, Major Output).</p>
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">

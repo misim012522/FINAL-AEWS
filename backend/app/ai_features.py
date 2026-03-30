@@ -9,12 +9,14 @@ MODEL_FEATURE_ORDER = [
     "previous_gpa",
     "failed_subject_count",
     "attendance_rate",
+    "previous_final_grade",
+    "previous_midterm_grade",
+    "previous_failed_flag",
+    "previous_passed_flag",
+    "historical_grade_average",
+    "historical_failure_count",
     "academic_challenge_score",
     "external_factor_score",
-    "class_standing",
-    "laboratory",
-    "major_output",
-    "midterm_grade",
 ]
 
 ACADEMIC_CHALLENGE_FIELDS = [
@@ -88,6 +90,30 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
     if attendance_rate is None:
         attendance_rate = _to_float(enrollment.get("self_reported_attendance")) or 0.0
 
+    previous_final_grade = _to_float(enrollment.get("previous_final_grade"))
+    if previous_final_grade is None:
+        previous_final_grade = previous_gpa
+
+    previous_midterm_grade = _to_float(enrollment.get("previous_midterm_grade"))
+    if previous_midterm_grade is None:
+        previous_midterm_grade = previous_gpa
+
+    previous_failed_flag = _to_int(enrollment.get("previous_failed_flag"))
+    if previous_failed_flag is None:
+        previous_failed_flag = 1 if failed_subject_count > 0 else 0
+
+    previous_passed_flag = _to_int(enrollment.get("previous_passed_flag"))
+    if previous_passed_flag is None:
+        previous_passed_flag = 0 if previous_failed_flag else 1
+
+    historical_grade_average = _to_float(enrollment.get("historical_grade_average"))
+    if historical_grade_average is None:
+        historical_grade_average = previous_gpa
+
+    historical_failure_count = _to_int(enrollment.get("historical_failure_count"))
+    if historical_failure_count is None:
+        historical_failure_count = failed_subject_count
+
     academic_challenge_score = _to_float(enrollment.get("academic_challenge_score"))
     if academic_challenge_score is None:
         academic_challenge_score = float(
@@ -143,6 +169,12 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
         "previous_gpa": float(previous_gpa),
         "failed_subject_count": int(failed_subject_count),
         "attendance_rate": float(attendance_rate),
+        "previous_final_grade": float(previous_final_grade),
+        "previous_midterm_grade": float(previous_midterm_grade),
+        "previous_failed_flag": int(previous_failed_flag),
+        "previous_passed_flag": int(previous_passed_flag),
+        "historical_grade_average": float(historical_grade_average),
+        "historical_failure_count": int(historical_failure_count),
         "academic_challenge_score": float(academic_challenge_score),
         "external_factor_score": float(external_factor_score),
         "class_standing": float(class_standing),

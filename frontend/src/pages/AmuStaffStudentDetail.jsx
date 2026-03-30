@@ -18,6 +18,11 @@ import { getAmuStaffReferral, sendAmuStaffReferralEmail, listInterventions } fro
 
 const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
 const statusClass = { 'in-progress': 'bg-teal-100 text-teal-700', completed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700' }
+const sourceClass = {
+  grades: 'bg-blue-100 text-blue-700 border-blue-200',
+  external_factors: 'bg-violet-100 text-violet-700 border-violet-200',
+  mixed: 'bg-teal-100 text-teal-700 border-teal-200',
+}
 
 export default function AmuStaffStudentDetail() {
   const { id } = useParams()
@@ -153,6 +158,24 @@ export default function AmuStaffStudentDetail() {
                 <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2">
                   <p className="text-[9px] font-semibold text-amber-700 uppercase tracking-wider">Instructor note</p>
                   <p className="mt-1 text-[10px] leading-relaxed text-amber-900 whitespace-pre-line">{student.referral_note}</p>
+                </div>
+              )}
+              {student.risk_source_label && (
+                <div className={`mt-2 rounded-md border px-2 py-2 ${sourceClass[student.risk_source] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                  <p className="text-[9px] font-semibold uppercase tracking-wider">AI designation</p>
+                  <p className="mt-1 text-[10px] font-medium">{student.risk_source_label}</p>
+                </div>
+              )}
+              {Array.isArray(student.risk_drivers) && student.risk_drivers.length > 0 && (
+                <div className="mt-2">
+                  <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Primary drivers</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {student.risk_drivers.map((reason) => (
+                      <span key={reason} className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
+                        {reason}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
               {student.referral_reasons && student.referral_reasons.length > 0 && (

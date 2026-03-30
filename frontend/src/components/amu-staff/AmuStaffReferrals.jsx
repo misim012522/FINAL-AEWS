@@ -5,6 +5,11 @@ import { createIntervention, getAmuStaffReferrals, listInterventions } from '../
 
 const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
 const DEFAULT_FORM = { type: 'Counseling session', due: '', notification_subject: '', notification_message: '' }
+const sourceClass = {
+  grades: 'bg-blue-100 text-blue-700',
+  external_factors: 'bg-violet-100 text-violet-700',
+  mixed: 'bg-teal-100 text-teal-700',
+}
 
 function buildDefaultNotification(referral, interventionType) {
   const studentName = referral.student_name || referral.student_email || referral.student_id || 'Student'
@@ -257,6 +262,11 @@ export default function AmuStaffReferrals() {
                                 <p className="text-[10px] text-gray-500 flex items-center gap-0.5 min-w-0 truncate">
                                   <Mail className="w-2 h-2 shrink-0" /> <span className="truncate">{r.student_email}</span>
                                 </p>
+                                {r.risk_source_label && (
+                                  <span className={`inline-flex items-center gap-0.5 mt-1 px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${sourceClass[r.risk_source] || 'bg-slate-100 text-slate-700'}`}>
+                                    {r.risk_source_label}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </td>

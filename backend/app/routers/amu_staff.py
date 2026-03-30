@@ -12,9 +12,10 @@ from app.schemas import ReferralEmailRequest
 
 def require_amu_staff_role(x_user_role: str = Header(None, alias="X-User-Role")):
     """Dependency to enforce AMU Staff access. Frontend must send X-User-Role header."""
-    if x_user_role != "amu-staff":
+    normalized_role = "amu-staff" if x_user_role == "amustaff" else x_user_role
+    if normalized_role != "amu-staff":
         raise HTTPException(status_code=403, detail="AMU Staff access required")
-    return x_user_role
+    return normalized_role
 
 
 router = APIRouter(dependencies=[Depends(require_amu_staff_role)])
@@ -166,7 +167,13 @@ def list_referrals(risk: str | None = None, search: str | None = None):
                 "referred_at": referred_at_str,
                 "gpa": doc.get("gpa"),
                 "attendance": doc.get("attendance"),
+                "risk_source": doc.get("risk_source"),
+                "risk_source_label": doc.get("risk_source_label"),
+                "risk_drivers": doc.get("risk_drivers") or [],
                 "referral_note": doc.get("referral_note"),
+                "assigned_amu_staff_id": doc.get("assigned_amu_staff_id"),
+                "assigned_amu_staff_name": doc.get("assigned_amu_staff_name"),
+                "assigned_amu_staff_college": doc.get("assigned_amu_staff_college"),
                 "referral_reasons": _build_referral_reasons(doc),
             })
         return out
@@ -219,7 +226,15 @@ def get_referral(ref_id: str):
             "risk_probability_percent": doc.get("risk_probability_percent"),
             "previous_gpa": doc.get("previous_gpa"),
             "failed_subject_count": doc.get("failed_subject_count"),
+            "risk_source": doc.get("risk_source"),
+            "risk_source_label": doc.get("risk_source_label"),
+            "risk_drivers": doc.get("risk_drivers") or [],
+            "academic_risk_drivers": doc.get("academic_risk_drivers") or [],
+            "external_risk_drivers": doc.get("external_risk_drivers") or [],
             "referral_note": doc.get("referral_note"),
+            "assigned_amu_staff_id": doc.get("assigned_amu_staff_id"),
+            "assigned_amu_staff_name": doc.get("assigned_amu_staff_name"),
+            "assigned_amu_staff_college": doc.get("assigned_amu_staff_college"),
             "referral_reasons": _build_referral_reasons(doc),
         }
     except HTTPException:

@@ -88,6 +88,11 @@ export async function previewClasslist(file) {
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+function normalizeRole(role) {
+  if (role === 'amustaff') return 'amu-staff'
+  return role
+}
+
 function formatErrorDetail(detail) {
   if (Array.isArray(detail)) {
     return detail.map((d) => d.msg || `${d.loc?.join('.')}: invalid`).join('. ')
@@ -107,7 +112,8 @@ function getAuthHeaders() {
     if (raw) {
       const data = JSON.parse(raw)
       if (data?.user?.id) headers['X-User-Id'] = data.user.id
-      if (data?.role) headers['X-User-Role'] = data.role
+      const role = normalizeRole(data?.role || data?.user?.role)
+      if (role) headers['X-User-Role'] = role
     }
   } catch (e) {
     console.error('Failed to parse auth token:', e)
@@ -136,8 +142,8 @@ export async function signup({ name, email, password, contact_number, department
   return data
 }
 
-export async function login({ email, password, role, recaptchaToken }) {
-  const body = { email, password, role }
+export async function login({ email, password, recaptchaToken }) {
+  const body = { email, password }
   if (recaptchaToken) body.recaptcha_token = recaptchaToken
   let res
   try {

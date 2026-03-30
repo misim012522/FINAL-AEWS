@@ -2,10 +2,13 @@
 Admin-only endpoints for system overview: KPIs, departments (from instructors only),
 students at risk, department stats, instructors list, and trends.
 """
+from datetime import datetime
+
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Header, Depends
 from pymongo.errors import ServerSelectionTimeoutError
 
+from app.ai_model import load_model_metrics
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
 from app.intervention_backfill import get_intervention_backfill_status
@@ -416,8 +419,41 @@ def get_analytics_risk_distribution(department: str | None = None):
 
 @router.get("/analytics/accuracy")
 def get_analytics_accuracy():
-    """AI prediction accuracy over time. No historical data in DB; return empty until implemented."""
-    return []
+    """Return saved AI model accuracy history from the latest training run metadata."""
+    payload = load_model_metrics()
+    if not payload:
+        return []
+
+    history = payload.get("history")
+    if not isinstance(history, list):
+        return []
+
+    normalized_history: list[dict] = []
+    for item in history:
+        if not isinstance(item, dict):
+            continue
+        trained_at = item.get("trained_at")
+        label = "Latest"
+        if isinstance(trained_at, str):
+            try:
+                parsed = datetime.fromisoformat(trained_at.replace("Z", "+00:00"))
+                label = parsed.strftime("%b %d, %Y")
+            except ValueError:
+                label = trained_at
+        normalized_history.append({
+            "month": label,
+            "accuracy": round(float(item.get("holdout_accuracy", 0.0)) * 100, 2),
+            "cvAccuracy": round(float(item.get("cv_mean_accuracy", 0.0)) * 100, 2),
+            "precision": round(float(item.get("precision_weighted", 0.0)) * 100, 2),
+            "recall": round(float(item.get("recall_weighted", 0.0)) * 100, 2),
+            "f1": round(float(item.get("f1_weighted", 0.0)) * 100, 2),
+            "trainedAt": trained_at,
+            "profile": item.get("profile") or payload.get("selected_profile"),
+            "modelName": item.get("model_name") or item.get("best_model") or payload.get("selected_model"),
+            "bestModel": item.get("best_model") or payload.get("selected_model"),
+            "allModels": item.get("all_models") if isinstance(item.get("all_models"), dict) else {},
+        })
+    return normalized_history
 
 
 # ----- Institution Reports (real data) -----

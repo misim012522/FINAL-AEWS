@@ -1,23 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Brain, GraduationCap, Mail, Lock, Cog, UserPlus, Users, CheckCircle } from 'lucide-react'
+import { Brain, GraduationCap, Mail, Lock, UserPlus, CheckCircle } from 'lucide-react'
 import { login as apiLogin } from '../api'
 import { useAuth } from '../context/AuthContext'
 
 const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
-
-const ROLES = [
-  { value: 'instructor', label: 'Instructor', path: '/instructor', icon: GraduationCap },
-  { value: 'admin', label: 'Admin', path: '/admin', icon: Cog },
-  { value: 'amu-staff', label: 'AMU Staff', path: '/amu-staff', icon: Users },
-]
 
 export default function Login() {
   const navigate = useNavigate()
   const { login: setAuth } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('instructor')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [emailRequired, setEmailRequired] = useState(false)
@@ -27,15 +20,25 @@ export default function Login() {
   const [recaptchaReady, setRecaptchaReady] = useState(false)
   const recaptchaContainerRef = useRef(null)
   const recaptchaWidgetIdRef = useRef(null)
+  const recaptchaScriptRequestedRef = useRef(false)
 
-  const selectedRole = ROLES.find((r) => r.value === role) || ROLES[0]
-  const roleToPath = (r) => ROLES.find((x) => x.value === r)?.path ?? '/instructor'
-  const RoleIcon = selectedRole.icon
+  const roleToPath = (roleName) => {
+    if (roleName === 'admin') return '/admin'
+    if (roleName === 'amu-staff') return '/amu-staff'
+    return '/instructor'
+  }
 
-  // Load reCAPTCHA v2 script and render visible checkbox
   useEffect(() => {
     if (!RECAPTCHA_SITE_KEY || !recaptchaContainerRef.current) return
-    if (window.grecaptcha?.render) {
+    if (typeof recaptchaWidgetIdRef.current === 'number') {
+      setRecaptchaReady(true)
+      return
+    }
+
+    const renderRecaptcha = () => {
+      if (!recaptchaContainerRef.current || !window.grecaptcha?.render || typeof recaptchaWidgetIdRef.current === 'number') {
+        return
+      }
       try {
         recaptchaWidgetIdRef.current = window.grecaptcha.render(recaptchaContainerRef.current, {
           sitekey: RECAPTCHA_SITE_KEY,
@@ -46,32 +49,34 @@ export default function Login() {
       } catch (err) {
         console.warn('reCAPTCHA render failed:', err)
       }
+    }
+
+    if (window.grecaptcha?.render) {
+      renderRecaptcha()
       return
     }
-    const script = document.createElement('script')
-    script.src = 'https://www.google.com/recaptcha/api.js?onload=__recaptchaOnLoad&render=explicit'
-    script.async = true
-    script.defer = true
+
     window.__recaptchaOnLoad = () => {
-      try {
-        if (recaptchaContainerRef.current && window.grecaptcha?.render) {
-          recaptchaWidgetIdRef.current = window.grecaptcha.render(recaptchaContainerRef.current, {
-            sitekey: RECAPTCHA_SITE_KEY,
-            theme: 'light',
-            size: 'normal',
-          })
-          setRecaptchaReady(true)
-        }
-      } catch (err) {
-        console.warn('reCAPTCHA render failed:', err)
-      }
+      renderRecaptcha()
     }
-    document.head.appendChild(script)
+
+    if (!document.querySelector('script[data-recaptcha-script="true"]') && !recaptchaScriptRequestedRef.current) {
+      const script = document.createElement('script')
+      script.src = 'https://www.google.com/recaptcha/api.js?onload=__recaptchaOnLoad&render=explicit'
+      script.async = true
+      script.defer = true
+      script.dataset.recaptchaScript = 'true'
+      recaptchaScriptRequestedRef.current = true
+      document.head.appendChild(script)
+    }
+
     return () => {
       if (window.grecaptcha && typeof recaptchaWidgetIdRef.current === 'number') {
         try { window.grecaptcha.reset(recaptchaWidgetIdRef.current) } catch (_) {}
       }
-      delete window.__recaptchaOnLoad
+      if (window.__recaptchaOnLoad) {
+        delete window.__recaptchaOnLoad
+      }
     }
   }, [RECAPTCHA_SITE_KEY])
 
@@ -97,7 +102,11 @@ export default function Login() {
     }
     setLoading(true)
     try {
-      const data = await apiLogin({ email: email.trim(), password, role, recaptchaToken: recaptchaToken || undefined })
+      const data = await apiLogin({
+        email: email.trim(),
+        password,
+        recaptchaToken: recaptchaToken || undefined,
+      })
       setAuth(data)
       const apiRole = data?.role ?? data?.user?.role ?? 'instructor'
       setRedirectPath(roleToPath(apiRole))
@@ -128,13 +137,12 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden py-12 sm:py-16 px-4">
-      {/* Background: blue gradient + soft orbs */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-indigo-200/95 to-blue-300/90" aria-hidden="true" />
       <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-blue-400/45 blur-3xl" aria-hidden="true" />
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full bg-indigo-400/40 blur-3xl" aria-hidden="true" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] rounded-full bg-blue-400/25 blur-3xl" aria-hidden="true" />
       <div className="absolute top-3/4 left-1/4 w-64 h-64 rounded-full bg-sky-400/35 blur-3xl" aria-hidden="true" />
-      {/* Success popup */}
+
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="alert" aria-live="polite">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
@@ -149,9 +157,7 @@ export default function Login() {
       )}
 
       <div className="relative z-10 w-full max-w-[520px]">
-        {/* Login card: logo, title, subtitle, and form inside */}
         <div className="w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl shadow-slate-200/60 ring-1 ring-slate-200/50 p-10 text-left">
-          {/* Logo + title + subtitle inside container */}
           <header className="text-center mb-6 pb-5 border-b border-slate-100">
             <div className="flex justify-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-center shrink-0">
@@ -209,40 +215,19 @@ export default function Login() {
                   type="password"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setPasswordRequired(false) }}
-                  placeholder="•••••••••••"
+                  placeholder="..........."
                   className={`w-full pl-12 pr-4 py-3.5 rounded-xl border outline-none transition text-base text-gray-900 placeholder:text-gray-400 focus:ring-2 focus:ring-blue-500/20 ${passwordRequired ? 'border-red-400 focus:border-red-500' : 'border-gray-200 focus:border-blue-500'}`}
                 />
               </div>
               {passwordRequired && <p className="mt-1 text-sm text-red-600">This is required</p>}
             </div>
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">Sign in as</label>
-              <div className="relative">
-                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none">
-                  <RoleIcon className="w-5 h-5" />
-                </div>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 bg-white appearance-none cursor-pointer"
-                >
-                  {ROLES.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none text-sm">▼</span>
-              </div>
-            </div>
 
-            {/* reCAPTCHA v2 checkbox - visible "I'm not a robot" (requires v2 keys in .env) */}
             {RECAPTCHA_SITE_KEY && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-gray-700">Verify you&apos;re not a robot</span>
                 <div ref={recaptchaContainerRef} className="min-h-[78px] flex items-center justify-start" />
                 {!recaptchaReady && (
-                  <p className="text-xs text-gray-500">Loading reCAPTCHA…</p>
+                  <p className="text-xs text-gray-500">Loading reCAPTCHA...</p>
                 )}
               </div>
             )}
@@ -253,8 +238,7 @@ export default function Login() {
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-white bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 transition shadow-md hover:shadow-lg hover:shadow-blue-500/20 disabled:opacity-60 disabled:pointer-events-none"
               >
-                <RoleIcon className="w-5 h-5" />
-                {loading ? 'Signing in…' : 'Sign in'}
+                {loading ? 'Signing in...' : 'Sign in'}
               </button>
               <div className="relative my-2">
                 <span className="absolute inset-0 flex items-center">
@@ -277,7 +261,6 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Help icon */}
       <button
         type="button"
         onClick={() => navigate('/help')}

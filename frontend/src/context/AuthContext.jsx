@@ -2,12 +2,20 @@ import { createContext, useContext, useState, useCallback, useMemo } from 'react
 
 const AUTH_KEY = 'auth'
 
+function normalizeRole(role) {
+  if (role === 'amustaff') return 'amu-staff'
+  return role
+}
+
 function readStored() {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
     if (!raw) return null
     const data = JSON.parse(raw)
-    if (data?.user && data?.role) return { user: data.user, role: data.role }
+    const role = normalizeRole(data?.role || data?.user?.role)
+    if (data?.user && role) {
+      return { user: { ...data.user, role }, role }
+    }
   } catch (_) {}
   return null
 }
@@ -20,7 +28,11 @@ export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(readStored)
 
   const login = useCallback((data) => {
-    const payload = { user: data?.user ?? null, role: data?.role ?? null }
+    const role = normalizeRole(data?.role || data?.user?.role)
+    const payload = {
+      user: data?.user ? { ...data.user, role } : null,
+      role: role ?? null,
+    }
     if (payload.user && payload.role) {
       setAuth(payload)
       localStorage.setItem(AUTH_KEY, JSON.stringify(payload))
@@ -35,7 +47,8 @@ export function AuthProvider({ children }) {
   const updateUser = useCallback((updates) => {
     if (!auth?.user || !updates || typeof updates !== 'object') return
     const nextUser = { ...auth.user, ...updates }
-    const payload = { user: nextUser, role: auth.role }
+    const role = normalizeRole(nextUser.role || auth.role)
+    const payload = { user: { ...nextUser, role }, role }
     setAuth(payload)
     localStorage.setItem(AUTH_KEY, JSON.stringify(payload))
   }, [auth])

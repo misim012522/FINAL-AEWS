@@ -22,6 +22,7 @@ import {
   previewClasslist,
   predictClassRisk,
   updateEnrollment,
+  listUsers,
 } from '../api'
 
 const RISK_CLASS = {
@@ -86,6 +87,36 @@ function getRiskReasons(student) {
   return reasons
 }
 
+function getRiskDesignation(student) {
+  if (!student?.risk_source) return null
+  const labels = {
+    grades: 'Main concern: academic performance',
+    external_factors: 'Main concern: personal or outside factors',
+    mixed: 'Main concern: both academics and outside factors',
+  }
+  return labels[student.risk_source] || student.risk_source_label || null
+}
+
+function hasComputedRisk(student) {
+  return Boolean(String(student?.risk || '').trim())
+}
+
+function simplifyReason(reason) {
+  if (!reason) return ''
+  return String(reason)
+    .replace(/^Predicted as\s+/i, '')
+    .replace(/^Difficulty in understanding lectures: Yes$/i, 'Has difficulty understanding lectures.')
+    .replace(/^Struggles with specific subjects: Yes$/i, 'Struggles in some subjects.')
+    .replace(/^Weak study habits or time management: Yes$/i, 'Needs help with study habits or time management.')
+    .replace(/^Low motivation or engagement: Yes$/i, 'Shows low motivation or engagement.')
+    .replace(/^Poor comprehension or writing skills: Yes$/i, 'Needs support in comprehension or writing.')
+    .replace(/^Financial difficulties: Yes$/i, 'May be facing financial difficulties.')
+    .replace(/^Physical health-related concerns: Yes$/i, 'May be facing physical health concerns.')
+    .replace(/^Family issues: Yes$/i, 'May be facing family-related concerns.')
+    .replace(/^Part-time work affecting studies: Yes$/i, 'Part-time work may be affecting studies.')
+    .replace(/^Mental health-related concerns: Yes$/i, 'May need mental health support.')
+}
+
 export default function ClassDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -125,6 +156,30 @@ export default function ClassDetails() {
   const [referralError, setReferralError] = useState('')
   const [referralMessage, setReferralMessage] = useState('')
   const [referralNote, setReferralNote] = useState('')
+  const [amuStaffOptions, setAmuStaffOptions] = useState([])
+  const [amuStaffLoading, setAmuStaffLoading] = useState(false)
+  const [selectedAmuStaffId, setSelectedAmuStaffId] = useState('')
+
+  const fetchAmuStaffOptions = useCallback(async () => {
+    setAmuStaffLoading(true)
+    try {
+      const users = await listUsers('amu-staff')
+      const options = (Array.isArray(users) ? users : [])
+        .filter((entry) => !entry?.archived && (entry?.status || 'active') === 'active')
+        .map((entry) => ({
+          id: String(entry.id || '').trim(),
+          name: String(entry.name || '').trim(),
+          college: String(entry.department || '').trim(),
+          label: [String(entry.name || '').trim(), String(entry.department || '').trim()].filter(Boolean).join(' - '),
+        }))
+        .filter((entry) => entry.id && entry.name)
+      setAmuStaffOptions(options)
+    } catch {
+      setAmuStaffOptions([])
+    } finally {
+      setAmuStaffLoading(false)
+    }
+  }, [])
 
   const fetchClass = useCallback(async () => {
     if (!classId) return
@@ -187,17 +242,35 @@ export default function ClassDetails() {
     return () => window.clearTimeout(timeoutId)
   }, [aiUploadMessage])
 
+  useEffect(() => {
+    fetchAmuStaffOptions()
+  }, [fetchAmuStaffOptions])
+
   const openAIForm = useCallback((student) => {
     setActiveAIStudent(student)
     setReferralError('')
     setReferralMessage('')
     setReferralNote(student?.referral_note || '')
+    setSelectedAmuStaffId(student?.assigned_amu_staff_id || '')
   }, [])
 
   const referStudentToAmu = useCallback(async (student) => {
+    if (!hasComputedRisk(student)) {
+      setReferralError('This student cannot be referred to AMU until a risk result is available.')
+      setReferralMessage('')
+      return
+    }
+
     const targetKey = String(student?.student_email || student?.student_id || '').trim()
     if (!targetKey) {
       setReferralError('This student has no valid identifier yet, so the referral cannot be sent to AMU.')
+      setReferralMessage('')
+      return
+    }
+
+    const selectedAmuStaff = amuStaffOptions.find((entry) => entry.id === selectedAmuStaffId)
+    if (!selectedAmuStaff) {
+      setReferralError('Please choose the AMU staff member who will handle this referral.')
       setReferralMessage('')
       return
     }
@@ -209,18 +282,28 @@ export default function ClassDetails() {
       await updateEnrollment(classId, targetKey, {
         flagged_for_mentoring: true,
         referral_note: referralNote.trim() || null,
+        assigned_amu_staff_id: selectedAmuStaff.id,
+        assigned_amu_staff_name: selectedAmuStaff.name,
+        assigned_amu_staff_college: selectedAmuStaff.college || null,
       })
-      setReferralMessage(`Referral sent to AMU for ${student.student_name || targetKey}.`)
+      setReferralMessage(`Referral sent to ${selectedAmuStaff.label || selectedAmuStaff.name} for ${student.student_name || targetKey}.`)
       await fetchRoster()
       if ((activeAIStudent?.student_email || activeAIStudent?.student_id) === targetKey) {
-        setActiveAIStudent((prev) => prev ? { ...prev, flagged_for_mentoring: true, referral_note: referralNote.trim() } : prev)
+        setActiveAIStudent((prev) => prev ? {
+          ...prev,
+          flagged_for_mentoring: true,
+          referral_note: referralNote.trim(),
+          assigned_amu_staff_id: selectedAmuStaff.id,
+          assigned_amu_staff_name: selectedAmuStaff.name,
+          assigned_amu_staff_college: selectedAmuStaff.college || '',
+        } : prev)
       }
     } catch (err) {
       setReferralError(err.message || 'Failed to refer student to AMU.')
     } finally {
       setReferringStudentKey('')
     }
-  }, [activeAIStudent?.student_email, activeAIStudent?.student_id, classId, fetchRoster, referralNote])
+  }, [activeAIStudent?.student_email, activeAIStudent?.student_id, amuStaffOptions, classId, fetchRoster, referralNote, selectedAmuStaffId])
 
   if (classLoading && !classData) {
     return (
@@ -281,13 +364,6 @@ export default function ClassDetails() {
               <ArrowLeft className="w-4 h-4" />
               Back to My Classes
             </button>
-          </div>
-
-          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-              {subjectCode}: {subjectName}
-            </h2>
-            <p className="text-sm text-slate-500 mt-0.5">{studentCount} student{studentCount !== 1 ? 's' : ''}</p>
           </div>
 
           <div className="p-6 space-y-6">
@@ -541,6 +617,30 @@ export default function ClassDetails() {
 
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
                     <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                      Assign to AMU staff
+                    </label>
+                    <select
+                      value={selectedAmuStaffId}
+                      onChange={(e) => setSelectedAmuStaffId(e.target.value)}
+                      disabled={amuStaffLoading || Boolean(activeAIStudent?.flagged_for_mentoring)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white disabled:bg-slate-100"
+                    >
+                      <option value="">
+                        {amuStaffLoading ? 'Loading AMU staff...' : 'Choose AMU staff'}
+                      </option>
+                      {amuStaffOptions.map((staff) => (
+                        <option key={staff.id} value={staff.id}>
+                          {staff.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Choose who will handle this referral. Each option shows the staff name and assigned college.
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
                       Referral note for AMU
                     </label>
                     <textarea
@@ -556,55 +656,104 @@ export default function ClassDetails() {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
+                    {(() => {
+                      const canReferToAmu = hasComputedRisk(activeAIStudent)
+                      return (
+                        <>
                     <button
                       type="button"
                       disabled={
-                        Boolean(activeAIStudent?.flagged_for_mentoring)
+                        !canReferToAmu
+                        || amuStaffLoading
+                        || amuStaffOptions.length === 0
+                        || Boolean(activeAIStudent?.flagged_for_mentoring)
                         || referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
                       }
                       onClick={() => referStudentToAmu(activeAIStudent)}
                       className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
                     >
                       <Users className="w-4 h-4" />
-                      {activeAIStudent?.flagged_for_mentoring
-                        ? 'Already referred to AMU'
-                        : referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
-                          ? 'Referring...'
-                          : 'Refer to AMU'}
+                      {!canReferToAmu
+                        ? 'Risk result required'
+                        : activeAIStudent?.flagged_for_mentoring
+                          ? 'Already referred to AMU'
+                          : referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
+                            ? 'Referring...'
+                            : 'Refer to AMU'}
                     </button>
+                    {!canReferToAmu && (
+                      <p className="w-full text-xs text-slate-500">
+                        Run the AI risk prediction first before sending this student to AMU.
+                      </p>
+                    )}
+                    {canReferToAmu && !amuStaffLoading && amuStaffOptions.length === 0 && (
+                      <p className="w-full text-xs text-slate-500">
+                        No active AMU staff accounts are available yet.
+                      </p>
+                    )}
+                    {canReferToAmu && amuStaffOptions.length > 0 && !selectedAmuStaffId && !activeAIStudent?.flagged_for_mentoring && (
+                      <p className="w-full text-xs text-slate-500">
+                        Choose an AMU staff member first before sending the referral.
+                      </p>
+                    )}
+                        </>
+                      )
+                    })()}
                   </div>
 
                   {(() => {
                     const riskReasons = getRiskReasons(activeAIStudent)
+                    const riskDesignation = getRiskDesignation(activeAIStudent)
+                    const directDrivers = Array.isArray(activeAIStudent.risk_drivers) ? activeAIStudent.risk_drivers : []
+                    const simplifiedDrivers = directDrivers.map(simplifyReason).filter(Boolean).slice(0, 3)
+                    const simplifiedReasons = riskReasons.map(simplifyReason).filter(Boolean).slice(0, 4)
 
                     return (
                       <>
-                        {riskReasons.length > 0 && (
-                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Risk Description</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {riskReasons.map((reason) => (
-                                <span
-                                  key={reason}
-                                  className="inline-flex items-center rounded-md bg-white/80 px-2.5 py-1 text-xs font-medium text-amber-900 border border-amber-200"
-                                >
-                                  {reason}
-                                </span>
-                              ))}
-                            </div>
+                        {(activeAIStudent.risk || activeAIStudent.risk_probability_percent != null) && (
+                          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">
+                            <p className="font-semibold">
+                              Risk level: {activeAIStudent.risk || 'N/A'}
+                            </p>
+                            {activeAIStudent.assigned_amu_staff_name && (
+                              <p className="mt-1 text-sm">
+                                Assigned AMU staff: {activeAIStudent.assigned_amu_staff_name}
+                                {activeAIStudent.assigned_amu_staff_college ? ` - ${activeAIStudent.assigned_amu_staff_college}` : ''}
+                              </p>
+                            )}
+                            {riskDesignation && (
+                              <p className="mt-1 text-sm">{riskDesignation}</p>
+                            )}
+                            {activeAIStudent.risk_probability_percent != null && (
+                              <p className="mt-1 text-xs text-cyan-800">
+                                Confidence: {activeAIStudent.risk_probability_percent}%
+                              </p>
+                            )}
                           </div>
                         )}
-                        {(activeAIStudent.risk || activeAIStudent.risk_probability_percent != null) && (
-                          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-900">
-                            <p className="font-semibold">Predicted risk: {activeAIStudent.risk || 'N/A'}</p>
-                            <p className="text-xs mt-1">
-                              Probability: {activeAIStudent.risk_probability_percent != null ? `${activeAIStudent.risk_probability_percent}%` : 'N/A'}
-                            </p>
+                        {simplifiedDrivers.length > 0 && (
+                          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3">
+                            <p className="text-sm font-semibold text-blue-900">Main reason</p>
+                            <ul className="mt-2 space-y-1 text-sm text-blue-950">
+                              {simplifiedDrivers.map((reason) => (
+                                <li key={reason}>{reason}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {simplifiedReasons.length > 0 && (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                            <p className="text-sm font-semibold text-amber-900">What we noticed</p>
+                            <ul className="mt-2 space-y-1 text-sm text-amber-950">
+                              {simplifiedReasons.map((reason) => (
+                                <li key={reason}>{reason}</li>
+                              ))}
+                            </ul>
                           </div>
                         )}
                         {riskReasons.length === 0 && !(activeAIStudent.risk || activeAIStudent.risk_probability_percent != null) && (
                           <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600">
-                            No risk description available for this student yet.
+                            No student risk summary available yet.
                           </div>
                         )}
                       </>

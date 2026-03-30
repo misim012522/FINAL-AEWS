@@ -1,5 +1,5 @@
 from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 # ----- User -----
@@ -135,11 +135,27 @@ class SignUpRequest(BaseModel):
     department: str = Field("", description="Department (e.g. Information Technology)")
     role: Literal["instructor", "admin", "amu-staff"]
 
+    @model_validator(mode="after")
+    def validate_organization_field(self):
+        self.name = self.name.strip()
+        self.contact_number = self.contact_number.strip()
+        self.department = self.department.strip()
+
+        if not self.name:
+            raise ValueError("Full name is required")
+
+        if self.role == "amu-staff" and not self.department:
+            raise ValueError("College is required for AMU Staff accounts")
+
+        if self.role == "instructor" and not self.department:
+            raise ValueError("Department is required for Instructor accounts")
+
+        return self
+
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-    role: Literal["instructor", "admin", "amu-staff"]
     recaptcha_token: Optional[str] = None
 
 
@@ -198,6 +214,9 @@ class UpdateEnrollmentRequest(BaseModel):
     risk: Optional[Literal["High", "Medium", "Low"]] = None
     flagged_for_mentoring: Optional[bool] = None
     referral_note: Optional[str] = Field(None, max_length=2000)
+    assigned_amu_staff_id: Optional[str] = Field(None, max_length=100)
+    assigned_amu_staff_name: Optional[str] = Field(None, max_length=200)
+    assigned_amu_staff_college: Optional[str] = Field(None, max_length=200)
 
 
 class ReferralEmailRequest(BaseModel):

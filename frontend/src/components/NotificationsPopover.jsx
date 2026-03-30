@@ -72,11 +72,11 @@ export default function NotificationsPopover({
           </div>
         ) : (
           <ul className="divide-y divide-gray-50">
-            {displayList.map((n) => {
+            {displayList.map((n, index) => {
               const config = TYPE_CONFIG[n.type] || TYPE_CONFIG.alert
               const Icon = config.icon
               return (
-                <li key={n.id}>
+                <li key={`${n.id || 'notification'}-${n.time || 'time'}-${index}`}>
                   <div
                     className={`group flex gap-3 px-4 py-3 transition-colors ${
                       !n.read ? styles.accentBg : 'hover:bg-gray-50/80'
