@@ -14,6 +14,7 @@ import {
   FileSpreadsheet,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import DashboardPageHeader from '../components/DashboardPageHeader'
 import TutorialModal from '../components/TutorialModal'
 import InstructorRiskAlerts from '../components/instructor/InstructorRiskAlerts'
 import {
@@ -27,32 +28,18 @@ import InstructorStudentList from '../components/instructor/InstructorStudentLis
 import { useAuth } from '../context/AuthContext'
 import { listClasses, createClass, archiveClass } from '../api'
 
-const TABS = [
-  { id: 'classes', label: 'My Classes', icon: BookOpen },
-  { id: 'alerts', label: 'Risk Alerts', icon: Bell },
-  { id: 'students', label: 'Student List', icon: Users },
-  { id: 'reports', label: 'Reports', icon: FileSpreadsheet },
-]
-
 const colorClasses = {
   gray: 'bg-gray-100 text-gray-700',
   amber: 'bg-amber-100 text-amber-800',
 }
 
-function CourseCard({ course, onViewDetails, onArchive, archisingId, variant = 'card' }) {
+function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
   const atRisk = course.at_risk_count ?? 0
-  const isList = variant === 'list'
   const isArchiving = archisingId === course.id
   return (
-    <div
-      className={
-        isList
-          ? 'group flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50/80 transition-colors rounded-lg'
-          : 'group bg-white rounded-xl border border-slate-200/80 shadow-sm hover:shadow-md hover:border-blue-200/80 transition-all duration-200 overflow-hidden border-l-4 border-l-blue-500 hover:-translate-y-0.5'
-      }
-    >
-      <div className={isList ? 'flex-1 min-w-0' : 'p-2.5'}>
-        <div className={`flex items-center justify-between gap-4 ${isList ? 'flex-1' : ''}`}>
+    <div className="group flex items-center justify-between gap-4 rounded-lg px-6 py-4 transition-colors hover:bg-slate-50/80">
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-1 items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0">
             <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0 ring-1 ring-blue-100">
               <BookOpen className="w-5 h-5" />
@@ -247,80 +234,48 @@ export default function InstructorDashboard() {
     <DashboardLayout
       title="Instructor Dashboard"
       subtitle={user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
+      navItems={[
+        { label: 'Classes', icon: BookOpen, active: activeTab === 'classes', onClick: () => setActiveTab('classes') },
+        { label: 'Risk alerts', icon: Bell, active: activeTab === 'alerts', onClick: () => setActiveTab('alerts') },
+        { label: 'Students', icon: Users, active: activeTab === 'students', onClick: () => setActiveTab('students') },
+        { label: 'Reports', icon: FileSpreadsheet, active: false, onClick: () => navigate('/instructor/reports'), trailing: true },
+      ]}
     >
       {showTutorial && <TutorialModal variant="instructor" onClose={handleTutorialClose} />}
-
-      {/* Tab navigation in container */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-2 mb-6">
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Dashboard sections">
-          {TABS.map((tab) => {
-            const TabIcon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => {
-                  if (tab.id === 'reports') {
-                    navigate('/instructor/reports')
-                    return
-                  }
-                  setActiveTab(tab.id)
-                }}
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
-                  isActive
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-900'
-                }`}
-              >
-                <TabIcon className="w-4 h-4 flex-shrink-0" />
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
 
       <div className="space-y-6">
         {activeTab === 'classes' && (
           <>
-            {/* One container for title, stats, search, and class list */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-              {/* Header strip */}
-              <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900 tracking-tight">My Classes</h2>
-                    <p className="text-sm text-slate-500 mt-0.5">Manage your courses and view at-risk students</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => navigate('/instructor/archived')}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
-                    >
-                      <Archive className="w-4 h-4" />
-                      Archived
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddClassModal(true)}
-                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.98]"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Class
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+            <DashboardPageHeader
+              eyebrow="Instructor workflow"
+              title="My classes"
+              description="Start here to manage your classes, review student status, and open the next page you need without extra searching."
+              actions={
+                <>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/instructor/archived')}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+                  >
+                    <Archive className="w-4 h-4" />
+                    Archived
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddClassModal(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.98]"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add class
+                  </button>
+                </>
+              }
+            >
               <div className="p-6 space-y-6">
                 {classesLoading && (
                   <div className="flex flex-col items-center justify-center gap-3 py-16">
                     <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm font-medium text-slate-500">Loading classes…</span>
+                    <span className="text-sm font-medium text-slate-500">Loading classes...</span>
                   </div>
                 )}
                 {classesError && (
@@ -393,7 +348,6 @@ export default function InstructorDashboard() {
                     {filteredClasses.map((course) => (
                       <li key={course.id}>
                         <CourseCard
-                          variant="list"
                           course={course}
                           onViewDetails={(c) => navigate(`/instructor/class/${c.id}`)}
                           onArchive={handleArchiveClass}
@@ -439,7 +393,7 @@ export default function InstructorDashboard() {
                   </div>
                 )}
               </div>
-            </div>
+            </DashboardPageHeader>
 
             {/* Add Class Modal */}
             {showAddClassModal && (
@@ -472,7 +426,7 @@ export default function InstructorDashboard() {
                     </div>
                     <div className="flex gap-2 justify-end pt-2">
                       <button type="button" onClick={() => setShowAddClassModal(false)} disabled={addClassSubmitting} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50">Cancel</button>
-                      <button type="submit" disabled={addClassSubmitting} className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{addClassSubmitting ? 'Creating…' : 'Add Class'}</button>
+                      <button type="submit" disabled={addClassSubmitting} className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{addClassSubmitting ? 'Creating...' : 'Add Class'}</button>
                     </div>
                   </form>
                 </div>

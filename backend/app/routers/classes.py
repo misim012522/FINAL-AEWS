@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
 import csv
 import re
 import io
+import unicodedata
 try:
     import openpyxl
     _HAS_OPENPYXL = True
@@ -22,6 +23,7 @@ from typing import List
 import uuid
 from fastapi.responses import JSONResponse
 
+from app.authz import get_current_actor
 from app.database import get_db
 from app.ai_model import predict_student_risk
 from app.notification_utils import create_notification
@@ -36,6 +38,47 @@ router = APIRouter()
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _ensure_instructor_scope(actor: dict, instructor_id: str):
+    if actor["role"] == "admin":
+        return
+    if actor["role"] != "instructor" or actor["id"] != (instructor_id or "").strip():
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _get_class_for_actor(db, class_id: str, actor: dict):
+    if not ObjectId.is_valid(class_id):
+        raise HTTPException(status_code=404, detail="Class not found")
+    doc = db.classes.find_one({"_id": ObjectId(class_id)})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Class not found")
+    _ensure_instructor_scope(actor, doc.get("instructor_id", ""))
+    return doc
+
+
+def _set_related_enrollment_archive_state(db, class_id: str, archived: bool) -> None:
+    """Keep enrollment records in sync with their parent class archive state."""
+    if archived:
+        db.enrollments.update_many(
+            {"class_id": class_id},
+            {
+                "$set": {
+                    "archived": True,
+                    "status": "archived",
+                    "archived_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        return
+
+    db.enrollments.update_many(
+        {"class_id": class_id},
+        {
+            "$set": {"status": "active"},
+            "$unset": {"archived": "", "archived_at": ""},
+        },
+    )
 
 _HEADER_HINTS = [
     "email", "name", "student", "id", "no", "number",
@@ -78,6 +121,145 @@ def _make_unique_headers(header_cells) -> list[str]:
     return headers
 
 
+def _slugify_header_fragment(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", _normalize_cell(value))
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_text = ascii_text.lower().strip()
+    ascii_text = re.sub(r"[^a-z0-9]+", "_", ascii_text)
+    return ascii_text.strip("_")
+
+
+def _header_term_to_prefix(value: str) -> str | None:
+    normalized = _normalize_cell(value).lower().strip()
+    if not normalized:
+        return None
+    if normalized in {"final", "finals", "final term"}:
+        return "finals"
+    if normalized in {"mid", "midterm", "midterms", "mid term"}:
+        return "midterm"
+    return None
+
+
+def _normalize_component_bucket_label(value: str) -> str | None:
+    normalized = _normalize_cell(value).lower().strip()
+    if not normalized:
+        return None
+    if "class standing" in normalized or normalized in {"cs", "class stand"}:
+        return "class_standing"
+    if "laboratory" in normalized or normalized in {"lab", "laboratory"}:
+        return "laboratory"
+    if "major output" in normalized or normalized in {"mo", "major"}:
+        return "major_output"
+    return None
+
+
+def _build_gradesheet_multirow_headers(raw_rows) -> tuple[list[str], int] | tuple[None, None]:
+    """Build canonical headers from multi-row gradesheet layouts with section/title rows."""
+    if not raw_rows:
+        return None, None
+
+    max_scan = min(len(raw_rows), 12)
+    column_count = max((len(row) for row in raw_rows[:max_scan]), default=0)
+    if column_count <= 0:
+        return None, None
+
+    term_by_col: dict[int, str] = {}
+    bucket_by_col: dict[int, str] = {}
+    title_by_col: dict[int, str] = {}
+    student_header_row = None
+    student_id_col = None
+    student_name_col = None
+    last_header_row = 0
+
+    for row_idx, row in enumerate(raw_rows[:max_scan]):
+        if (
+            student_header_row is not None
+            and student_id_col is not None
+            and student_name_col is not None
+            and row_idx > student_header_row
+        ):
+            candidate_id = _normalize_cell(row[student_id_col] if student_id_col < len(row) else "").strip()
+            candidate_name = _normalize_cell(row[student_name_col] if student_name_col < len(row) else "").strip()
+            if candidate_id and candidate_name:
+                break
+
+        current_term = None
+        current_bucket = None
+        for col_idx in range(column_count):
+            raw_value = row[col_idx] if col_idx < len(row) else None
+            text = _normalize_cell(raw_value).strip()
+            lower = text.lower()
+
+            term = _header_term_to_prefix(lower) if lower else None
+            if term:
+                current_term = term
+                last_header_row = max(last_header_row, row_idx)
+            if current_term:
+                term_by_col[col_idx] = current_term
+
+            bucket = _normalize_component_bucket_label(lower) if lower else None
+            if bucket:
+                current_bucket = bucket
+                last_header_row = max(last_header_row, row_idx)
+            if current_bucket:
+                bucket_by_col[col_idx] = current_bucket
+
+            if not text:
+                continue
+
+            if lower in {"student id", "student_id", "id number"}:
+                student_header_row = row_idx
+                student_id_col = col_idx
+                last_header_row = max(last_header_row, row_idx)
+            elif lower in {"student name", "name of students", "name of student", "name"}:
+                student_header_row = row_idx if student_header_row is None else student_header_row
+                student_name_col = col_idx
+                last_header_row = max(last_header_row, row_idx)
+
+            if row_idx == 0:
+                continue
+            if lower in {"gpe", "gpa", "equi", "equivalent", "mtg", "ftg", "fg", "summary"}:
+                continue
+            if _header_term_to_prefix(lower):
+                continue
+            if _normalize_component_bucket_label(lower):
+                continue
+            if re.fullmatch(r"\d+", lower):
+                continue
+
+            slug = _slugify_header_fragment(text)
+            if slug:
+                title_by_col[col_idx] = slug
+                last_header_row = max(last_header_row, row_idx)
+
+    if student_header_row is None or student_id_col is None or student_name_col is None:
+        return None, None
+
+    headers: list[str] = []
+    for col_idx in range(column_count):
+        if col_idx == student_id_col:
+            headers.append("student_id")
+            continue
+        if col_idx == student_name_col:
+            headers.append("student_name")
+            continue
+
+        term = term_by_col.get(col_idx)
+        bucket = bucket_by_col.get(col_idx)
+        title = title_by_col.get(col_idx)
+        if term and bucket and title:
+            headers.append(f"{term}_{bucket}_{title}")
+            continue
+
+        source_value = raw_rows[student_header_row][col_idx] if col_idx < len(raw_rows[student_header_row]) else None
+        headers.append(_normalize_cell(source_value).lower() or f"col_{col_idx}")
+
+    if sum(1 for header in headers if header.startswith(("midterm_", "finals_"))) < 6:
+        return None, None
+
+    return _make_unique_headers(headers), last_header_row
+
+
 def _guess_header_index(raw_rows) -> int | None:
     best_idx = None
     best_score = 0
@@ -99,6 +281,18 @@ def _rows_to_dicts(raw_rows) -> list[dict]:
     rows = []
     if not raw_rows:
         return rows
+
+    multi_headers, data_start_header_idx = _build_gradesheet_multirow_headers(raw_rows)
+    if multi_headers is not None and data_start_header_idx is not None:
+        for r in raw_rows[data_start_header_idx + 1:]:
+            row_dict = {}
+            for i, val in enumerate(r):
+                key = multi_headers[i] if i < len(multi_headers) else f"col_{i}"
+                row_dict[key] = _normalize_cell(val)
+            if any(v for v in row_dict.values()):
+                rows.append(row_dict)
+        if rows:
+            return rows
 
     header_idx = _guess_header_index(raw_rows)
     if header_idx is None:
@@ -208,6 +402,22 @@ _AI_UPLOAD_FIELD_MAPPINGS = {
     "mental_health_concerns": ["mental health-related concerns", "mental_health_concerns"],
 }
 
+_PREVIOUS_GRADES_FIELD_MAPPINGS = {
+    "previous_gpa": ["previous gpa", "previous_gpa", "gpa"],
+    "previous_midterm_class_standing": ["previous midterm class standing", "previous_midterm_class_standing", "cs (30%)"],
+    "previous_midterm_laboratory": ["previous midterm laboratory", "previous_midterm_laboratory", "lab (30%)", "lab (40%)"],
+    "previous_midterm_major_output": ["previous midterm major output", "previous_midterm_major_output", "mo (40%)"],
+    "previous_midterm_grade": ["previous midterm grade", "previous_midterm_grade", "previous mtg", "previous_mtg", "mtg", "mtg(1/3)"],
+    "previous_final_class_standing": ["previous final class standing", "previous_final_class_standing", "cs (30%)_2"],
+    "previous_final_laboratory": ["previous final laboratory", "previous_final_laboratory", "lab (30%)_2"],
+    "previous_final_major_output": ["previous final major output", "previous_final_major_output", "mo (40%)"],
+    "previous_final_grade": ["previous final grade", "previous_final_grade", "previous ftg", "previous_ftg", "previous fg", "fg", "ftg", "ftg(2/3)"],
+    "previous_failed_flag": ["previous failed flag", "previous_failed_flag", "previously failed", "has previous failure"],
+    "previous_passed_flag": ["previous passed flag", "previous_passed_flag", "previously passed", "has previous pass"],
+    "historical_grade_average": ["historical grade average", "historical_grade_average", "grade history average", "average previous grade", "fg", "ftg", "ftg(2/3)"],
+    "historical_failure_count": ["historical failure count", "historical_failure_count", "historical failed subjects", "previous failures", "failure history count"],
+}
+
 
 def _build_ai_input_update_data(row: dict, keys: list[str]) -> dict:
     update_data = {}
@@ -233,6 +443,85 @@ def _build_ai_input_update_data(row: dict, keys: list[str]) -> dict:
         if parsed is None or parsed == "":
             continue
         update_data[db_field] = parsed
+
+    return update_data
+
+
+def _build_previous_grades_update_data(row: dict, keys: list[str]) -> dict:
+    update_data = {}
+    numeric_fields = {
+        "previous_gpa",
+        "previous_midterm_class_standing",
+        "previous_midterm_laboratory",
+        "previous_midterm_major_output",
+        "previous_midterm_grade",
+        "previous_final_class_standing",
+        "previous_final_laboratory",
+        "previous_final_major_output",
+        "previous_final_grade",
+        "historical_grade_average",
+    }
+    integer_fields = {
+        "historical_failure_count",
+        "previous_failed_flag",
+        "previous_passed_flag",
+    }
+
+    for db_field, aliases in _PREVIOUS_GRADES_FIELD_MAPPINGS.items():
+        col_name = _find_column(keys, aliases)
+        if not col_name:
+            continue
+
+        raw_value = row.get(col_name, "")
+        if db_field in numeric_fields:
+            parsed = _to_float(raw_value)
+        elif db_field in integer_fields:
+            parsed = _to_int(raw_value)
+        else:
+            parsed = raw_value
+
+        if parsed is None or parsed == "":
+            continue
+        update_data[db_field] = parsed
+
+    remarks_col = _find_column(keys, ["remarks", "remark", "status"])
+    remarks_value = _normalize_cell(row.get(remarks_col, "")) if remarks_col else ""
+    remarks_normalized = remarks_value.strip().lower()
+    if remarks_normalized:
+        if "fail" in remarks_normalized:
+            update_data.setdefault("previous_failed_flag", 1)
+            update_data.setdefault("previous_passed_flag", 0)
+            update_data.setdefault("historical_failure_count", 1)
+        elif "pass" in remarks_normalized:
+            update_data.setdefault("previous_failed_flag", 0)
+            update_data.setdefault("previous_passed_flag", 1)
+            update_data.setdefault("historical_failure_count", 0)
+
+    previous_failed_flag = update_data.get("previous_failed_flag")
+    previous_passed_flag = update_data.get("previous_passed_flag")
+    historical_failure_count = update_data.get("historical_failure_count")
+
+    if historical_failure_count is not None:
+        if previous_failed_flag is None:
+            update_data["previous_failed_flag"] = 1 if int(historical_failure_count) > 0 else 0
+        if previous_passed_flag is None:
+            update_data["previous_passed_flag"] = 0 if int(historical_failure_count) > 0 else 1
+    elif previous_failed_flag is not None and previous_passed_flag is None:
+        update_data["previous_passed_flag"] = 0 if int(previous_failed_flag) else 1
+    elif previous_passed_flag is not None and previous_failed_flag is None:
+        update_data["previous_failed_flag"] = 0 if int(previous_passed_flag) else 1
+
+    if "historical_grade_average" not in update_data:
+        if update_data.get("previous_gpa") is not None:
+            update_data["historical_grade_average"] = float(update_data["previous_gpa"])
+        elif update_data.get("previous_final_grade") is not None:
+            update_data["historical_grade_average"] = float(update_data["previous_final_grade"])
+
+    if "previous_gpa" not in update_data:
+        if update_data.get("previous_final_grade") is not None:
+            update_data["previous_gpa"] = float(update_data["previous_final_grade"])
+        elif update_data.get("previous_midterm_grade") is not None:
+            update_data["previous_gpa"] = float(update_data["previous_midterm_grade"])
 
     return update_data
 
@@ -277,6 +566,7 @@ def _is_raw_component_score_column(key: str) -> bool:
         'class standing', 'cs (30%)', 'cs',
         'lab (30%)', 'lab', 'laboratory',
         'mo (40%)', 'major output', 'mo',
+        'class_standing', 'major_output',
     ]
     if any(token in normalized for token in component_tokens):
         return True
@@ -287,6 +577,7 @@ def _is_raw_component_score_column(key: str) -> bool:
             r"cs(?:_\d+)?",
             r"lab(?:_\d+)?",
             r"mo(?:_\d+)?",
+            r"(?:midterm|finals)_(?:class_standing|laboratory|major_output)_.+",
         )
     )
 
@@ -334,6 +625,7 @@ def _detect_raw_component_bucket(key: str) -> str | None:
 
     if (
         "class standing" in normalized
+        or "class_standing" in normalized
         or "cs (30%)" in normalized
         or re.fullmatch(r"cs(?:_\d+)?", normalized)
     ):
@@ -344,11 +636,14 @@ def _detect_raw_component_bucket(key: str) -> str | None:
         or "lab (30%)" in normalized
         or re.fullmatch(r"lab(?:_\d+)?", normalized)
         or re.search(r"\blab\b", normalized)
+        or "midterm_laboratory_" in normalized
+        or "finals_laboratory_" in normalized
     ):
         return "laboratory"
 
     if (
         "major output" in normalized
+        or "major_output" in normalized
         or "mo (40%)" in normalized
         or re.fullmatch(r"mo(?:_\d+)?", normalized)
         or re.search(r"\bmo\b", normalized)
@@ -429,6 +724,8 @@ def _normalize_score_term(value: str | None) -> str | None:
     if normalized.startswith("mid"):
         return "midterm"
     if normalized.startswith("fin"):
+        return "final"
+    if normalized.startswith("finals"):
         return "final"
     return None
 
@@ -980,7 +1277,7 @@ def _extract_student_identity(row, keys):
     """Extract student identity from a row with best-effort fallbacks."""
     email_col = _find_column(keys, ['email'])
     # Prioritize more specific keywords first to avoid matching partial names
-    id_col = _find_column(keys, ['id number', 'student id', 'student_id', 'school id', 'sid', 'id', 'number', 'no.', 'no'])
+    id_col = _find_column(keys, ['student no.', 'student number', 'student no', 'id number', 'student id', 'student_id', 'school id', 'sid', 'id', 'number', 'no.', 'no'])
     name_col = _find_column(keys, ['name of students', 'name of student', 'student name', 'student_name', 'full name', 'name'])
 
     student_email = _normalize_cell(row.get(email_col, '')).lower() if email_col else ''
@@ -996,9 +1293,41 @@ def _extract_student_identity(row, keys):
     )
 
 
+def _normalize_student_id(value) -> str:
+    return _normalize_cell(value).replace(" ", "").strip()
+
+
+def _canonicalize_person_name(value: str | None) -> str:
+    text = _normalize_cell(value)
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", text)
+    ascii_text = normalized.encode("ascii", "ignore").decode("ascii")
+    ascii_text = ascii_text.lower()
+    ascii_text = re.sub(r"[^a-z0-9,\s]", " ", ascii_text)
+    ascii_text = re.sub(r"\s+", " ", ascii_text).strip()
+    return ascii_text
+
+
+def _build_name_match_variants(value: str | None) -> set[str]:
+    canonical = _canonicalize_person_name(value)
+    if not canonical:
+        return set()
+
+    variants = {canonical}
+    if "," in canonical:
+        last, rest = canonical.split(",", 1)
+        reordered = f"{rest.strip()} {last.strip()}".strip()
+        reordered = re.sub(r"\s+", " ", reordered)
+        if reordered:
+            variants.add(reordered)
+    return {variant for variant in variants if variant}
+
+
 def _find_matching_enrollment(db, class_id: str, row, keys):
     """Find an enrollment using student_id, then student_name, then email."""
     student_email, student_name, student_id = _extract_student_identity(row, keys)
+    student_id = _normalize_student_id(student_id)
 
     enrollment = None
     lookup_identifier = None
@@ -1006,7 +1335,12 @@ def _find_matching_enrollment(db, class_id: str, row, keys):
     if student_id:
         enrollment = db.enrollments.find_one({
             "class_id": class_id,
-            "$or": [{"student_id": student_id}, {"id_number": student_id}]
+            "$or": [
+                {"student_id": student_id},
+                {"id_number": student_id},
+                {"student_id": _normalize_cell(student_id)},
+                {"id_number": _normalize_cell(student_id)},
+            ],
         })
         lookup_identifier = student_id
 
@@ -1016,6 +1350,17 @@ def _find_matching_enrollment(db, class_id: str, row, keys):
             "student_name": {"$regex": f"^{re.escape(student_name)}$", "$options": "i"},
         })
         lookup_identifier = student_name
+
+    if not enrollment and student_name:
+        target_variants = _build_name_match_variants(student_name)
+        for candidate in db.enrollments.find({"class_id": class_id}):
+            candidate_email, candidate_name, candidate_id, _candidate_key = _get_enrollment_identity(candidate)
+            resolved_candidate_name = _enrich_student_name(db, candidate_email, candidate_id, candidate_name)
+            candidate_variants = _build_name_match_variants(resolved_candidate_name or candidate_name)
+            if target_variants and candidate_variants and target_variants.intersection(candidate_variants):
+                enrollment = candidate
+                lookup_identifier = student_name
+                break
 
     if not enrollment and student_email:
         enrollment = db.enrollments.find_one({"class_id": class_id, "student_email": student_email})
@@ -1109,6 +1454,7 @@ def _parse_daily_attendance(row, keys, id_col, name_col):
 # --- Preview classlist (extract students without saving) ---
 @router.post("/preview-classlist", status_code=200)
 async def preview_classlist(
+    actor: dict = Depends(get_current_actor),
     file: UploadFile = File(..., description="CSV or XLSX file"),
 ):
     """Parse a classlist file and return extracted students (name and ID) without saving."""
@@ -1188,6 +1534,7 @@ async def preview_classlist(
 @router.post("/{class_id}/upload", status_code=201)
 async def upload_class_files(
     class_id: str,
+    actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files"),
     type: str = Form(...)
 ):
@@ -1484,6 +1831,7 @@ def _detect_file_type(keys):
 
 @router.post("/upload-classlist", status_code=201)
 async def upload_and_create_classlist(
+    actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV, XLSX, or DOCX files (Classlist, Gradesheet, or Attendance)"),
     instructor_id: str = Form(...),
     subject_code: str = Form(None, description="Optional: Subject/Course code (required if not in file)"),
@@ -1498,6 +1846,7 @@ async def upload_and_create_classlist(
 
     try:
         instructor_id = str(instructor_id).strip()
+        _ensure_instructor_scope(actor, instructor_id)
         if not instructor_id:
             raise HTTPException(status_code=400, detail="Instructor ID is required.")
         
@@ -1853,7 +2202,7 @@ def _doc_to_class_response(doc, student_count: int = 0, at_risk_count: int = 0, 
 
 
 @router.get("/risk-alerts")
-def list_instructor_risk_alerts(instructor_id: str):
+def list_instructor_risk_alerts(instructor_id: str, actor: dict = Depends(get_current_actor)):
     """List all high-risk students across the instructor's classes (for Risk Alerts page)."""
     try:
         db = get_db()
@@ -1884,7 +2233,7 @@ def list_instructor_risk_alerts(instructor_id: str):
 
 
 @router.get("/instructor-students")
-def list_instructor_students(instructor_id: str):
+def list_instructor_students(instructor_id: str, actor: dict = Depends(get_current_actor)):
     """List all students (enrollments) across the instructor's classes for the Student List page."""
     try:
         db = get_db()
@@ -1922,7 +2271,7 @@ def list_instructor_students(instructor_id: str):
 
 
 @router.get("", response_model=list[ClassResponse])
-def list_classes(instructor_id: str):
+def list_classes(instructor_id: str, actor: dict = Depends(get_current_actor)):
     """List all active classes for an instructor."""
     try:
         db = get_db()
@@ -1947,15 +2296,11 @@ def list_classes(instructor_id: str):
 
 
 @router.get("/{class_id}", response_model=ClassResponse)
-def get_class(class_id: str):
+def get_class(class_id: str, actor: dict = Depends(get_current_actor)):
     """Get a single class by id."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        doc = db.classes.find_one({"_id": ObjectId(class_id)})
-        if not doc:
-            raise HTTPException(status_code=404, detail="Class not found")
+        doc = _get_class_for_actor(db, class_id, actor)
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
             {"class_id": class_id, "risk": "High"}
@@ -1969,7 +2314,7 @@ def get_class(class_id: str):
 
 
 @router.post("", response_model=ClassResponse, status_code=201)
-def create_class(body: ClassCreate):
+def create_class(body: ClassCreate, actor: dict = Depends(get_current_actor)):
     """Create a new class (subject)."""
     try:
         db = get_db()
@@ -1987,7 +2332,7 @@ def create_class(body: ClassCreate):
 
 
 @router.get("/archived/list")
-def list_archived_classes(instructor_id: str):
+def list_archived_classes(instructor_id: str, actor: dict = Depends(get_current_actor)):
     """List all archived classes for an instructor."""
     try:
         db = get_db()
@@ -2012,12 +2357,16 @@ def list_archived_classes(instructor_id: str):
 
 
 @router.patch("/{class_id}/archive", response_model=ClassResponse)
-def archive_class(class_id: str):
-    """Archive a class."""
+def archive_class(class_id: str, actor: dict = Depends(get_current_actor)):
+    """Archive a class and mark its linked enrollment data as archived."""
     try:
+        _ensure_instructor_scope(actor, instructor_id)
+        _ensure_instructor_scope(actor, instructor_id)
+        _ensure_instructor_scope(actor, instructor_id)
+        _ensure_instructor_scope(actor, body.instructor_id.strip())
+        _ensure_instructor_scope(actor, instructor_id)
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
+        _get_class_for_actor(db, class_id, actor)
         
         result = db.classes.update_one(
             {"_id": ObjectId(class_id)},
@@ -2026,6 +2375,8 @@ def archive_class(class_id: str):
         
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Class not found")
+
+        _set_related_enrollment_archive_state(db, class_id, archived=True)
         
         doc = db.classes.find_one({"_id": ObjectId(class_id)})
         count = db.enrollments.count_documents({"class_id": class_id})
@@ -2041,12 +2392,11 @@ def archive_class(class_id: str):
 
 
 @router.patch("/{class_id}/restore", response_model=ClassResponse)
-def restore_class(class_id: str):
-    """Restore an archived class."""
+def restore_class(class_id: str, actor: dict = Depends(get_current_actor)):
+    """Restore an archived class together with its linked enrollment data."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
+        _get_class_for_actor(db, class_id, actor)
         
         result = db.classes.update_one(
             {"_id": ObjectId(class_id)},
@@ -2055,6 +2405,8 @@ def restore_class(class_id: str):
         
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Class not found")
+
+        _set_related_enrollment_archive_state(db, class_id, archived=False)
         
         doc = db.classes.find_one({"_id": ObjectId(class_id)})
         count = db.enrollments.count_documents({"class_id": class_id})
@@ -2070,19 +2422,12 @@ def restore_class(class_id: str):
 
 
 @router.delete("/{class_id}/permanent-delete", status_code=204)
-def permanent_delete_class(class_id: str):
+def permanent_delete_class(class_id: str, actor: dict = Depends(get_current_actor)):
     """Permanently delete an archived class and all its data."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        
-        class_obj_id = ObjectId(class_id)
-        
-        # Check if class exists and is archived
-        class_doc = db.classes.find_one({"_id": class_obj_id})
-        if not class_doc:
-            raise HTTPException(status_code=404, detail="Class not found")
+        class_doc = _get_class_for_actor(db, class_id, actor)
+        class_obj_id = class_doc["_id"]
         if class_doc.get("status") != "archived":
             raise HTTPException(status_code=400, detail="Can only delete archived classes")
         
@@ -2098,7 +2443,7 @@ def permanent_delete_class(class_id: str):
 
 
 @router.get("/{class_id}/students")
-def list_class_students(class_id: str):
+def list_class_students(class_id: str, actor: dict = Depends(get_current_actor)):
     """List students enrolled in a class with optional academic/risk/flag data."""
     try:
         db = get_db()
@@ -2111,6 +2456,18 @@ def list_class_students(class_id: str):
         out = []
         ai_fields = [
             "previous_gpa",
+            "previous_midterm_class_standing",
+            "previous_midterm_laboratory",
+            "previous_midterm_major_output",
+            "previous_midterm_grade",
+            "previous_final_class_standing",
+            "previous_final_laboratory",
+            "previous_final_major_output",
+            "previous_final_grade",
+            "previous_failed_flag",
+            "previous_passed_flag",
+            "historical_grade_average",
+            "historical_failure_count",
             "failed_subject_count",
             "attendance",
             "attendance_overall",
@@ -2125,11 +2482,15 @@ def list_class_students(class_id: str):
             "final_grade",
             "overall_grade",
             "model_features",
+            "model_profile",
             "risk_source",
             "risk_source_label",
             "risk_drivers",
             "academic_risk_drivers",
             "external_risk_drivers",
+            "midterm_topic_difficulties",
+            "hardest_midterm_topics",
+            "top_contributing_signals",
             "received_academic_support",
             "difficulty_understanding_lectures",
             "struggles_specific_subjects",
@@ -2180,7 +2541,7 @@ def list_class_students(class_id: str):
 
 
 @router.get("/{class_id}/risk-summary")
-def get_class_risk_summary(class_id: str):
+def get_class_risk_summary(class_id: str, actor: dict = Depends(get_current_actor)):
     """Class-level risk summary for the binary High/Low prediction model."""
     try:
         db = get_db()
@@ -2217,16 +2578,11 @@ def get_class_risk_summary(class_id: str):
 
 
 @router.get("/{class_id}/roster")
-def get_class_roster(class_id: str):
+def get_class_roster(class_id: str, actor: dict = Depends(get_current_actor)):
     """Fetch student roster for a class with names and IDs."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        
-        class_doc = db.classes.find_one({"_id": ObjectId(class_id)})
-        if not class_doc:
-            raise HTTPException(status_code=404, detail="Class not found")
+        class_doc = _get_class_for_actor(db, class_id, actor)
         
         section_code = None
         students = []
@@ -2258,16 +2614,11 @@ def get_class_roster(class_id: str):
 
 
 @router.get("/{class_id}/grades")
-def get_class_grades_with_analytics(class_id: str):
+def get_class_grades_with_analytics(class_id: str, actor: dict = Depends(get_current_actor)):
     """Fetch all student grades with class analytics."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        
-        class_doc = db.classes.find_one({"_id": ObjectId(class_id)})
-        if not class_doc:
-            raise HTTPException(status_code=404, detail="Class not found")
+        class_doc = _get_class_for_actor(db, class_id, actor)
         
         enrollments = list(db.enrollments.find({"class_id": class_id}))
         
@@ -2437,7 +2788,7 @@ def get_class_grades_with_analytics(class_id: str):
 
 
 @router.get("/{class_id}/attendance")
-def get_class_attendance_with_analytics(class_id: str):
+def get_class_attendance_with_analytics(class_id: str, actor: dict = Depends(get_current_actor)):
     """Fetch all student attendance records with class analytics."""
     try:
         db = get_db()
@@ -2569,7 +2920,7 @@ def get_class_attendance_with_analytics(class_id: str):
 
 
 @router.post("/{class_id}/students/batch", status_code=201)
-def batch_add_students_to_class(class_id: str, body: BatchAddStudentsRequest):
+def batch_add_students_to_class(class_id: str, body: BatchAddStudentsRequest, actor: dict = Depends(get_current_actor)):
     """Add multiple students to a class by email list."""
     try:
         db = get_db()
@@ -2595,14 +2946,12 @@ def batch_add_students_to_class(class_id: str, body: BatchAddStudentsRequest):
 
 
 @router.patch("/{class_id}/students/{student_identifier:path}")
-def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnrollmentRequest):
+def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnrollmentRequest, actor: dict = Depends(get_current_actor)):
     """Update academic indicators, risk, or flagged_for_mentoring for a student in the class."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        if not db.classes.find_one({"_id": ObjectId(class_id)}):
-            raise HTTPException(status_code=404, detail="Class not found")
+        _get_class_for_actor(db, class_id, actor)
+        _get_class_for_actor(db, class_id, actor)
 
         identifier = _normalize_cell(student_identifier).strip()
         identifier_lower = identifier.lower()
@@ -2678,14 +3027,11 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
 
 
 @router.post("/{class_id}/students/{student_email:path}/predict-risk")
-def predict_enrollment_risk(class_id: str, student_email: str):
+def predict_enrollment_risk(class_id: str, student_email: str, actor: dict = Depends(get_current_actor)):
     """Run the XGBoost student-risk model for one enrolled student."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        if not db.classes.find_one({"_id": ObjectId(class_id)}):
-            raise HTTPException(status_code=404, detail="Class not found")
+        _get_class_for_actor(db, class_id, actor)
 
         email = student_email.strip().lower()
         doc = db.enrollments.find_one({"class_id": class_id, "student_email": email})
@@ -2713,6 +3059,10 @@ def predict_enrollment_risk(class_id: str, student_email: str):
                     "risk_drivers": result.get("risk_drivers"),
                     "academic_risk_drivers": result.get("academic_risk_drivers"),
                     "external_risk_drivers": result.get("external_risk_drivers"),
+                    "model_profile": result.get("model_profile"),
+                    "midterm_topic_difficulties": result.get("midterm_topic_difficulties"),
+                    "hardest_midterm_topics": result.get("hardest_midterm_topics"),
+                    "top_contributing_signals": result.get("top_contributing_signals"),
                 }
             },
         )
@@ -2729,6 +3079,7 @@ def predict_enrollment_risk(class_id: str, student_email: str):
 @router.post("/{class_id}/upload-needs-assessment", status_code=201)
 async def upload_needs_assessment_file(
     class_id: str,
+    actor: dict = Depends(get_current_actor),
     files: List[UploadFile] = File(..., description="CSV or XLSX files with needs-assessment columns"),
 ):
     """Bulk upload needs-assessment fields for students in a class."""
@@ -2740,8 +3091,7 @@ async def upload_needs_assessment_file(
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
-    if not db.classes.find_one({"_id": ObjectId(class_id)}):
-        raise HTTPException(status_code=404, detail="Class not found")
+    _get_class_for_actor(db, class_id, actor)
 
     saved_files = []
     updated = 0
@@ -2760,7 +3110,7 @@ async def upload_needs_assessment_file(
         saved_files.append(str(dest.name))
 
         try:
-            rows = _parse_file_to_rows(dest, preferred_type="classlist")
+            rows = _parse_file_to_rows(dest, preferred_type="gradesheet")
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Failed to parse {upload.filename}: {exc}")
 
@@ -2793,15 +3143,79 @@ async def upload_needs_assessment_file(
     }
 
 
+@router.post("/{class_id}/upload-previous-grades", status_code=201)
+async def upload_previous_grades_file(
+    class_id: str,
+    actor: dict = Depends(get_current_actor),
+    files: List[UploadFile] = File(..., description="CSV or XLSX files with previous-grades columns"),
+):
+    """Bulk upload previous-grade history fields for students in a class."""
+    if not ObjectId.is_valid(class_id):
+        raise HTTPException(status_code=404, detail="Class not found")
+
+    try:
+        db = get_db()
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    _get_class_for_actor(db, class_id, actor)
+
+    saved_files = []
+    updated = 0
+    not_enrolled = []
+    missing_identifiers = 0
+
+    for upload in files:
+        ext = os.path.splitext(upload.filename or "")[1].lower()
+        if ext not in [".csv", ".xlsx"]:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}. Please upload CSV or XLSX files only.")
+
+        unique_name = f"{class_id}_previous_grades_{uuid.uuid4().hex}{ext}"
+        dest = UPLOAD_DIR / unique_name
+        with dest.open("wb") as buffer:
+            shutil.copyfileobj(upload.file, buffer)
+        saved_files.append(str(dest.name))
+
+        try:
+            rows = _parse_file_to_rows(dest, preferred_type="gradesheet")
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Failed to parse {upload.filename}: {exc}")
+
+        if not rows:
+            raise HTTPException(status_code=400, detail=f"{upload.filename} did not contain any readable rows.")
+
+        keys = list(rows[0].keys())
+        for row in rows:
+            enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
+            if not enrollment:
+                if not _row_identifier_label(row, keys):
+                    missing_identifiers += 1
+                if lookup_identifier:
+                    not_enrolled.append(lookup_identifier)
+                continue
+
+            update_data = _build_previous_grades_update_data(row, keys)
+            if not update_data:
+                continue
+
+            db.enrollments.update_one({"_id": enrollment["_id"]}, {"$set": update_data})
+            updated += 1
+
+    return {
+        "message": "Previous grades file(s) uploaded successfully.",
+        "files": saved_files,
+        "updated": updated,
+        "not_enrolled": sorted(set(not_enrolled))[:25],
+        "missing_identifiers": missing_identifiers,
+    }
+
+
 @router.post("/{class_id}/predict-risk", status_code=200)
-def predict_class_risk(class_id: str):
+def predict_class_risk(class_id: str, actor: dict = Depends(get_current_actor)):
     """Run risk prediction for all students enrolled in a class."""
     try:
         db = get_db()
-        if not ObjectId.is_valid(class_id):
-            raise HTTPException(status_code=404, detail="Class not found")
-        if not db.classes.find_one({"_id": ObjectId(class_id)}):
-            raise HTTPException(status_code=404, detail="Class not found")
+        _get_class_for_actor(db, class_id, actor)
 
         cursor = list(db.enrollments.find({"class_id": class_id}).sort("_id", 1))
         predicted = 0
@@ -2834,6 +3248,10 @@ def predict_class_risk(class_id: str):
                         "risk_drivers": result.get("risk_drivers"),
                         "academic_risk_drivers": result.get("academic_risk_drivers"),
                         "external_risk_drivers": result.get("external_risk_drivers"),
+                        "model_profile": result.get("model_profile"),
+                        "midterm_topic_difficulties": result.get("midterm_topic_difficulties"),
+                        "hardest_midterm_topics": result.get("hardest_midterm_topics"),
+                        "top_contributing_signals": result.get("top_contributing_signals"),
                     }
                 },
             )

@@ -8,6 +8,11 @@ import {
   BarChart3,
   TrendingUp,
   Brain,
+  CircleAlert,
+  ClipboardList,
+  Send,
+  UserRoundCheck,
+  X,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import InlineToast from '../components/InlineToast'
@@ -29,6 +34,23 @@ const RISK_CLASS = {
   High: 'bg-red-100 text-red-800',
   Medium: 'bg-amber-100 text-amber-800',
   Low: 'bg-slate-100 text-slate-700',
+}
+
+const ROSTER_RISK_ORDER = ['High', 'Medium', 'Low', 'Unassigned']
+
+const ROSTER_GROUP_META = {
+  High: {
+    label: 'High Risk',
+  },
+  Medium: {
+    label: 'Medium Risk',
+  },
+  Low: {
+    label: 'Low Risk',
+  },
+  Unassigned: {
+    label: 'No Risk Result Yet',
+  },
 }
 
 const AI_CHECKBOX_FIELDS = [
@@ -115,6 +137,55 @@ function simplifyReason(reason) {
     .replace(/^Family issues: Yes$/i, 'May be facing family-related concerns.')
     .replace(/^Part-time work affecting studies: Yes$/i, 'Part-time work may be affecting studies.')
     .replace(/^Mental health-related concerns: Yes$/i, 'May need mental health support.')
+}
+
+function formatTopicComponentLabel(component) {
+  const normalized = String(component || '').trim().toLowerCase()
+  if (normalized === 'class standing') return 'Class Standing'
+  if (normalized === 'major output') return 'Major Output'
+  if (normalized === 'laboratory') return 'Laboratory'
+  return component || 'Activity'
+}
+
+function formatModelProfile(profile) {
+  if (profile === 'early_warning') return 'Early Warning'
+  if (profile === 'midterm_endterm') return 'Midterm-Endterm'
+  return profile || 'Unknown'
+}
+
+function formatStudentInsightSummary(student, designation, reasons) {
+  if (!student?.risk && reasons.length === 0) {
+    return 'No AI risk summary is available for this student yet.'
+  }
+
+  const studentLabel = student?.student_name || 'This student'
+  const parts = []
+
+  if (student?.risk) {
+    const confidence = student?.risk_probability_percent != null ? ` with ${student.risk_probability_percent}% confidence` : ''
+    parts.push(`${studentLabel} is currently tagged as ${student.risk.toLowerCase()} risk${confidence}.`)
+  }
+
+  if (designation) {
+    parts.push(`${designation}.`)
+  }
+
+  if (reasons.length > 0) {
+    parts.push(`The strongest signals point to ${reasons[0].charAt(0).toLowerCase()}${reasons[0].slice(1)}`)
+  }
+
+  return parts.join(' ').trim()
+}
+
+function getReferralHelperText(student, amuStaffLoading, amuStaffOptions, selectedAmuStaffId) {
+  const canReferToAmu = hasComputedRisk(student)
+  if (!canReferToAmu) return 'Run the AI risk prediction first before sending this student to AMU.'
+  if (!amuStaffLoading && amuStaffOptions.length === 0) return 'No active AMU staff accounts are available yet.'
+  if (amuStaffOptions.length > 0 && !selectedAmuStaffId && !student?.flagged_for_mentoring) {
+    return 'Choose an AMU staff member first before sending the referral.'
+  }
+  if (student?.flagged_for_mentoring) return 'This student has already been referred to AMU.'
+  return 'Once the summary looks correct, you can send the referral to AMU below.'
 }
 
 export default function ClassDetails() {
@@ -350,6 +421,12 @@ export default function ClassDetails() {
   const filteredRiskList = Array.isArray(riskSummary?.at_risk_list)
     ? riskSummary.at_risk_list.filter((student) => student.risk === activeRiskFilter)
     : []
+  const groupedRoster = ROSTER_RISK_ORDER
+    .map((riskKey) => ({
+      riskKey,
+      students: roster.filter((student) => (student.risk || 'Unassigned') === riskKey),
+    }))
+    .filter((group) => group.students.length > 0)
 
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
@@ -594,174 +671,6 @@ export default function ClassDetails() {
                 </p>
               </div>
 
-              {activeAIStudent && (
-                <div className="m-4 rounded-xl border border-cyan-200 bg-cyan-50/60 p-4 space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-slate-900">Student Description</h3>
-                      <p className="text-xs text-slate-600 mt-0.5">
-                        {activeAIStudent.student_name || 'Student'} {activeAIStudent.student_id ? `(${activeAIStudent.student_id})` : ''}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setActiveAIStudent(null)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-white transition-colors"
-                    >
-                      Close
-                    </button>
-                  </div>
-
-                  {referralError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{referralError}</div>}
-                  {referralMessage && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{referralMessage}</div>}
-
-                  <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                      Assign to AMU staff
-                    </label>
-                    <select
-                      value={selectedAmuStaffId}
-                      onChange={(e) => setSelectedAmuStaffId(e.target.value)}
-                      disabled={amuStaffLoading || Boolean(activeAIStudent?.flagged_for_mentoring)}
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white disabled:bg-slate-100"
-                    >
-                      <option value="">
-                        {amuStaffLoading ? 'Loading AMU staff...' : 'Choose AMU staff'}
-                      </option>
-                      {amuStaffOptions.map((staff) => (
-                        <option key={staff.id} value={staff.id}>
-                          {staff.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Choose who will handle this referral. Each option shows the staff name and assigned college.
-                    </p>
-                  </div>
-
-                  <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                      Referral note for AMU
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={referralNote}
-                      onChange={(e) => setReferralNote(e.target.value)}
-                      placeholder="Explain why this student is being referred to AMU."
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
-                    />
-                    <p className="mt-2 text-xs text-slate-500">
-                      This note will be visible to AMU staff when they open the referral.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2">
-                    {(() => {
-                      const canReferToAmu = hasComputedRisk(activeAIStudent)
-                      return (
-                        <>
-                    <button
-                      type="button"
-                      disabled={
-                        !canReferToAmu
-                        || amuStaffLoading
-                        || amuStaffOptions.length === 0
-                        || Boolean(activeAIStudent?.flagged_for_mentoring)
-                        || referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
-                      }
-                      onClick={() => referStudentToAmu(activeAIStudent)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
-                    >
-                      <Users className="w-4 h-4" />
-                      {!canReferToAmu
-                        ? 'Risk result required'
-                        : activeAIStudent?.flagged_for_mentoring
-                          ? 'Already referred to AMU'
-                          : referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
-                            ? 'Referring...'
-                            : 'Refer to AMU'}
-                    </button>
-                    {!canReferToAmu && (
-                      <p className="w-full text-xs text-slate-500">
-                        Run the AI risk prediction first before sending this student to AMU.
-                      </p>
-                    )}
-                    {canReferToAmu && !amuStaffLoading && amuStaffOptions.length === 0 && (
-                      <p className="w-full text-xs text-slate-500">
-                        No active AMU staff accounts are available yet.
-                      </p>
-                    )}
-                    {canReferToAmu && amuStaffOptions.length > 0 && !selectedAmuStaffId && !activeAIStudent?.flagged_for_mentoring && (
-                      <p className="w-full text-xs text-slate-500">
-                        Choose an AMU staff member first before sending the referral.
-                      </p>
-                    )}
-                        </>
-                      )
-                    })()}
-                  </div>
-
-                  {(() => {
-                    const riskReasons = getRiskReasons(activeAIStudent)
-                    const riskDesignation = getRiskDesignation(activeAIStudent)
-                    const directDrivers = Array.isArray(activeAIStudent.risk_drivers) ? activeAIStudent.risk_drivers : []
-                    const simplifiedDrivers = directDrivers.map(simplifyReason).filter(Boolean).slice(0, 3)
-                    const simplifiedReasons = riskReasons.map(simplifyReason).filter(Boolean).slice(0, 4)
-
-                    return (
-                      <>
-                        {(activeAIStudent.risk || activeAIStudent.risk_probability_percent != null) && (
-                          <div className="rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">
-                            <p className="font-semibold">
-                              Risk level: {activeAIStudent.risk || 'N/A'}
-                            </p>
-                            {activeAIStudent.assigned_amu_staff_name && (
-                              <p className="mt-1 text-sm">
-                                Assigned AMU staff: {activeAIStudent.assigned_amu_staff_name}
-                                {activeAIStudent.assigned_amu_staff_college ? ` - ${activeAIStudent.assigned_amu_staff_college}` : ''}
-                              </p>
-                            )}
-                            {riskDesignation && (
-                              <p className="mt-1 text-sm">{riskDesignation}</p>
-                            )}
-                            {activeAIStudent.risk_probability_percent != null && (
-                              <p className="mt-1 text-xs text-cyan-800">
-                                Confidence: {activeAIStudent.risk_probability_percent}%
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        {simplifiedDrivers.length > 0 && (
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3">
-                            <p className="text-sm font-semibold text-blue-900">Main reason</p>
-                            <ul className="mt-2 space-y-1 text-sm text-blue-950">
-                              {simplifiedDrivers.map((reason) => (
-                                <li key={reason}>{reason}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {simplifiedReasons.length > 0 && (
-                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
-                            <p className="text-sm font-semibold text-amber-900">What we noticed</p>
-                            <ul className="mt-2 space-y-1 text-sm text-amber-950">
-                              {simplifiedReasons.map((reason) => (
-                                <li key={reason}>{reason}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {riskReasons.length === 0 && !(activeAIStudent.risk || activeAIStudent.risk_probability_percent != null) && (
-                          <div className="rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm text-slate-600">
-                            No student risk summary available yet.
-                          </div>
-                        )}
-                      </>
-                    )
-                  })()}
-                </div>
-              )}
-
               {rosterLoading ? (
                 <div className="p-6 text-center text-sm text-slate-500 flex items-center justify-center gap-2">
                   <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -786,42 +695,59 @@ export default function ClassDetails() {
                         <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider"></th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {roster.map((row, index) => (
-                        <tr key={row.student_id || row.student_name || index} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-2 text-sm text-slate-900">
-                              <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                              <span className="font-medium">{row.student_name || '-'}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            <div className="text-sm text-slate-700 font-mono">{row.student_id || '-'}</div>
-                          </td>
-                          <td className="px-4 py-2.5">
-                            {row.risk ? (
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[row.risk] || 'bg-slate-100 text-slate-700'}`}>
-                                {row.risk}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-slate-400">-</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-2.5 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button
-                                type="button"
-                                onClick={() => openAIForm(row)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors"
-                              >
-                                <Brain className="w-3.5 h-3.5" />
-                                Description
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
+                    {groupedRoster.map((group) => {
+                      const groupMeta = ROSTER_GROUP_META[group.riskKey] || ROSTER_GROUP_META.Unassigned
+                      return (
+                        <tbody key={group.riskKey} className="divide-y divide-slate-100">
+                          <tr className="bg-slate-50/80">
+                            <td colSpan={4} className="px-4 py-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                                  {groupMeta.label}
+                                </span>
+                                <span className="text-xs font-medium text-slate-500">
+                                  {group.students.length} student{group.students.length !== 1 ? 's' : ''}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                          {group.students.map((row, index) => (
+                            <tr key={`${group.riskKey}-${row.student_id || row.student_name || index}`} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-4 py-2.5">
+                                <div className="flex items-center gap-2 text-sm text-slate-900">
+                                  <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                  <span className="font-medium">{row.student_name || '-'}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                <div className="text-sm text-slate-700 font-mono">{row.student_id || '-'}</div>
+                              </td>
+                              <td className="px-4 py-2.5">
+                                {row.risk ? (
+                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[row.risk] || 'bg-slate-100 text-slate-700'}`}>
+                                    {row.risk}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-slate-400">-</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-2.5 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => openAIForm(row)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors"
+                                  >
+                                    <Brain className="w-3.5 h-3.5" />
+                                    View details
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      )
+                    })}
                   </table>
                 </div>
               )}
@@ -869,6 +795,294 @@ export default function ClassDetails() {
           }
         }}
       />
+      {activeAIStudent && (
+        <div
+          className="fixed inset-x-0 bottom-0 top-[73px] z-20 bg-slate-900/35 px-4 pb-4 pt-3 sm:px-6 sm:pb-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="student-risk-details-title"
+        >
+          <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-white via-slate-50 to-cyan-50/40 px-6 py-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-700">Student overview</p>
+                <h2 id="student-risk-details-title" className="mt-1 text-lg font-bold tracking-tight text-slate-900">Student Insights</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {activeAIStudent.student_name || 'Student'} {activeAIStudent.student_id ? `(${activeAIStudent.student_id})` : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveAIStudent(null)}
+                className="rounded-xl border border-transparent p-2 text-slate-400 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-700"
+                aria-label="Close student risk details"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto bg-slate-50/60 p-6">
+              <div className="space-y-5">
+                {referralError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{referralError}</div>}
+                {referralMessage && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{referralMessage}</div>}
+
+                {(() => {
+                  const riskReasons = getRiskReasons(activeAIStudent)
+                  const riskDesignation = getRiskDesignation(activeAIStudent)
+                  const directDrivers = Array.isArray(activeAIStudent.risk_drivers) ? activeAIStudent.risk_drivers : []
+                  const simplifiedDrivers = directDrivers.map(simplifyReason).filter(Boolean).slice(0, 3)
+                  const simplifiedReasons = riskReasons.map(simplifyReason).filter(Boolean).slice(0, 4)
+                  const canReferToAmu = hasComputedRisk(activeAIStudent)
+                  const referralHelperText = getReferralHelperText(activeAIStudent, amuStaffLoading, amuStaffOptions, selectedAmuStaffId)
+                  const summaryText = formatStudentInsightSummary(activeAIStudent, riskDesignation, simplifiedDrivers.length > 0 ? simplifiedDrivers : simplifiedReasons)
+                  const hardestMidtermTopics = Array.isArray(activeAIStudent.hardest_midterm_topics) ? activeAIStudent.hardest_midterm_topics : []
+                  const topContributingSignals = Array.isArray(activeAIStudent.top_contributing_signals) ? activeAIStudent.top_contributing_signals : []
+
+                  return (
+                    <>
+                      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+                        <div className="rounded-xl border border-cyan-200/80 bg-white p-5 shadow-sm shadow-cyan-100/40">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-cyan-100 text-cyan-700">
+                              <CircleAlert className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-700">Quick Summary</p>
+                              <p className="mt-2 text-[15px] leading-7 text-slate-700">{summaryText}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200/80 bg-slate-50/90 p-5 shadow-sm shadow-slate-200/50">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Risk Snapshot</p>
+                          <div className="mt-3 space-y-2.5 text-sm text-slate-700">
+                            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
+                              <span>Risk level</span>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[activeAIStudent.risk] || 'bg-slate-100 text-slate-700'}`}>
+                                {activeAIStudent.risk || 'Not available'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
+                              <span>Confidence</span>
+                              <span className="font-semibold text-slate-900">
+                                {activeAIStudent.risk_probability_percent != null ? `${activeAIStudent.risk_probability_percent}%` : 'Not available'}
+                              </span>
+                            </div>
+                            <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
+                              <span className="block text-xs font-medium text-slate-500">AMU referral</span>
+                              <p className="mt-1 text-sm text-slate-900">
+                                {activeAIStudent.assigned_amu_staff_name
+                                  ? `${activeAIStudent.assigned_amu_staff_name}${activeAIStudent.assigned_amu_staff_college ? ` - ${activeAIStudent.assigned_amu_staff_college}` : ''}`
+                                  : activeAIStudent.flagged_for_mentoring
+                                    ? 'Already referred'
+                                    : 'Not referred yet'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {(simplifiedDrivers.length > 0 || simplifiedReasons.length > 0) && (
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <div className="rounded-xl border border-blue-200/80 bg-blue-50 px-4 py-4 shadow-sm shadow-blue-100/40">
+                            <p className="text-sm font-semibold text-blue-900 flex items-center gap-2">
+                              <Brain className="w-4 h-4" />
+                              Main AI Drivers
+                            </p>
+                            {simplifiedDrivers.length > 0 ? (
+                              <ul className="mt-3 space-y-2.5 text-sm text-blue-950">
+                                {simplifiedDrivers.map((reason) => (
+                                  <li key={reason} className="rounded-lg border border-blue-100/80 bg-white/85 px-3 py-2.5 leading-6">{reason}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="mt-3 text-sm leading-6 text-blue-900">No main driver was returned by the AI yet.</p>
+                            )}
+                          </div>
+
+                          <div className="rounded-xl border border-amber-200/80 bg-amber-50 px-4 py-4 shadow-sm shadow-amber-100/40">
+                            <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+                              <ClipboardList className="w-4 h-4" />
+                              Supporting Signals
+                            </p>
+                            {simplifiedReasons.length > 0 ? (
+                              <ul className="mt-3 space-y-2.5 text-sm text-amber-950">
+                                {simplifiedReasons.map((reason) => (
+                                  <li key={reason} className="rounded-lg border border-amber-100/80 bg-white/85 px-3 py-2.5 leading-6">{reason}</li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="mt-3 text-sm leading-6 text-amber-900">No additional supporting observations are available yet.</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="rounded-xl border border-violet-200/80 bg-violet-50 px-4 py-4 shadow-sm shadow-violet-100/40">
+                        <p className="flex items-center gap-2 text-sm font-semibold text-violet-900">
+                          <BookOpen className="h-4 w-4" />
+                          Midterm Topics To Watch
+                        </p>
+                        {hardestMidtermTopics.length > 0 ? (
+                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            {hardestMidtermTopics.map((topic, index) => {
+                              const title = topic?.activity_title || 'Untitled activity'
+                              const componentLabel = formatTopicComponentLabel(topic?.component)
+                              const score = topic?.score != null && !Number.isNaN(Number(topic.score))
+                                ? Number(topic.score).toFixed(2).replace(/\.00$/, '')
+                                : 'N/A'
+
+                              return (
+                                <div key={`${title}-${index}`} className="rounded-lg border border-violet-100/80 bg-white/90 px-3 py-3">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold leading-6 text-violet-950">{title}</p>
+                                      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-violet-600">{componentLabel}</p>
+                                    </div>
+                                    <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800">
+                                      {score}
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 text-xs leading-5 text-violet-800">
+                              This is one of the student&apos;s lowest midterm activity scores, so it may need support before finals.
+                                  </p>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-sm leading-6 text-violet-900">
+                            No midterm activity breakdown is available yet. Upload a gradesheet with activity titles so the system can identify where the student is struggling.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-cyan-200/80 bg-cyan-50 px-4 py-4 shadow-sm shadow-cyan-100/40">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="flex items-center gap-2 text-sm font-semibold text-cyan-900">
+                            <BarChart3 className="h-4 w-4" />
+                            Top Contributing Signals
+                          </p>
+                          <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-cyan-800">
+                            {formatModelProfile(activeAIStudent.model_profile)}
+                          </span>
+                        </div>
+                        {topContributingSignals.length > 0 ? (
+                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            {topContributingSignals.map((signal, index) => (
+                              <div key={`${signal?.feature || signal?.label || 'signal'}-${index}`} className="rounded-lg border border-cyan-100/80 bg-white/90 px-3 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold leading-6 text-cyan-950">{signal?.label || 'Signal'}</p>
+                                    <p className="mt-1 text-xs font-medium uppercase tracking-wide text-cyan-600">
+                                      Strength {signal?.importance_score ?? 'N/A'}
+                                    </p>
+                                  </div>
+                                  <span className="rounded-full bg-cyan-100 px-2.5 py-1 text-xs font-semibold text-cyan-800">
+                                    {signal?.value ?? 'N/A'}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-xs leading-5 text-cyan-900">
+                                  {signal?.detail || 'This signal contributed to the current prediction.'}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-sm leading-6 text-cyan-900">
+                            No ranked contributing signals are available yet for this student.
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200/80 bg-white p-5 shadow-sm shadow-slate-200/40">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                            <Send className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Send to AMU</p>
+                            <p className="mt-1 text-sm leading-6 text-slate-500">
+                              Review the summary first, then choose the staff member and add your note for the referral.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            Assign to AMU staff
+                          </label>
+                          <select
+                            value={selectedAmuStaffId}
+                            onChange={(e) => setSelectedAmuStaffId(e.target.value)}
+                            disabled={amuStaffLoading || Boolean(activeAIStudent?.flagged_for_mentoring)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white disabled:bg-slate-100"
+                          >
+                            <option value="">
+                              {amuStaffLoading ? 'Loading AMU staff...' : 'Choose AMU staff'}
+                            </option>
+                            {amuStaffOptions.map((staff) => (
+                              <option key={staff.id} value={staff.id}>
+                                {staff.label}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-2 text-xs text-slate-500">
+                            Choose who will handle this referral. Each option shows the staff name and assigned college.
+                          </p>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
+                            Referral note for AMU
+                          </label>
+                          <textarea
+                            rows={4}
+                            value={referralNote}
+                            onChange={(e) => setReferralNote(e.target.value)}
+                            placeholder="Explain why this student is being referred to AMU."
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
+                          />
+                          <p className="mt-2 text-xs text-slate-500">
+                            This note will be visible to AMU staff when they open the referral.
+                          </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
+                          <button
+                            type="button"
+                            disabled={
+                              !canReferToAmu
+                              || amuStaffLoading
+                              || amuStaffOptions.length === 0
+                              || Boolean(activeAIStudent?.flagged_for_mentoring)
+                              || referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
+                            }
+                            onClick={() => referStudentToAmu(activeAIStudent)}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            {activeAIStudent?.flagged_for_mentoring ? <UserRoundCheck className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+                            {!canReferToAmu
+                              ? 'Risk result required'
+                              : activeAIStudent?.flagged_for_mentoring
+                                ? 'Already referred to AMU'
+                                : referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
+                                  ? 'Referring...'
+                                  : 'Refer to AMU'}
+                          </button>
+                          <p className="max-w-2xl text-xs leading-5 text-slate-500">{referralHelperText}</p>
+                        </div>
+                      </div>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <InlineToast
         message={aiUploadMessage}
         tone="success"

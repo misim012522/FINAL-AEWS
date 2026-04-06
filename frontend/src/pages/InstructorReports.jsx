@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft,
   BookOpen,
   Download,
   FileSpreadsheet,
-  RefreshCw,
   TriangleAlert,
   Users,
 } from 'lucide-react'
@@ -461,52 +459,21 @@ export default function InstructorReports() {
   }, [reportData])
 
   return (
-    <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
+    <DashboardLayout
+      title="Instructor Dashboard"
+      subtitle={instructorSubtitle}
+      navItems={[
+        { label: 'Classes', icon: BookOpen, active: false, onClick: () => navigate('/instructor') },
+        { label: 'Risk alerts', icon: TriangleAlert, active: false, onClick: () => navigate('/instructor', { state: { tab: 'alerts' } }) },
+        { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor', { state: { tab: 'students' } }) },
+        { label: 'Reports', icon: FileSpreadsheet, active: true, onClick: () => navigate('/instructor/reports') },
+      ]}
+    >
       <div className="space-y-6">
-        <div className="flex flex-wrap items-center justify-end gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => loadReport(selectedClassId)}
-              disabled={reportLoading || !selectedClassId}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-60 transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${reportLoading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              disabled={!reportData?.rows?.length}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors"
-            >
-              <Download className="w-4 h-4" />
-              Export CSV
-            </button>
-            <button
-              type="button"
-              onClick={handleExportPdf}
-              disabled={!reportData?.rows?.length}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-60 transition-colors"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              Export PDF
-            </button>
-          </div>
-        </div>
-
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <button
-                  type="button"
-                  onClick={() => navigate('/instructor')}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 transition-colors mb-3"
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Back to Dashboard
-                </button>
                 <div className="flex items-center gap-2">
                   <FileSpreadsheet className="w-5 h-5 text-blue-600" />
                   <h2 className="text-xl font-bold text-slate-900 tracking-tight">Section Reports</h2>
@@ -515,24 +482,46 @@ export default function InstructorReports() {
                   Export the complete student information for one section, including risk, grades, attendance, referrals, and needs assessment indicators.
                 </p>
               </div>
-              <div className="w-full sm:w-72">
-                <label htmlFor="section-report-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Select section
-                </label>
-                <select
-                  id="section-report-select"
-                  value={selectedClassId}
-                  onChange={(e) => setSelectedClassId(e.target.value)}
-                  disabled={classesLoading || !classesList.length}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors disabled:opacity-60"
-                >
-                  {!classesList.length && <option value="">No sections available</option>}
-                  {classesList.map((klass) => (
-                    <option key={klass.id} value={klass.id}>
-                      {[klass.subject_code, klass.subject_name, klass.section_code].filter(Boolean).join(' - ')}
-                    </option>
-                  ))}
-                </select>
+              <div className="w-full sm:w-auto sm:min-w-[20rem] flex flex-col gap-3">
+                <div>
+                  <label htmlFor="section-report-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                    Select section
+                  </label>
+                  <select
+                    id="section-report-select"
+                    value={selectedClassId}
+                    onChange={(e) => setSelectedClassId(e.target.value)}
+                    disabled={classesLoading || !classesList.length}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors disabled:opacity-60"
+                  >
+                    {!classesList.length && <option value="">No sections available</option>}
+                    {classesList.map((klass) => (
+                      <option key={klass.id} value={klass.id}>
+                        {[klass.subject_code, klass.subject_name, klass.section_code].filter(Boolean).join(' - ')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    disabled={!reportData?.rows?.length}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    disabled={!reportData?.rows?.length}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-60 transition-colors"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Export PDF
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -591,29 +580,6 @@ export default function InstructorReports() {
                     <p className="mt-2 text-2xl font-bold text-teal-900">{reportData.totals.referred}</p>
                   </div>
                 </div>
-
-                {reportData.riskSummary && (
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
-                    <div className="flex items-center gap-2 mb-3">
-                      <TriangleAlert className="w-4 h-4 text-amber-600" />
-                      <h3 className="text-sm font-semibold text-slate-900">Risk summary</h3>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                      <div className="rounded-lg bg-slate-50 px-3 py-2.5">
-                        <span className="text-slate-500">High</span>
-                        <p className="text-lg font-bold text-slate-900">{formatNumber(reportData.riskSummary.high_count ?? reportData.totals.high)}</p>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2.5">
-                        <span className="text-slate-500">Medium</span>
-                        <p className="text-lg font-bold text-slate-900">{formatNumber(reportData.riskSummary.medium_count ?? reportData.totals.medium)}</p>
-                      </div>
-                      <div className="rounded-lg bg-slate-50 px-3 py-2.5">
-                        <span className="text-slate-500">Low</span>
-                        <p className="text-lg font-bold text-slate-900">{formatNumber(reportData.riskSummary.low_count ?? reportData.totals.low)}</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
                   <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">

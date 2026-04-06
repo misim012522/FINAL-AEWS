@@ -29,6 +29,10 @@ class UserUpdate(BaseModel):
 
 class UserResponse(UserBase):
     id: str
+    email_verified: Optional[bool] = None
+    requires_email_verification: Optional[bool] = None
+    message: Optional[str] = None
+    verification_link: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -197,6 +201,12 @@ class UpdateEnrollmentRequest(BaseModel):
     attendance: Optional[float] = Field(None, ge=0, le=100)
     lms_activity: Optional[float] = Field(None, ge=0, le=100)
     previous_gpa: Optional[float] = Field(None, ge=0, le=4)
+    previous_midterm_grade: Optional[float] = Field(None, ge=0)
+    previous_final_grade: Optional[float] = Field(None, ge=0)
+    previous_failed_flag: Optional[int] = Field(None, ge=0)
+    previous_passed_flag: Optional[int] = Field(None, ge=0)
+    historical_grade_average: Optional[float] = Field(None, ge=0)
+    historical_failure_count: Optional[int] = Field(None, ge=0)
     failed_subject_count: Optional[int] = Field(None, ge=0)
     academic_challenge_score: Optional[float] = Field(None, ge=0, le=5)
     external_factor_score: Optional[float] = Field(None, ge=0, le=5)

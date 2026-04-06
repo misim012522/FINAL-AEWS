@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+frontend/dist/
+frontend/.vite/
+backend/uploads/*.tmp

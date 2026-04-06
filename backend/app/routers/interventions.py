@@ -1,7 +1,8 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pymongo import ReturnDocument
 
+from app.authz import get_current_actor
 from app.database import get_db
 from app.email_sender import send_student_support_email
 from app.notification_utils import create_notification
@@ -117,7 +118,7 @@ def _notify_intervention_updated(db, before: dict, after: dict):
 
 
 @router.get("", response_model=list[InterventionResponse])
-def list_interventions(status: str | None = None):
+def list_interventions(status: str | None = None, actor: dict = Depends(get_current_actor)):
     db = get_db()
     q = {}
     if status:
@@ -127,7 +128,7 @@ def list_interventions(status: str | None = None):
 
 
 @router.get("/{intervention_id}", response_model=InterventionResponse)
-def get_intervention(intervention_id: str):
+def get_intervention(intervention_id: str, actor: dict = Depends(get_current_actor)):
     db = get_db()
     if not ObjectId.is_valid(intervention_id):
         raise HTTPException(status_code=404, detail="Intervention not found")
@@ -138,7 +139,9 @@ def get_intervention(intervention_id: str):
 
 
 @router.post("", response_model=InterventionResponse, status_code=201)
-def create_intervention(body: InterventionCreate):
+def create_intervention(body: InterventionCreate, actor: dict = Depends(get_current_actor)):
+    if actor["role"] not in {"admin", "amu-staff"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     doc = body.model_dump()
     email_payload = {
@@ -162,7 +165,9 @@ def create_intervention(body: InterventionCreate):
 
 
 @router.patch("/{intervention_id}", response_model=InterventionResponse)
-def update_intervention(intervention_id: str, body: InterventionUpdate):
+def update_intervention(intervention_id: str, body: InterventionUpdate, actor: dict = Depends(get_current_actor)):
+    if actor["role"] not in {"admin", "amu-staff"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     if not ObjectId.is_valid(intervention_id):
         raise HTTPException(status_code=404, detail="Intervention not found")
@@ -182,7 +187,9 @@ def update_intervention(intervention_id: str, body: InterventionUpdate):
 
 
 @router.delete("/{intervention_id}", status_code=204)
-def delete_intervention(intervention_id: str):
+def delete_intervention(intervention_id: str, actor: dict = Depends(get_current_actor)):
+    if actor["role"] not in {"admin", "amu-staff"}:
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     if not ObjectId.is_valid(intervention_id):
         raise HTTPException(status_code=404, detail="Intervention not found")

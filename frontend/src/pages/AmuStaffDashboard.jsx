@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Users as UsersIcon, LayoutDashboard, AlertTriangle, ClipboardList, FileText } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import DashboardPageHeader from '../components/DashboardPageHeader'
 import TutorialModal from '../components/TutorialModal'
 import AmuStaffOverview from '../components/amu-staff/AmuStaffOverview'
 import {
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'cases', label: 'Interventions', icon: ClipboardList },
   { id: 'reports', label: 'Reports', icon: FileText },
 ]
+const VALID_TABS = new Set(TABS.map((tab) => tab.id))
 
 const ROLE_PATH = { instructor: '/instructor', admin: '/admin', 'amu-staff': '/amu-staff' }
 
@@ -29,10 +31,12 @@ export default function AmuStaffDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
-  const tabFromUrl = new URLSearchParams(location.search).get('tab')
+  const getTabFromSearch = (search) => {
+    const tab = new URLSearchParams(search).get('tab')
+    return tab && VALID_TABS.has(tab) ? tab : 'overview'
+  }
   const [activeTab, setActiveTab] = useState(() => {
-    const t = tabFromUrl && ['overview', 'referrals', 'cases', 'reports'].includes(tabFromUrl) ? tabFromUrl : 'overview'
-    return t
+    return getTabFromSearch(location.search)
   })
   const [showTutorial, setShowTutorial] = useState(false)
 
@@ -47,8 +51,7 @@ export default function AmuStaffDashboard() {
   }, [user, navigate])
 
   useEffect(() => {
-    const t = new URLSearchParams(location.search).get('tab')
-    if (t && ['overview', 'referrals', 'cases', 'reports'].includes(t)) setActiveTab(t)
+    setActiveTab(getTabFromSearch(location.search))
   }, [location.search])
 
   useEffect(() => {
@@ -82,40 +85,26 @@ export default function AmuStaffDashboard() {
       subtitle="Academic support overview"
       icon={UsersIcon}
       variant="amu-staff"
+      navItems={TABS.map((tab) => ({
+        label: tab.label,
+        icon: tab.icon,
+        active: activeTab === tab.id,
+        onClick: () => setActiveTab(tab.id),
+      }))}
     >
       {showTutorial && <TutorialModal variant="amu-staff" onClose={handleTutorialClose} />}
-
-      {/* Tab navigation in container (same design as instructor) */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-2 mb-6">
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Dashboard sections">
-          {TABS.map((tab) => {
-            const TabIcon = tab.icon
-            const isActive = activeTab === tab.id
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => setActiveTab(tab.id)}
-                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border ${
-                  isActive
-                    ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-900'
-                }`}
-              >
-                <TabIcon className="w-4 h-4 flex-shrink-0" />
-                {tab.label}
-              </button>
-            )
-          })}
+      <DashboardPageHeader
+        eyebrow="AMU workflow"
+        title="Student support workboard"
+        description="Use the same sections every time: review referrals, manage intervention cases, and generate reports without jumping between unrelated layouts."
+      >
+        <div>
+          {activeTab === 'overview' && <AmuStaffOverview />}
+          {activeTab === 'referrals' && <AmuStaffReferrals />}
+          {activeTab === 'cases' && <AmuStaffCases />}
+          {activeTab === 'reports' && <AmuStaffReports />}
         </div>
-      </div>
-
-      {activeTab === 'overview' && <AmuStaffOverview />}
-      {activeTab === 'referrals' && <AmuStaffReferrals />}
-      {activeTab === 'cases' && <AmuStaffCases />}
-      {activeTab === 'reports' && <AmuStaffReports />}
+      </DashboardPageHeader>
     </DashboardLayout>
   )
 }

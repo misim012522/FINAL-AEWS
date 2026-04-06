@@ -58,6 +58,23 @@ export async function uploadNeedsAssessmentFiles(classId, files) {
   return data
 }
 
+export async function uploadPreviousGradesFiles(classId, files) {
+  const formData = new FormData()
+  for (const file of files) {
+    formData.append('files', file)
+  }
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/upload-previous-grades`, {
+    method: 'POST',
+    headers: { ...getAuthHeaders() },
+    body: formData,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Upload failed')
+  }
+  return data
+}
+
 export async function predictClassRisk(classId) {
   const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/predict-risk`, {
     method: 'POST',

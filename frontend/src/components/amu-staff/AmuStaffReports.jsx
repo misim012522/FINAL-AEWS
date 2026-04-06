@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, Download, Calendar, TrendingUp, Users, CheckCircle } from 'lucide-react'
+import { Download, Calendar, TrendingUp, Users, CheckCircle } from 'lucide-react'
 import { getAmuStaffReports } from '../../api'
 
 export default function AmuStaffReports() {
@@ -12,7 +12,7 @@ export default function AmuStaffReports() {
     getAmuStaffReports()
       .then((data) => {
         if (isMounted) {
-          setRows(data)
+          setRows(Array.isArray(data) ? data : [])
           setError(null)
         }
       })
@@ -34,14 +34,14 @@ export default function AmuStaffReports() {
     <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Reports</h2>
-          <p className="text-sm text-slate-500 mt-0.5">Monthly referral and case resolution summaries</p>
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Reports</h2>
+          <p className="text-base text-slate-500 mt-1">Monthly referral and case resolution summaries</p>
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-md shadow-teal-600/25 transition-all hover:shadow-lg active:scale-[0.98]"
+          className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 shadow-md shadow-teal-600/25 transition-all hover:shadow-lg active:scale-[0.98]"
         >
-          <Download className="w-4 h-4" />
+          <Download className="w-4.5 h-4.5" />
           Export report
         </button>
       </div>
@@ -60,46 +60,58 @@ export default function AmuStaffReports() {
         <div className="rounded-xl border border-slate-200/80 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
-              <tr>
-                <th className="px-2 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider text-left">Period</th>
-                <th className="px-2 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider text-left">Referrals</th>
-                <th className="px-2 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider text-left">Cases opened</th>
-                <th className="px-2 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider text-left">Cases closed</th>
-                <th className="px-2 py-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider text-left">Resolution rate</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
+              <thead className="bg-gray-50/80 border-b border-gray-200">
                 <tr>
-                  <td colSpan={5} className="px-2 py-4 text-center text-[11px] text-gray-500">Loading reports…</td>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Period</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Referrals</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Cases opened</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Cases closed</th>
+                  <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Resolution rate</th>
                 </tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-2 py-4 text-center text-[11px] text-gray-500">No report data yet.</td>
-                </tr>
-              ) : (
-                rows.map((row) => (
-                  <tr key={row.period} className="hover:bg-teal-50/50 transition-colors">
-                    <td className="px-2 py-1.5 text-[11px] font-medium text-gray-900 flex items-center gap-0.5">
-                      <Calendar className="w-2.5 h-2.5 text-gray-400" /> {row.period}
-                    </td>
-                    <td className="px-2 py-1.5 text-[11px] text-gray-600 flex items-center gap-0.5">
-                      <Users className="w-2.5 h-2.5 text-gray-400" /> {row.referrals}
-                    </td>
-                    <td className="px-2 py-1.5 text-[11px] text-gray-600">{row.cases_opened}</td>
-                    <td className="px-2 py-1.5 text-[11px] text-gray-600 flex items-center gap-0.5">
-                      <CheckCircle className="w-2.5 h-2.5 text-emerald-500" /> {row.cases_closed}
-                    </td>
-                    <td className="px-2 py-1.5 text-[11px] font-semibold text-teal-700 flex items-center gap-0.5">
-                      <TrendingUp className="w-2.5 h-2.5" /> {row.resolution_rate}
-                    </td>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">Loading reports...</td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">No report data yet.</td>
+                  </tr>
+                ) : (
+                  rows.map((row) => (
+                    <tr key={row.period} className="hover:bg-teal-50/50 transition-colors">
+                      <td className="px-5 py-4 text-sm font-medium text-gray-900">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <span>{row.period}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-gray-400" />
+                          <span>{row.referrals}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-600">{row.cases_opened}</td>
+                      <td className="px-5 py-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-emerald-500" />
+                          <span>{row.cases_closed}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm font-semibold text-teal-700">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp className="w-4 h-4" />
+                          <span>{row.resolution_rate}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

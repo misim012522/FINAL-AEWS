@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Brain, GraduationCap, Mail, Lock, UserPlus, CheckCircle } from 'lucide-react'
 import { login as apiLogin } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -8,6 +8,7 @@ const RECAPTCHA_SITE_KEY = import.meta.env.VITE_RECAPTCHA_SITE_KEY || ''
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login: setAuth } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -18,15 +19,31 @@ export default function Login() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [redirectPath, setRedirectPath] = useState('/instructor')
   const [recaptchaReady, setRecaptchaReady] = useState(false)
+  const [notice, setNotice] = useState('')
   const recaptchaContainerRef = useRef(null)
   const recaptchaWidgetIdRef = useRef(null)
   const recaptchaScriptRequestedRef = useRef(false)
+
+  const resetRecaptcha = () => {
+    if (!RECAPTCHA_SITE_KEY || !window.grecaptcha || typeof recaptchaWidgetIdRef.current !== 'number') return
+    try {
+      window.grecaptcha.reset(recaptchaWidgetIdRef.current)
+    } catch (_) {}
+  }
 
   const roleToPath = (roleName) => {
     if (roleName === 'admin') return '/admin'
     if (roleName === 'amu-staff') return '/amu-staff'
     return '/instructor'
   }
+
+  useEffect(() => {
+    const logoutReason = location.state?.logoutReason
+    if (logoutReason) {
+      setNotice(logoutReason)
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (!RECAPTCHA_SITE_KEY || !recaptchaContainerRef.current) return
@@ -71,9 +88,7 @@ export default function Login() {
     }
 
     return () => {
-      if (window.grecaptcha && typeof recaptchaWidgetIdRef.current === 'number') {
-        try { window.grecaptcha.reset(recaptchaWidgetIdRef.current) } catch (_) {}
-      }
+      resetRecaptcha()
       if (window.__recaptchaOnLoad) {
         delete window.__recaptchaOnLoad
       }
@@ -83,6 +98,7 @@ export default function Login() {
   const handleSignIn = async (e) => {
     e.preventDefault()
     setError('')
+    setNotice('')
     const emailEmpty = !email.trim()
     const passwordEmpty = !password.trim()
     setEmailRequired(emailEmpty)
@@ -111,11 +127,10 @@ export default function Login() {
       const apiRole = data?.role ?? data?.user?.role ?? 'instructor'
       setRedirectPath(roleToPath(apiRole))
       setShowSuccess(true)
-      if (RECAPTCHA_SITE_KEY && window.grecaptcha && typeof recaptchaWidgetIdRef.current === 'number') {
-        try { window.grecaptcha.reset(recaptchaWidgetIdRef.current) } catch (_) {}
-      }
+      resetRecaptcha()
     } catch (err) {
       setError(err.message || 'Sign in failed')
+      resetRecaptcha()
     } finally {
       setLoading(false)
     }
@@ -175,10 +190,12 @@ export default function Login() {
             </p>
           </header>
 
-          <h2 className="text-lg font-semibold text-slate-800 mb-0.5">Welcome back</h2>
-          <p className="text-slate-500 text-sm mb-5">Sign in to access your dashboard.</p>
-
           <form className="space-y-5" onSubmit={handleSignIn}>
+            {notice && (
+              <div className="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-base text-amber-800">
+                {notice}
+              </div>
+            )}
             {error && (
               <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-base text-red-700">
                 {error}

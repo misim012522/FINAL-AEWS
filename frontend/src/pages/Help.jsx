@@ -1,13 +1,60 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  ArrowLeft,
+  Bell,
+  BookOpen,
+  ChevronDown,
+  FileSpreadsheet,
+  GraduationCap,
+  HelpCircle,
+  KeyRound,
+  LayoutDashboard,
+  Mail,
+  Search,
+  Shield,
+  User,
+  Users,
+} from 'lucide-react'
+import DashboardLayout from '../components/DashboardLayout'
+import DashboardPageHeader from '../components/DashboardPageHeader'
 import { useAuth } from '../context/AuthContext'
-import { Brain, GraduationCap, ArrowLeft, HelpCircle, Mail, Search, User, KeyRound, BookOpen } from 'lucide-react'
 
 function getBackUrl(role) {
   if (role === 'admin') return '/admin'
   if (role === 'amu-staff') return '/amu-staff'
   if (role === 'instructor') return '/instructor'
   return '/'
+}
+
+function getLayoutMeta(role) {
+  if (role === 'admin') {
+    return {
+      variant: 'admin',
+      title: 'Administrator Dashboard',
+      navItems: [
+        { label: 'Overview', icon: LayoutDashboard, active: false, path: '/admin' },
+        { label: 'Reports', icon: FileSpreadsheet, active: false, path: '/admin' },
+      ],
+    }
+  }
+
+  if (role === 'amu-staff') {
+    return {
+      variant: 'amu-staff',
+      title: 'AMU Staff Dashboard',
+      navItems: [
+        { label: 'Overview', icon: LayoutDashboard, active: false, path: '/amu-staff' },
+        { label: 'Reports', icon: FileSpreadsheet, active: false, path: '/amu-staff?tab=reports' },
+      ],
+    }
+  }
+
+  return {
+    variant: 'instructor',
+    title: 'Instructor Dashboard',
+    navItems: [],
+  }
 }
 
 const FAQ_SECTIONS = [
@@ -17,19 +64,19 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What is the Academic Early Warning System?',
-        a: 'The Academic Early Warning System (AEWS) helps institutions identify students at risk of academic difficulty. It uses indicators like GPA, attendance, and LMS activity to flag students who may need support, and supports instructors in referring students to AMU while AMU staff track interventions.',
+        a: 'The Academic Early Warning System helps identify students who may need support using grades, attendance, and related academic indicators. It also supports referrals and intervention workflows.',
       },
       {
         q: 'How do I sign in?',
-        a: 'Enter your university email and password on the login page. The system detects your account role automatically after sign-in. If your account is pending approval, you\'ll see a message to wait for admin confirmation.',
+        a: 'Use your university email and password on the login page. After sign-in, the system automatically opens the workspace for your role.',
       },
       {
         q: 'How do I create an account?',
-        a: 'Click "Sign up" on the login page. Choose either Instructor or AMU Staff and fill in your details. Instructors register under their department, while AMU Staff register under their assigned college. Both require admin approval before they can sign in. Administrator accounts are assigned directly by your team and are not self-registered from the signup page.',
+        a: 'Use the Sign up page, choose the correct role, and complete the form. Instructor and AMU Staff accounts still need administrator approval before first use.',
       },
       {
         q: 'My account is pending approval. What happens next?',
-        a: 'Instructor and AMU Staff accounts must be approved by an administrator. You\'ll receive an email once your account is active. Until then, you cannot sign in. If you believe this is an error, contact your institution\'s administrator.',
+        a: 'Your account stays inactive until an administrator approves it. Once approved, you can sign in normally.',
       },
     ],
   },
@@ -39,19 +86,19 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'I forgot my password.',
-        a: 'Click "Forgot password?" on the login page and enter your email. You\'ll receive a reset link by email. The link expires in 1 hour. If you don\'t see it, check your spam folder.',
+        a: 'Use the Forgot password link on the login page. The reset email expires, so it is best to open it as soon as it arrives.',
       },
       {
-        q: 'I didn\'t receive the verification email.',
-        a: 'Check your spam or junk folder. The link expires in 24 hours. If it expired, contact your administrator to resend or resolve the issue. Ensure your email address was entered correctly.',
+        q: 'I did not receive the verification email.',
+        a: 'Check spam or junk first. If it still does not arrive, contact your administrator or support contact to verify the account status and email address.',
       },
       {
         q: 'My account was archived. What does that mean?',
-        a: 'Archived accounts cannot sign in. Your data remains in the system but is excluded from active use. Contact your administrator to restore your account if you believe this was done in error.',
+        a: 'Archived accounts cannot sign in, but their data stays in the system. An administrator can restore the account if needed.',
       },
       {
         q: 'How do I change my password?',
-        a: 'Go to Settings (gear icon in the dashboard) and use the "Change password" section. You\'ll need your current password to set a new one.',
+        a: 'Open Settings from the dashboard and use the password section there.',
       },
     ],
   },
@@ -60,16 +107,16 @@ const FAQ_SECTIONS = [
     icon: User,
     items: [
       {
-        q: 'What can Instructors do?',
-        a: 'Instructors can manage their classes, view enrolled students, track risk levels, refer students to AMU, and generate class reports. They see students at risk and can take action from the Risk Alerts, Student List, and class detail pages.',
+        q: 'What can instructors do?',
+        a: 'Instructors can manage classes, review students, monitor risk levels, generate reports, and refer students for additional support.',
       },
       {
-        q: 'What can Admins do?',
-        a: 'Admins have full system access: approve or decline pending registrations, manage all user accounts, view system-wide analytics, generate institution reports, and configure department settings. They can also archive and restore user accounts.',
+        q: 'What can admins do?',
+        a: 'Admins manage approvals, user accounts, analytics, reports, and system-wide oversight.',
       },
       {
         q: 'What can AMU Staff do?',
-        a: 'AMU Staff can view student referrals, manage AMU-owned intervention cases, track intervention outcomes, and coordinate with instructors. They focus on students who have been referred for additional support.',
+        a: 'AMU Staff handle referrals, monitor intervention cases, and coordinate support work for referred students.',
       },
     ],
   },
@@ -78,20 +125,20 @@ const FAQ_SECTIONS = [
     icon: BookOpen,
     items: [
       {
-        q: 'What is "risk level"?',
-        a: 'Students are assigned High or Low risk based on GPA, attendance, and LMS activity. High risk students need attention first for follow-up and possible referral to AMU.',
+        q: 'What is risk level?',
+        a: 'Risk level is the system prediction for how likely a student is to need academic support. Depending on available data, the system can classify students as Low, Medium, or High risk.',
       },
       {
         q: 'What are interventions?',
-        a: 'Interventions are AMU-managed support cases opened after a student is referred for additional help. They progress through statuses like Pending, In progress, and Completed so AMU can track follow-through and outcomes.',
+        a: 'Interventions are follow-up support actions tracked in the system after a student is referred or needs attention.',
       },
       {
-        q: 'How do I view archived users?',
-        a: 'Admins can open User Accounts, then click the "Archived" button to switch to the archived view. Archived users are excluded from system analytics and cannot sign in until restored.',
+        q: 'How do I view archived users or classes?',
+        a: 'Use the archived view or archived page available in the relevant dashboard area. Restoring brings the item back to active use.',
       },
       {
-        q: 'How do I reset my tutorial?',
-        a: 'Go to Settings and click "Replay tutorial" to see the welcome guide again. This explains the main features and terms for your role.',
+        q: 'How do I replay the tutorial?',
+        a: 'Open Settings and use the replay tutorial option for your role.',
       },
     ],
   },
@@ -101,133 +148,186 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'Who can I contact for support?',
-        a: 'For technical issues, password resets, or account problems, contact your institution\'s IT support or system administrator. They can manage access and resolve account-related issues.',
+        a: 'For access issues, password problems, or technical help, contact your institution administrator or IT support.',
       },
       {
         q: 'Where can I report a bug?',
-        a: 'Report bugs or technical issues to your institution\'s administrator. Include the steps to reproduce and any error messages you see.',
+        a: 'Send bug details to your institution administrator or support contact and include the steps, page, and any error message you saw.',
       },
     ],
   },
 ]
 
 export default function Help() {
-  const [search, setSearch] = useState('')
   const navigate = useNavigate()
-  const { role } = useAuth()
+  const { role, user } = useAuth()
+  const [search, setSearch] = useState('')
 
   const backUrl = useMemo(() => getBackUrl(role), [role])
+  const layoutMeta = useMemo(() => getLayoutMeta(role), [role])
 
-  const normalizedSearch = search.trim().toLowerCase()
-  const filteredSections = normalizedSearch
-    ? FAQ_SECTIONS.map((section) => ({
+  const filteredSections = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+    if (!normalizedSearch) return FAQ_SECTIONS
+
+    return FAQ_SECTIONS
+      .map((section) => ({
         ...section,
         items: section.items.filter(
           (item) =>
             item.q.toLowerCase().includes(normalizedSearch) ||
             item.a.toLowerCase().includes(normalizedSearch)
         ),
-      })).filter((s) => s.items.length > 0)
-    : FAQ_SECTIONS
+      }))
+      .filter((section) => section.items.length > 0)
+  }, [search])
+
+  const [openSectionTitle, setOpenSectionTitle] = useState(FAQ_SECTIONS[0]?.title || '')
+
+  const visibleOpenSectionTitle = useMemo(() => {
+    if (filteredSections.some((section) => section.title === openSectionTitle)) {
+      return openSectionTitle
+    }
+    return filteredSections[0]?.title || ''
+  }, [filteredSections, openSectionTitle])
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-slate-50 via-blue-50/40 to-indigo-50/50">
-      {/* Header – full width */}
-      <header className="flex-shrink-0 border-b border-slate-200/80 bg-white/90 backdrop-blur-sm shadow-sm">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-blue-50 border border-blue-100">
-                <Brain className="w-7 h-7 text-blue-600" strokeWidth={1.6} />
-                <GraduationCap className="w-7 h-7 text-blue-600" strokeWidth={1.6} />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">Help &amp; FAQ</h1>
-                <p className="text-sm text-slate-500">Academic Early Warning System</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 flex-1 min-w-0 max-w-md">
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                <input
-                  type="search"
-                  placeholder="Search questions..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none transition-shadow"
-                />
-              </div>
-              <button
-                type="button"
-                onClick={() => navigate(backUrl)}
-                className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 active:bg-slate-900 shadow-md hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
-                aria-label="Back to dashboard"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to dashboard
-              </button>
+    <DashboardLayout
+      title={layoutMeta.title}
+      subtitle={user ? [user.name, user.department].filter(Boolean).join(' - ') || role || 'Help' : 'Help & FAQ'}
+      variant={layoutMeta.variant}
+      icon={HelpCircle}
+      navItems={layoutMeta.navItems.map((item) => ({
+        label: item.label,
+        icon: item.icon,
+        active: item.active,
+        onClick: () => navigate(item.path, item.state ? { state: item.state } : undefined),
+      }))}
+    >
+      <DashboardPageHeader
+        eyebrow="Help Center"
+        title="Help & FAQ"
+        description="Clear answers for common tasks, account questions, and role-specific workflow guidance."
+        actions={(
+          <button
+            type="button"
+            onClick={() => navigate(backUrl)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to dashboard
+          </button>
+        )}
+      >
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 sm:p-5">
+            <label htmlFor="help-search" className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-3">
+              Search help topics
+            </label>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+              <input
+                id="help-search"
+                type="search"
+                placeholder="Search by task, role, page, or question..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-[15px] text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none transition-shadow"
+              />
             </div>
           </div>
-        </div>
-      </header>
 
-      {/* Main content – full width, stretched */}
-      <main className="flex-1 overflow-auto w-full">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {filteredSections.length === 0 ? (
-            <div className="w-full rounded-2xl bg-white border border-slate-200 shadow-sm p-12 text-center">
-              <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto mb-4">
-                <HelpCircle className="w-7 h-7" />
+            <div className="py-14 px-6 text-center rounded-xl bg-gradient-to-b from-slate-50/80 to-white border-2 border-dashed border-slate-200">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 mx-auto mb-4 ring-2 ring-slate-200/80">
+                <HelpCircle className="w-8 h-8" />
               </div>
-              <p className="text-slate-700 font-medium">No matching questions found</p>
-              <p className="text-slate-500 text-sm mt-1">Try a different search term</p>
+              <h3 className="text-lg font-bold text-slate-800">No matching help topics</h3>
+              <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                Try a different keyword like account, reports, risk, classes, or referral.
+              </p>
             </div>
           ) : (
-            <div className="w-full grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-              {filteredSections.map((section, sectionIdx) => {
+            <div className="space-y-4">
+              {filteredSections.map((section) => {
                 const Icon = section.icon
+                const isOpen = visibleOpenSectionTitle === section.title
                 return (
                   <section
-                    key={sectionIdx}
-                    className="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden flex flex-col min-h-0"
+                    key={section.title}
+                    className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden"
                   >
-                    <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex-shrink-0">
-                      <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
-                        <Icon className="w-5 h-5" />
+                    <button
+                      type="button"
+                      onClick={() => setOpenSectionTitle(isOpen ? '' : section.title)}
+                      className={`group w-full px-6 py-4 bg-gradient-to-r flex items-center justify-between gap-4 text-left transition-all duration-200 ${
+                        isOpen
+                          ? 'from-blue-50/90 to-white bg-blue-50/40'
+                          : 'from-slate-50/80 to-white hover:from-slate-100/80 hover:to-white'
+                      }`}
+                      aria-expanded={isOpen}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ring-1 transition-all duration-200 ${
+                            isOpen
+                              ? 'bg-blue-100 text-blue-700 ring-blue-200 shadow-sm shadow-blue-100/80'
+                              : 'bg-blue-50 text-blue-600 ring-blue-100 group-hover:bg-blue-100'
+                          }`}
+                        >
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h2 className={`text-lg font-bold tracking-tight transition-colors ${isOpen ? 'text-blue-700' : 'text-slate-900 group-hover:text-slate-950'}`}>
+                            {section.title}
+                          </h2>
+                          <p className="text-sm text-slate-500 mt-0.5">{section.items.length} topic{section.items.length !== 1 ? 's' : ''}</p>
+                        </div>
                       </div>
-                      <h2 className="font-semibold text-slate-900 text-lg">{section.title}</h2>
+                      <ChevronDown
+                        className={`w-5 h-5 flex-shrink-0 transition-all duration-300 ease-out ${
+                          isOpen
+                            ? 'rotate-180 text-blue-600'
+                            : 'text-slate-400 group-hover:text-slate-600 group-hover:translate-y-[1px]'
+                        }`}
+                      />
+                    </button>
+
+                    <div
+                      className={`grid transition-all duration-300 ease-out ${
+                        isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                      }`}
+                    >
+                      <div className="overflow-hidden">
+                        <ul className="divide-y divide-slate-100 border-t border-slate-100">
+                          {section.items.map((item) => (
+                            <li key={item.q} className="px-6 py-5 hover:bg-slate-50/50 transition-colors">
+                              <p className="text-[15px] font-semibold text-slate-900">{item.q}</p>
+                              <p className="text-sm text-slate-600 mt-2 leading-7">{item.a}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
-                    <ul className="divide-y divide-slate-100 flex-1 min-h-0">
-                      {section.items.map((item, i) => (
-                        <li key={i} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
-                          <p className="font-semibold text-slate-900 text-sm">{item.q}</p>
-                          <p className="text-slate-600 text-sm mt-1.5 leading-relaxed">{item.a}</p>
-                        </li>
-                      ))}
-                    </ul>
                   </section>
                 )
               })}
             </div>
           )}
 
-          {/* Footer CTA – full width */}
-          <div className="mt-8 w-full rounded-2xl bg-white border border-slate-200 shadow-sm p-5 flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+          <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 p-5 sm:p-6 flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100 flex-shrink-0">
               <Mail className="w-6 h-6" />
             </div>
-            <div className="min-w-0">
-              <p className="font-semibold text-slate-900">Need more help?</p>
-              <p className="text-slate-600 text-sm mt-0.5">
-                For technical issues, account access, or other support, contact your institution&apos;s administrator or IT support.
+            <div>
+              <p className="text-base font-semibold text-slate-900">Need more help?</p>
+              <p className="text-sm text-slate-600 mt-1 leading-7">
+                For technical issues, account access, or setup problems, contact your institution&apos;s administrator or IT support team.
               </p>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </DashboardPageHeader>
+    </DashboardLayout>
   )
 }
-
-
-

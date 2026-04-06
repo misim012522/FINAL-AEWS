@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import DashboardLayout from '../components/DashboardLayout'
+import DashboardPageHeader from '../components/DashboardPageHeader'
+import RoleSectionTabs from '../components/RoleSectionTabs'
 import TutorialModal from '../components/TutorialModal'
 import {
   hasSeenTutorial,
@@ -43,7 +45,7 @@ const MAIN_TABS = [
 ]
 
 const SUB_TABS = [
-  { id: 'at-risk', label: 'Students at Risk', icon: AlertTriangle, active: true },
+  { id: 'at-risk', label: 'Students at Risk', icon: AlertTriangle },
   { id: 'departments', label: 'Departments', icon: Building2 },
   { id: 'instructors', label: 'Instructors', icon: GraduationCap },
   { id: 'all-instructors', label: 'All Instructors', icon: UsersRound },
@@ -139,37 +141,22 @@ export default function AdminDashboard() {
       subtitle="System Overview & Management"
       icon={Shield}
       variant="admin"
+      navItems={MAIN_TABS.map((tab) => ({
+        label: tab.label,
+        icon: tab.icon,
+        active: mainTab === tab.id,
+        onClick: () => setMainTab(tab.id),
+      }))}
     >
       {showTutorial && <TutorialModal variant="admin" onClose={handleTutorialClose} />}
 
       <div className="space-y-4">
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-2">
-          <nav className="flex flex-wrap gap-2" aria-label="Main sections">
-            {MAIN_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setMainTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                  mainTab === tab.id
-                    ? 'bg-slate-700 text-white shadow-sm'
-                    : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-900'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            ))}
-          </nav>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">{contentTitle}</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{contentSubtitle}</p>
-          </div>
-
-          <div className="p-6 space-y-6">
+        <DashboardPageHeader
+          eyebrow="Administrator workflow"
+          title={contentTitle}
+          description={`${contentSubtitle} Keep the main sections in one place so approvals, reports, and oversight tasks stay easier to follow.`}
+        >
+          <div className="mt-6 space-y-6">
             {mainTab === 'overview' && (
               <>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -177,21 +164,13 @@ export default function AdminDashboard() {
                   <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col min-h-0 min-w-0">
                     <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex-shrink-0">
                       <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Overview sections</p>
-                      <nav className="flex flex-wrap gap-2">
-                        {SUB_TABS.map((tab) => (
-                          <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setSubTab(tab.id)}
-                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                              subTab === tab.id ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                            }`}
-                          >
-                            <tab.icon className="w-4 h-4" />
-                            {tab.label}
-                          </button>
-                        ))}
-                      </nav>
+                      <RoleSectionTabs
+                        items={SUB_TABS}
+                        activeId={subTab}
+                        onChange={(tab) => setSubTab(tab.id)}
+                        ariaLabel="Overview sections"
+                        accentClass="bg-slate-700 border-slate-700 text-white shadow-sm"
+                      />
                     </div>
                     <div className="p-6 flex-1 min-h-0 overflow-auto">
                       {subTab === 'at-risk' && <AdminStudentsAtRisk department={department} />}
@@ -242,7 +221,7 @@ export default function AdminDashboard() {
             {mainTab === 'users' && <AdminUserAccounts />}
             {mainTab === 'interventions' && <AdminInterventions />}
           </div>
-        </div>
+        </DashboardPageHeader>
       </div>
     </DashboardLayout>
   )

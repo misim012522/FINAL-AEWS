@@ -9,11 +9,12 @@ import { updateUser as updateUserApi } from '../api'
 
 export default function AdminSettings() {
   const navigate = useNavigate()
-  const { user, updateUser } = useAuth()
+  const { user, updateUser, logout } = useAuth()
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [profileError, setProfileError] = useState('')
+  const [profileNotice, setProfileNotice] = useState('')
   const [playTutorialEveryLogin, setPlayTutorialEveryLoginState] = useState(false)
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export default function AdminSettings() {
 
   const handleSaveProfile = async (payload) => {
     setProfileError('')
+    setProfileNotice('')
     setSaving(true)
     setSaved(false)
     const { name, email, contact_number, profile_image } = payload
@@ -35,12 +37,22 @@ export default function AdminSettings() {
       return
     }
     try {
-      await updateUserApi(user.id, {
+      const result = await updateUserApi(user.id, {
         name: name.trim(),
         email: email.trim(),
         contact_number: (contact_number || '').trim(),
         profile_image: profile_image || undefined,
       })
+      if (result?.requires_email_verification) {
+        logout()
+        navigate('/', {
+          replace: true,
+          state: {
+            logoutReason: 'You were logged out because your email was changed. Please confirm your new email before signing in again.',
+          },
+        })
+        return
+      }
       updateUser({ name: name.trim(), email: email.trim(), contact_number: (contact_number || '').trim(), profile_image: profile_image || undefined })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
@@ -132,11 +144,12 @@ export default function AdminSettings() {
           saving={saving}
           saved={saved}
           profileError={profileError}
+          profileNotice={profileNotice}
           backButton={
             <button
               type="button"
               onClick={() => navigate('/admin')}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to dashboard

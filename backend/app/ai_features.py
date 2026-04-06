@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 
-MODEL_FEATURE_ORDER = [
+DEFAULT_MODEL_FEATURE_ORDER = [
     "previous_gpa",
     "failed_subject_count",
     "attendance_rate",
@@ -34,6 +34,15 @@ EXTERNAL_FACTOR_FIELDS = [
     "part_time_work_affecting_studies",
     "mental_health_concerns",
 ]
+
+_DYNAMIC_SCORE_PREFIXES = (
+    "midterm_class_standing_",
+    "midterm_laboratory_",
+    "midterm_major_output_",
+    "finals_class_standing_",
+    "finals_laboratory_",
+    "finals_major_output_",
+)
 
 
 def _to_float(value: Any) -> float | None:
@@ -165,7 +174,7 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
     if final_grade is None:
         final_grade = 0.0
 
-    return {
+    features = {
         "previous_gpa": float(previous_gpa),
         "failed_subject_count": int(failed_subject_count),
         "attendance_rate": float(attendance_rate),
@@ -188,9 +197,32 @@ def build_model_feature_dict(enrollment: dict[str, Any]) -> dict[str, float | in
         "final_grade": float(final_grade),
     }
 
+    grades_breakdown = enrollment.get("grades_breakdown") or {}
+    if isinstance(grades_breakdown, dict):
+        for key, raw_value in grades_breakdown.items():
+            if not isinstance(key, str):
+                continue
+            normalized_key = key.strip().lower()
+            if not normalized_key.startswith(_DYNAMIC_SCORE_PREFIXES):
+                continue
+            parsed_value = _to_float(raw_value)
+            features[normalized_key] = 0.0 if parsed_value is None else float(parsed_value)
+
+    return features
+
 
 def build_model_feature_row(enrollment: dict[str, Any]) -> list[float | int]:
     """Return model features in the exact order expected by the .pkl model."""
 
     features = build_model_feature_dict(enrollment)
-    return [features[name] for name in MODEL_FEATURE_ORDER]
+    return [features[name] for name in DEFAULT_MODEL_FEATURE_ORDER]
+
+
+def build_model_feature_row_for_order(
+    enrollment: dict[str, Any],
+    feature_order: list[str],
+) -> list[float | int]:
+    """Return model features in the provided saved-model feature order."""
+
+    features = build_model_feature_dict(enrollment)
+    return [features.get(name, 0.0) for name in feature_order]

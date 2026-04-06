@@ -1,7 +1,8 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pymongo import ReturnDocument
 
+from app.authz import get_current_actor
 from app.database import get_db
 from app.schemas import StudentCreate, StudentResponse, StudentUpdate
 
@@ -15,7 +16,9 @@ def _doc_to_response(doc) -> dict:
 
 
 @router.get("", response_model=list[StudentResponse])
-def list_students(risk: str | None = None, search: str | None = None):
+def list_students(risk: str | None = None, search: str | None = None, actor: dict = Depends(get_current_actor)):
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     q = {}
     if risk:
@@ -30,7 +33,9 @@ def list_students(risk: str | None = None, search: str | None = None):
 
 
 @router.get("/{student_id}", response_model=StudentResponse)
-def get_student(student_id: str):
+def get_student(student_id: str, actor: dict = Depends(get_current_actor)):
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     if not ObjectId.is_valid(student_id):
         raise HTTPException(status_code=404, detail="Student not found")
@@ -41,7 +46,9 @@ def get_student(student_id: str):
 
 
 @router.post("", response_model=StudentResponse, status_code=201)
-def create_student(body: StudentCreate):
+def create_student(body: StudentCreate, actor: dict = Depends(get_current_actor)):
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     doc = body.model_dump()
     result = db.students.insert_one(doc)
@@ -50,7 +57,9 @@ def create_student(body: StudentCreate):
 
 
 @router.patch("/{student_id}", response_model=StudentResponse)
-def update_student(student_id: str, body: StudentUpdate):
+def update_student(student_id: str, body: StudentUpdate, actor: dict = Depends(get_current_actor)):
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     if not ObjectId.is_valid(student_id):
         raise HTTPException(status_code=404, detail="Student not found")
@@ -66,7 +75,9 @@ def update_student(student_id: str, body: StudentUpdate):
 
 
 @router.delete("/{student_id}", status_code=204)
-def delete_student(student_id: str):
+def delete_student(student_id: str, actor: dict = Depends(get_current_actor)):
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     if not ObjectId.is_valid(student_id):
         raise HTTPException(status_code=404, detail="Student not found")

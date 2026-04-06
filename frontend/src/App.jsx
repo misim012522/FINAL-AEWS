@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationsProvider } from './context/NotificationsContext'
+import ProtectedRoute from './components/ProtectedRoute'
 
 const Login = lazy(() => import('./pages/Login'))
 const SignUp = lazy(() => import('./pages/SignUp'))
@@ -18,6 +19,8 @@ const InstructorReports = lazy(() => import('./pages/InstructorReports'))
 const InstructorSettings = lazy(() => import('./pages/InstructorSettings'))
 const ClassDetails = lazy(() => import('./pages/ClassDetails'))
 const ClassGrades = lazy(() => import('./pages/ClassGrades'))
+const PreviousMidtermGrades = lazy(() => import('./pages/PreviousMidtermGrades'))
+const PreviousFinalGrades = lazy(() => import('./pages/PreviousFinalGrades'))
 const ClassAttendance = lazy(() => import('./pages/ClassAttendance'))
 const StudentProfile = lazy(() => import('./pages/StudentProfile'))
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
@@ -47,38 +50,40 @@ export default function App() {
     <ErrorBoundary>
       <BrowserRouter>
         <AuthProvider>
-        <NotificationsProvider>
-        <Suspense fallback={<RouteFallback />}>
-        <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/check-email" element={<CheckEmail />} />
-        <Route path="/pending-approval" element={<PendingApproval />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/instructor" element={<InstructorDashboard />} />
-        <Route path="/instructor/reports" element={<InstructorReports />} />
-        <Route path="/instructor/settings" element={<InstructorSettings />} />
-        <Route path="/instructor/archived" element={<ArchivedClasses />} />
-        <Route path="/instructor/class/:id" element={<ClassDetails />} />
-        <Route path="/instructor/class/:id/grades" element={<ClassGrades />} />
-        <Route path="/instructor/class/:id/attendance" element={<ClassAttendance />} />
-        <Route path="/instructor/student/:id" element={<StudentProfile />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/settings" element={<AdminSettings />} />
-        <Route path="/admin/student/:id" element={<AdminStudentDetail />} />
-        <Route path="/admin/user/:id" element={<AdminUserDetail />} />
-        <Route path="/admin/intervention/:id" element={<AdminInterventionDetail />} />
-        <Route path="/amu-staff" element={<AmuStaffDashboard />} />
-        <Route path="/amu-staff/settings" element={<AmuStaffSettings />} />
-        <Route path="/amu-staff/student/:id" element={<AmuStaffStudentDetail />} />
-        <Route path="/amu-staff/case/:id" element={<AmuStaffCaseDetail />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="*" element={<NotFound />} />
-        </Routes>
-        </Suspense>
-        </NotificationsProvider>
+          <NotificationsProvider>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<Login />} />
+                <Route path="/signup" element={<SignUp />} />
+                <Route path="/check-email" element={<CheckEmail />} />
+                <Route path="/pending-approval" element={<PendingApproval />} />
+                <Route path="/verify-email" element={<VerifyEmail />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
+                <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
+                <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />
+                <Route path="/instructor/archived" element={<ProtectedRoute allowedRoles={['instructor']}><ArchivedClasses /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id" element={<ProtectedRoute allowedRoles={['instructor']}><ClassDetails /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/grades" element={<ProtectedRoute allowedRoles={['instructor']}><ClassGrades /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/grades/previous-midterm" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousMidtermGrades /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/grades/previous-final" element={<ProtectedRoute allowedRoles={['instructor']}><PreviousFinalGrades /></ProtectedRoute>} />
+                <Route path="/instructor/class/:id/attendance" element={<ProtectedRoute allowedRoles={['instructor']}><ClassAttendance /></ProtectedRoute>} />
+                <Route path="/instructor/student/:id" element={<ProtectedRoute allowedRoles={['instructor']}><StudentProfile /></ProtectedRoute>} />
+                <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+                <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
+                <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
+                <Route path="/admin/intervention/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminInterventionDetail /></ProtectedRoute>} />
+                <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
+                <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
+                <Route path="/amu-staff/student/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffStudentDetail /></ProtectedRoute>} />
+                <Route path="/amu-staff/case/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffCaseDetail /></ProtectedRoute>} />
+                <Route path="/help" element={<ProtectedRoute allowedRoles={['instructor', 'admin', 'amu-staff']}><Help /></ProtectedRoute>} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </Suspense>
+          </NotificationsProvider>
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>

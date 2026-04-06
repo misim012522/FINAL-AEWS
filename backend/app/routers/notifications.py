@@ -1,7 +1,8 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pymongo import ReturnDocument
 
+from app.authz import get_current_actor, normalize_role
 from app.database import get_db
 from app.notification_utils import create_notification
 from app.schemas import NotificationCreate, NotificationResponse, NotificationUpdate
@@ -16,12 +17,12 @@ def _doc_to_response(doc) -> dict:
 
 
 @router.get("", response_model=list[NotificationResponse])
-def list_notifications(role: str):
-    role = (role or "").strip().lower()
-    if role == "amustaff":
-        role = "amu-staff"
+def list_notifications(role: str, actor: dict = Depends(get_current_actor)):
+    role = normalize_role(role)
     if role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
+    if actor["role"] != role:
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     if role == "admin":
         pending_count = db.instructor.count_documents({"status": "pending"}) + db.amustaff.count_documents({"status": "pending"})
@@ -46,7 +47,9 @@ def list_notifications(role: str):
 
 
 @router.post("", response_model=NotificationResponse, status_code=201)
-def create_notification(body: NotificationCreate):
+def create_notification(body: NotificationCreate, actor: dict = Depends(get_current_actor)):
+    if actor["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     doc = body.model_dump()
     result = db.notifications.insert_one(doc)
@@ -55,10 +58,15 @@ def create_notification(body: NotificationCreate):
 
 
 @router.patch("/{notification_id}/read", response_model=NotificationResponse)
-def mark_notification_read(notification_id: str, body: NotificationUpdate):
+def mark_notification_read(notification_id: str, body: NotificationUpdate, actor: dict = Depends(get_current_actor)):
     db = get_db()
     if not ObjectId.is_valid(notification_id):
         raise HTTPException(status_code=404, detail="Notification not found")
+    existing = db.notifications.find_one({"_id": ObjectId(notification_id)})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    if normalize_role(existing.get("role")) != actor["role"]:
+        raise HTTPException(status_code=403, detail="Forbidden")
     payload = body.model_dump(exclude_unset=True)
     result = db.notifications.find_one_and_update(
         {"_id": ObjectId(notification_id)},
@@ -71,12 +79,12 @@ def mark_notification_read(notification_id: str, body: NotificationUpdate):
 
 
 @router.post("/{role}/mark-all-read")
-def mark_all_read(role: str):
-    role = (role or "").strip().lower()
-    if role == "amustaff":
-        role = "amu-staff"
+def mark_all_read(role: str, actor: dict = Depends(get_current_actor)):
+    role = normalize_role(role)
     if role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
+    if actor["role"] != role:
+        raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     db.notifications.update_many({"role": role}, {"$set": {"read": True}})
     return {"ok": True}

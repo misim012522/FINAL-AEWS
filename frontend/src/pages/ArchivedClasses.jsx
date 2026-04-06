@@ -6,7 +6,113 @@ import {
   restoreClass,
   permanentDeleteClass,
 } from '../api'
-import { AlertCircle, Trash2, RotateCcw, ChevronLeft } from 'lucide-react'
+import {
+  AlertCircle,
+  Archive,
+  Bell,
+  BookOpen,
+  ChevronLeft,
+  FileSpreadsheet,
+  RotateCcw,
+  Search,
+  Trash2,
+  Users,
+} from 'lucide-react'
+import DashboardLayout from '../components/DashboardLayout'
+import DashboardPageHeader from '../components/DashboardPageHeader'
+
+function getArchivedStudentCount(cls) {
+  return cls?.students_count ?? cls?.student_count ?? 0
+}
+
+function ArchivedClassRow({ cls, onRestore, onDelete, restoringId, deletingId, deleteConfirmId, setDeleteConfirmId }) {
+  const isRestoring = restoringId === cls.id
+  const isDeleting = deletingId === cls.id
+  const studentCount = getArchivedStudentCount(cls)
+
+  return (
+    <li className="group flex items-center justify-between gap-4 rounded-lg px-6 py-4 transition-colors hover:bg-slate-50/80">
+      <div className="flex min-w-0 flex-1 items-center gap-4">
+        <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 flex-shrink-0 ring-1 ring-slate-200/80">
+          <Archive className="w-5 h-5" />
+        </div>
+        <div className="min-w-0">
+          <h3 className="font-semibold text-slate-900 text-[15px] truncate leading-tight">
+            {cls.subject_code}: {cls.subject_name}
+          </h3>
+          {cls.section_code && (
+            <p className="text-xs text-slate-500 mt-0.5">
+              Section: <span className="font-semibold text-slate-600">{cls.section_code}</span>
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-medium ring-1 ring-blue-100">
+              <Users className="w-3.5 h-3.5" />
+              {studentCount} student{studentCount !== 1 ? 's' : ''}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold ring-1 ring-amber-100">
+              <Archive className="w-3.5 h-3.5" />
+              Archived
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onRestore(cls.id)}
+          disabled={isRestoring || isDeleting}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 text-emerald-700 font-semibold hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm transition-all hover:shadow-md active:scale-[0.98]"
+        >
+          {isRestoring ? (
+            <>
+              <div className="w-4 h-4 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+              Restoring...
+            </>
+          ) : (
+            <>
+              <RotateCcw className="w-4 h-4" />
+              Restore
+            </>
+          )}
+        </button>
+
+        {deleteConfirmId === cls.id ? (
+          <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 ring-1 ring-red-100">
+            <span className="text-sm text-red-700 font-medium">Delete permanently?</span>
+            <button
+              type="button"
+              onClick={() => onDelete(cls.id)}
+              disabled={isDeleting}
+              className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isDeleting ? 'Deleting...' : 'Yes'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmId(null)}
+              disabled={isDeleting}
+              className="px-3 py-1.5 rounded-lg bg-white text-slate-700 text-sm font-semibold hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmId(cls.id)}
+            disabled={isRestoring || isDeleting}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-50 text-red-700 font-semibold hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm transition-all hover:shadow-md active:scale-[0.98]"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </button>
+        )}
+      </div>
+    </li>
+  )
+}
 
 export default function ArchivedClasses() {
   const navigate = useNavigate()
@@ -24,7 +130,7 @@ export default function ArchivedClasses() {
       try {
         const data = await listArchivedClasses(user.id)
         if (isMounted) {
-          setClasses(data)
+          setClasses(Array.isArray(data) ? data : [])
           setError('')
         }
       } catch (err) {
@@ -42,7 +148,6 @@ export default function ArchivedClasses() {
       isMounted = false
     }
   }, [user.id])
-
 
   const handleRestore = async (classId) => {
     try {
@@ -70,163 +175,120 @@ export default function ArchivedClasses() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+    <DashboardLayout
+      title="Instructor Dashboard"
+      subtitle={user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
+      navItems={[
+        { label: 'Classes', icon: BookOpen, active: false, onClick: () => navigate('/instructor') },
+        { label: 'Risk alerts', icon: Bell, active: false, onClick: () => navigate('/instructor', { state: { tab: 'alerts' } }) },
+        { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor', { state: { tab: 'students' } }) },
+        { label: 'Reports', icon: FileSpreadsheet, active: false, onClick: () => navigate('/instructor/reports') },
+      ]}
+    >
+      <DashboardPageHeader
+        eyebrow="Instructor workflow"
+        title="Archived classes"
+        description="Restore archived classes when you need them again, or permanently remove classes you no longer want to keep."
+        actions={(
           <button
+            type="button"
             onClick={() => navigate('/instructor')}
-            className="p-2 hover:bg-white rounded-lg transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
           >
-            <ChevronLeft className="w-6 h-6 text-slate-600" />
+            <ChevronLeft className="w-4 h-4" />
+            Back to classes
           </button>
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Archived Classes</h1>
-            <p className="text-slate-600 mt-1">Restore or permanently delete archived classes</p>
-          </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700">{error}</p>
-          </div>
         )}
+      >
+        <div className="space-y-6">
+          {error && (
+            <div className="rounded-xl bg-red-50 border border-red-200/80 px-4 py-3.5 text-sm text-red-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
 
-        {/* Loading State */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block">
-              <div className="w-8 h-8 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin"></div>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-medium text-slate-500">Loading archived classes...</span>
             </div>
-            <p className="text-slate-600 mt-4">Loading archived classes...</p>
-          </div>
-        ) : classes.length === 0 ? (
-          /* Empty State */
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-12 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-slate-400" />
+          ) : classes.length === 0 ? (
+            <div className="py-14 px-6 text-center rounded-xl bg-gradient-to-b from-slate-50/80 to-white border-2 border-dashed border-slate-200">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 mx-auto mb-4 ring-2 ring-slate-200/80">
+                <Archive className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-800">No archived classes</h3>
+              <p className="text-sm text-slate-500 mt-1.5 max-w-md mx-auto leading-relaxed">
+                You don&apos;t have any archived classes yet. Archive a class from your dashboard to see it here.
+              </p>
+              <button
+                type="button"
+                onClick={() => navigate('/instructor')}
+                className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-blue-600 hover:bg-blue-50 border border-blue-200/60 transition-colors"
+              >
+                <Search className="w-4 h-4" />
+                Back to dashboard
+              </button>
             </div>
-            <h2 className="text-xl font-semibold text-slate-900 mb-2">No Archived Classes</h2>
-            <p className="text-slate-600">
-              You don't have any archived classes yet. Archive a class from your dashboard to see it here.
-            </p>
-            <button
-              onClick={() => navigate('/instructor')}
-              className="mt-6 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        ) : (
-          /* Classes Table */
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
-                      Course Code
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
-                      Course Name
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
-                      Students
-                    </th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-slate-700">
-                      Status
-                    </th>
-                    <th className="px-6 py-4 text-right text-sm font-semibold text-slate-700">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
+          ) : (
+            <>
+              <section className="space-y-3" aria-label="Overview">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="rounded-xl p-5 flex items-center gap-4 bg-slate-100 text-slate-700">
+                    <div className="w-12 h-12 rounded-xl bg-slate-200/80 flex items-center justify-center text-slate-600 ring-1 ring-slate-200">
+                      <Archive className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-slate-900 tabular-nums">{classes.length}</p>
+                      <p className="text-sm font-medium text-slate-600">Archived classes</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl p-5 flex items-center gap-4 bg-slate-100 text-slate-700">
+                    <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-slate-900 tabular-nums">
+                        {classes.reduce((sum, item) => sum + getArchivedStudentCount(item), 0)}
+                      </p>
+                      <p className="text-sm font-medium text-slate-600">Students in archive</p>
+                    </div>
+                  </div>
+                  <div className="rounded-xl p-5 flex items-center gap-4 bg-amber-50 text-amber-800">
+                    <div className="w-12 h-12 rounded-xl bg-white/80 flex items-center justify-center text-amber-600 ring-1 ring-amber-100">
+                      <RotateCcw className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-amber-900">Restore keeps class data</p>
+                      <p className="text-sm font-medium text-amber-700">List, grades, attendance, needs assessment, and risk results come back with the class.</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Archived class list</h3>
+                <ul className="divide-y divide-slate-100 -mx-6 rounded-lg overflow-hidden" aria-label="Archived classes">
                   {classes.map((cls) => (
-                    <tr
+                    <ArchivedClassRow
                       key={cls.id}
-                      className="hover:bg-slate-50 transition-colors"
-                    >
-                      <td className="px-6 py-4">
-                        <p className="font-semibold text-slate-900">{cls.subject_code}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-slate-700">{cls.subject_name}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
-                          {cls.students_count || 0}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="px-3 py-1 bg-yellow-50 text-yellow-700 rounded-full text-sm font-medium">
-                          Archived
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          {/* Restore Button */}
-                          <button
-                            onClick={() => handleRestore(cls.id)}
-                            disabled={restoringId === cls.id || deletingId === cls.id}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {restoringId === cls.id ? (
-                              <>
-                                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin"></div>
-                                Restoring...
-                              </>
-                            ) : (
-                              <>
-                                <RotateCcw className="w-4 h-4" />
-                                Restore
-                              </>
-                            )}
-                          </button>
-
-                          {/* Delete Button or Confirmation */}
-                          {deleteConfirmId === cls.id ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-red-700 font-medium">Confirm delete?</span>
-                              <button
-                                onClick={() =>
-                                  handleDeletePermanently(cls.id)
-                                }
-                                disabled={deletingId === cls.id}
-                                className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                {deletingId === cls.id ? 'Deleting...' : 'Yes'}
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmId(null)}
-                                disabled={deletingId === cls.id}
-                                className="px-3 py-1 bg-slate-200 text-slate-700 text-sm rounded hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setDeleteConfirmId(cls.id)}
-                              disabled={restoringId === cls.id || deletingId === cls.id}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-700 rounded-lg hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                      cls={cls}
+                      onRestore={handleRestore}
+                      onDelete={handleDeletePermanently}
+                      restoringId={restoringId}
+                      deletingId={deletingId}
+                      deleteConfirmId={deleteConfirmId}
+                      setDeleteConfirmId={setDeleteConfirmId}
+                    />
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+                </ul>
+              </section>
+            </>
+          )}
+        </div>
+      </DashboardPageHeader>
+    </DashboardLayout>
   )
 }
