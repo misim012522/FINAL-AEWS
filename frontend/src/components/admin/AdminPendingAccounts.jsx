@@ -64,7 +64,7 @@ export default function AdminPendingAccounts() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-4">
       {showApproveSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="alert" aria-live="polite">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
@@ -77,22 +77,22 @@ export default function AdminPendingAccounts() {
           </div>
         </div>
       )}
-      <p className="text-xs text-gray-600">
-        Instructor and AMU Staff signups appear here. Approve to activate their account (they will receive an email). Decline to reject (they will receive an email).
+      <p className="text-sm text-gray-600 leading-6">
+        Instructor and AMU Staff signups appear here. Approve to activate their account and send a confirmation email, or decline to reject the request.
       </p>
       {error && (
-        <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
-      <div className="bg-white rounded-lg border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden min-h-[20rem]">
         {loading ? (
-          <div className="p-4 text-center text-[11px] text-gray-500 flex items-center justify-center gap-2">
-            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            Loading pending accounts…
+          <div className="p-10 text-center text-sm text-gray-500 flex items-center justify-center gap-3">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            Loading pending accounts...
           </div>
         ) : list.length === 0 ? (
-          <div className="p-4 text-center text-[11px] text-gray-500">
+          <div className="p-12 text-center text-sm text-gray-500">
             No pending account requests.
           </div>
         ) : (
@@ -100,10 +100,10 @@ export default function AdminPendingAccounts() {
             <table className="w-full text-left">
               <thead className="bg-gray-50/80 border-b border-gray-200">
                 <tr>
-                  <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">User</th>
-                  <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Department</th>
-                  <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -113,45 +113,45 @@ export default function AdminPendingAccounts() {
                   const busy = actingId === u.id
                   return (
                     <tr key={u.id} className="hover:bg-blue-50/50 transition-colors">
-                      <td className="px-2 py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-6 h-6 rounded-md bg-amber-100 flex items-center justify-center text-amber-600">
-                            <User className="w-3 h-3" />
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
+                            <User className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="font-medium text-gray-900 text-[11px]">{u.name || '—'}</p>
-                            <p className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                              <Mail className="w-2.5 h-2.5" />
-                              {u.email || '—'}
+                            <p className="font-medium text-gray-900 text-sm">{u.name || '-'}</p>
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <Mail className="w-3 h-3" />
+                              {u.email || '-'}
                             </p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-2 py-1.5">
-                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${config.class}`}>
-                          <Icon className="w-2.5 h-2.5" />
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.class}`}>
+                          <Icon className="w-3.5 h-3.5" />
                           {config.label}
                         </span>
                       </td>
-                      <td className="px-2 py-1.5 text-[11px] text-gray-700">{u.department || '—'}</td>
-                      <td className="px-2 py-1.5">
-                        <div className="flex items-center gap-1">
+                      <td className="px-5 py-4 text-sm text-gray-700">{u.department || '-'}</td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             disabled={busy}
                             onClick={() => handleApprove(u.id)}
-                            className="inline-flex items-center gap-0.5 px-2 py-1 rounded text-[10px] font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-md text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                           >
-                            <CheckCircle className="w-3 h-3" />
+                            <CheckCircle className="w-3.5 h-3.5" />
                             Confirm
                           </button>
                           <button
                             type="button"
                             disabled={busy}
                             onClick={() => handleDecline(u.id)}
-                            className="inline-flex items-center gap-0.5 px-2 py-1 rounded text-[10px] font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-md text-xs font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:pointer-events-none transition-colors"
                           >
-                            <XCircle className="w-3 h-3" />
+                            <XCircle className="w-3.5 h-3.5" />
                             Decline
                           </button>
                         </div>

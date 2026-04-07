@@ -95,11 +95,11 @@ export default function AdminUserDetail() {
   if (loading) {
     return (
       <DashboardLayout title="Administrator Dashboard" subtitle="System Overview & Management" icon={Shield} variant="admin">
-        <div className="space-y-2">
-          <button type="button" onClick={() => navigate('/admin')} className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-            <ArrowLeft className="w-2.5 h-2.5" /> Back to dashboard
+        <div className="space-y-3">
+          <button type="button" onClick={() => navigate('/admin')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to dashboard
           </button>
-          <div className="p-4 text-center text-[11px] text-gray-500">Loading user…</div>
+          <div className="p-8 text-center text-sm text-gray-500">Loading user...</div>
         </div>
       </DashboardLayout>
     )
@@ -108,11 +108,11 @@ export default function AdminUserDetail() {
   if (error || !user) {
     return (
       <DashboardLayout title="Administrator Dashboard" subtitle="System Overview & Management" icon={Shield} variant="admin">
-        <div className="space-y-2">
-          <button type="button" onClick={() => navigate('/admin')} className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-            <ArrowLeft className="w-2.5 h-2.5" /> Back to dashboard
+        <div className="space-y-3">
+          <button type="button" onClick={() => navigate('/admin')} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+            <ArrowLeft className="w-4 h-4" /> Back to dashboard
           </button>
-          <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[11px] text-red-700">{error || 'User not found'}</div>
+          <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error || 'User not found'}</div>
         </div>
       </DashboardLayout>
     )
@@ -130,77 +130,79 @@ export default function AdminUserDetail() {
               <ArrowLeft className="w-4 h-4" /> Back to dashboard
             </button>
           </div>
-          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
-            <h2 className="text-xl font-bold text-slate-900 tracking-tight">User details</h2>
-            <p className="text-sm text-slate-500 mt-0.5">{user.name || user.email || '—'}</p>
+          <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">User details</h2>
+            <p className="text-base text-slate-500 mt-1">{user.name || user.email || '-'}</p>
           </div>
-          <div className="p-6">
-        <div className="rounded-xl border border-slate-200/80 overflow-hidden border-l-4 border-l-slate-500">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/60">
-            <div className="flex items-start gap-1.5">
-              <div className="w-9 h-9 rounded-md bg-gray-100 flex items-center justify-center text-gray-600">
-                <User className="w-4 h-4" />
+          <div className="p-8">
+            <div className="rounded-2xl border border-slate-200/80 overflow-hidden border-l-4 border-l-slate-500">
+              <div className="p-6 border-b border-slate-200 bg-slate-50/60">
+                <div className="flex items-start gap-4">
+                  <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-gray-600">
+                    <User className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <h1 className="text-lg font-bold text-gray-900">{user.name || '-'}</h1>
+                    <p className="text-sm text-gray-500 flex items-center gap-1.5 mt-1">
+                      <Mail className="w-4 h-4" /> {user.email || '-'}
+                    </p>
+                    <p className="text-sm text-gray-500 mt-1.5 flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4" /> {user.department || '-'}
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.class}`}>
+                        <Icon className="w-3.5 h-3.5" /> {config.label}
+                      </span>
+                      <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${user.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {user.status || 'active'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1">
-                <h1 className="text-xs font-bold text-gray-900">{user.name || '—'}</h1>
-                <p className="text-[10px] text-gray-500 flex items-center gap-0.5 mt-0.5">
-                  <Mail className="w-2 h-2" /> {user.email || '—'}
-                </p>
-                <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5">
-                  <Building2 className="w-2 h-2" /> {user.department || '—'}
-                </p>
-                <span className={`inline-flex items-center gap-0.5 mt-1 px-1 py-0.5 rounded text-[10px] font-medium ${config.class}`}>
-                  <Icon className="w-2 h-2" /> {config.label}
-                </span>
-                <span className={`inline-flex ml-1 px-1 py-0.5 rounded text-[10px] font-medium ${user.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {user.status || 'active'}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="p-2 space-y-3 border-t border-gray-100">
-            <div className="space-y-1">
-              <h3 className="text-[11px] font-bold text-gray-900 flex items-center gap-1">
-                Edit Role
-              </h3>
-              <div className="flex items-center gap-2">
-                <select
-                  value={editedRole}
-                  onChange={(e) => setEditedRole(e.target.value)}
-                  className="flex-1 rounded border border-gray-200 px-2 py-1 text-[11px] font-medium text-gray-700 bg-white hover:border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
-                >
-                  <option value="instructor">Instructor</option>
-                  <option value="admin">Admin</option>
-                  <option value="amu-staff">AMU Staff</option>
-                </select>
-                <button
-                  type="button"
-                  onClick={handleSaveRole}
-                  disabled={saving || editedRole === user.role}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
-                >
-                  <Save className="w-3 h-3" />
-                  Save
-                </button>
-              </div>
-              {saveSuccess && (
-                <p className="text-[10px] text-emerald-600 font-medium">Role updated successfully!</p>
-              )}
-            </div>
+              <div className="p-6 space-y-6 border-t border-gray-100">
+                <div className="space-y-3">
+                  <h3 className="text-sm font-bold text-gray-900">
+                    Edit Role
+                  </h3>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <select
+                      value={editedRole}
+                      onChange={(e) => setEditedRole(e.target.value)}
+                      className="flex-1 rounded-xl border border-gray-200 px-4 py-3 text-sm font-medium text-gray-700 bg-white hover:border-gray-300 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                    >
+                      <option value="instructor">Instructor</option>
+                      <option value="admin">Admin</option>
+                      <option value="amu-staff">AMU Staff</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleSaveRole}
+                      disabled={saving || editedRole === user.role}
+                      className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                    >
+                      <Save className="w-4 h-4" />
+                      Save
+                    </button>
+                  </div>
+                  {saveSuccess && (
+                    <p className="text-sm text-emerald-600 font-medium">Role updated successfully!</p>
+                  )}
+                </div>
 
-            <div className="space-y-1 pt-2 border-t border-gray-100">
-              <h3 className="text-[11px] font-bold text-gray-900 flex items-center gap-1">
-                <Info className="w-3 h-3 text-blue-600" />
-                Role & Permissions
-              </h3>
-              <ul className="space-y-0.5 ml-4 list-disc list-outside">
-                {(rolePermissions[user.role] || []).map((perm, idx) => (
-                  <li key={idx} className="text-[10px] text-gray-600">{perm}</li>
-                ))}
-              </ul>
+                <div className="space-y-3 pt-4 border-t border-gray-100">
+                  <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                    <Info className="w-4 h-4 text-blue-600" />
+                    Role & Permissions
+                  </h3>
+                  <ul className="space-y-2 ml-5 list-disc list-outside">
+                    {(rolePermissions[user.role] || []).map((perm, idx) => (
+                      <li key={idx} className="text-sm text-gray-600 leading-6">{perm}</li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
           </div>
         </div>
       </div>

@@ -138,6 +138,18 @@ function getAuthHeaders() {
   return headers
 }
 
+function getCurrentAuthRole() {
+  try {
+    const raw = localStorage.getItem('auth')
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    return normalizeRole(data?.role || data?.user?.role) || null
+  } catch (e) {
+    console.error('Failed to parse auth role:', e)
+    return null
+  }
+}
+
 export async function signup({ name, email, password, contact_number, department, role }) {
   const body = {
     name: String(name ?? '').trim(),
@@ -218,7 +230,9 @@ export async function resetPassword(token, newPassword) {
 
 /** Get a single user by id (any role). */
 export async function getUser(userId) {
-  const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(userId)}`)
+  const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(userId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'User not found')
@@ -233,7 +247,9 @@ export async function listUsers(role = 'all', search = '') {
   if (search && String(search).trim()) params.set('search', String(search).trim())
   const qs = params.toString()
   const url = `${API_BASE}/api/users${qs ? `?${qs}` : ''}`
-  const res = await fetch(url)
+  const res = await fetch(url, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load users')
@@ -255,7 +271,9 @@ export async function updateUser(userId, payload) {
 }
 
 export async function listClasses(instructorId) {
-  const res = await fetch(`${API_BASE}/api/classes?instructor_id=${encodeURIComponent(instructorId)}`)
+  const res = await fetch(`${API_BASE}/api/classes?instructor_id=${encodeURIComponent(instructorId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load classes')
@@ -264,7 +282,9 @@ export async function listClasses(instructorId) {
 }
 
 export async function getInstructorRiskAlerts(instructorId) {
-  const res = await fetch(`${API_BASE}/api/classes/risk-alerts?instructor_id=${encodeURIComponent(instructorId)}`)
+  const res = await fetch(`${API_BASE}/api/classes/risk-alerts?instructor_id=${encodeURIComponent(instructorId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load risk alerts')
@@ -273,7 +293,9 @@ export async function getInstructorRiskAlerts(instructorId) {
 }
 
 export async function getInstructorStudentList(instructorId) {
-  const res = await fetch(`${API_BASE}/api/classes/instructor-students?instructor_id=${encodeURIComponent(instructorId)}`)
+  const res = await fetch(`${API_BASE}/api/classes/instructor-students?instructor_id=${encodeURIComponent(instructorId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load student list')
@@ -287,7 +309,7 @@ export async function listInterventions(status = 'all') {
   if (status && status !== 'all') params.set('status', status)
   const qs = params.toString()
   const url = `${API_BASE}/api/interventions${qs ? `?${qs}` : ''}`
-  const res = await fetch(url)
+  const res = await fetch(url, { headers: getAuthHeaders() })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load interventions')
@@ -311,7 +333,9 @@ export async function createIntervention(payload) {
 }
 /** Get a single intervention by id. */
 export async function getIntervention(interventionId) {
-  const res = await fetch(`${API_BASE}/api/interventions/${encodeURIComponent(interventionId)}`)
+  const res = await fetch(`${API_BASE}/api/interventions/${encodeURIComponent(interventionId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Intervention not found')
@@ -334,7 +358,9 @@ export async function updateIntervention(interventionId, payload) {
 }
 
 export async function getClass(classId) {
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}`)
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load class')
@@ -343,7 +369,9 @@ export async function getClass(classId) {
 }
 
 export async function listClassStudents(classId) {
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/students`)
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/students`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load students')
@@ -354,7 +382,7 @@ export async function listClassStudents(classId) {
 export async function createClass({ instructor_id, subject_code, subject_name }) {
   const res = await fetch(`${API_BASE}/api/classes`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({
       instructor_id: String(instructor_id ?? '').trim(),
       subject_code: String(subject_code ?? '').trim(),
@@ -369,7 +397,9 @@ export async function createClass({ instructor_id, subject_code, subject_name })
 }
 
 export async function listArchivedClasses(instructorId) {
-  const res = await fetch(`${API_BASE}/api/classes/archived/list?instructor_id=${encodeURIComponent(instructorId)}`)
+  const res = await fetch(`${API_BASE}/api/classes/archived/list?instructor_id=${encodeURIComponent(instructorId)}`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load archived classes')
@@ -415,7 +445,9 @@ export async function permanentDeleteClass(classId) {
  
 
 export async function getClassRiskSummary(classId) {
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/risk-summary`)
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/risk-summary`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load risk summary')
@@ -436,7 +468,9 @@ export async function getClassGrades(classId) {
 }
 
 export async function getClassAttendance(classId) {
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/attendance`)
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/attendance`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load attendance')
@@ -445,7 +479,9 @@ export async function getClassAttendance(classId) {
 }
 
 export async function getClassRoster(classId) {
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/roster`)
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/roster`, {
+    headers: getAuthHeaders(),
+  })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load roster')
@@ -484,7 +520,15 @@ export async function predictEnrollmentRisk(classId, studentEmail) {
 
 /** List notifications for a role (instructor, admin, amu-staff). */
 export async function listNotifications(role) {
-  const res = await fetch(`${API_BASE}/api/notifications?role=${encodeURIComponent(role)}`, {
+  const activeRole = getCurrentAuthRole()
+  const targetRole = normalizeRole(role || activeRole)
+  if (!targetRole) {
+    throw new Error('No authenticated role found')
+  }
+  if (activeRole && targetRole !== activeRole) {
+    throw new Error('Cannot load notifications for another user role')
+  }
+  const res = await fetch(`${API_BASE}/api/notifications?role=${encodeURIComponent(targetRole)}`, {
     headers: getAuthHeaders(),
   })
   const data = await res.json().catch(() => ({}))
@@ -510,7 +554,15 @@ export async function markNotificationRead(notificationId) {
 
 /** Mark all notifications as read for a role. */
 export async function markAllNotificationsRead(role) {
-  const res = await fetch(`${API_BASE}/api/notifications/${role}/mark-all-read`, {
+  const activeRole = getCurrentAuthRole()
+  const targetRole = normalizeRole(role || activeRole)
+  if (!targetRole) {
+    throw new Error('No authenticated role found')
+  }
+  if (activeRole && targetRole !== activeRole) {
+    throw new Error('Cannot update notifications for another user role')
+  }
+  const res = await fetch(`${API_BASE}/api/notifications/${targetRole}/mark-all-read`, {
     method: 'POST',
     headers: getAuthHeaders(),
   })

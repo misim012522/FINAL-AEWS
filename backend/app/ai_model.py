@@ -87,7 +87,7 @@ def load_model_metrics() -> dict[str, Any] | None:
     if metrics_path is None:
         return None
     try:
-        return json.loads(metrics_path.read_text(encoding="utf-8"))
+        return json.loads(metrics_path.read_text(encoding="utf-8-sig"))
     except (OSError, json.JSONDecodeError):
         return None
 

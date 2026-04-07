@@ -17,8 +17,8 @@ def _doc_to_response(doc) -> dict:
 
 
 @router.get("", response_model=list[NotificationResponse])
-def list_notifications(role: str, actor: dict = Depends(get_current_actor)):
-    role = normalize_role(role)
+def list_notifications(role: str | None = None, actor: dict = Depends(get_current_actor)):
+    role = normalize_role(role or actor["role"])
     if role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
     if actor["role"] != role:

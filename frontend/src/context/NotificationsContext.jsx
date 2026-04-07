@@ -20,6 +20,8 @@ function notificationsReducer(state, action) {
         ...state,
         [role]: list.map((n) => ({ ...n, read: true })),
       }
+    case 'RESET':
+      return INITIAL
     default:
       return state
   }
@@ -33,32 +35,33 @@ export function NotificationsProvider({ children }) {
   const [notifications, dispatch] = useReducer(notificationsReducer, INITIAL)
 
   const refreshNotifications = useCallback(
-    async (targetRole = role) => {
-      if (!targetRole || !['instructor', 'admin', 'amu-staff'].includes(targetRole)) return []
-      const list = await listNotifications(targetRole)
-      dispatch({ type: 'SET_LIST', role: targetRole, payload: list })
+    async () => {
+      if (!role || !['instructor', 'admin', 'amu-staff'].includes(role)) return []
+      const list = await listNotifications(role)
+      dispatch({ type: 'SET_LIST', role, payload: list })
       return list
     },
     [role]
   )
 
   useEffect(() => {
+    dispatch({ type: 'RESET' })
     if (!role || !['instructor', 'admin', 'amu-staff'].includes(role)) return
 
-    refreshNotifications(role).catch(() => {})
+    refreshNotifications().catch(() => {})
 
     const intervalId = window.setInterval(() => {
-      refreshNotifications(role).catch(() => {})
+      refreshNotifications().catch(() => {})
     }, 15000)
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refreshNotifications(role).catch(() => {})
+        refreshNotifications().catch(() => {})
       }
     }
 
     const handleFocus = () => {
-      refreshNotifications(role).catch(() => {})
+      refreshNotifications().catch(() => {})
     }
 
     document.addEventListener('visibilitychange', handleVisibility)
@@ -73,12 +76,12 @@ export function NotificationsProvider({ children }) {
 
   const markAsRead = useCallback(
     async (r, notificationId) => {
+      if (r !== role) return
       dispatch({ type: 'MARK_READ', role: r, id: notificationId })
       try {
         await apiMarkRead(notificationId)
       } catch {
-        // Revert on failure: refetch list
-        if (role === r) refreshNotifications(r).catch(() => {})
+        if (role === r) refreshNotifications().catch(() => {})
       }
     },
     [refreshNotifications, role]
@@ -86,11 +89,12 @@ export function NotificationsProvider({ children }) {
 
   const markAllAsRead = useCallback(
     async (r) => {
+      if (r !== role) return
       dispatch({ type: 'MARK_ALL_READ', role: r })
       try {
-        await apiMarkAllRead(r)
+        await apiMarkAllRead(role)
       } catch {
-        if (role === r) refreshNotifications(r).catch(() => {})
+        if (role === r) refreshNotifications().catch(() => {})
       }
     },
     [refreshNotifications, role]

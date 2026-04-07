@@ -425,13 +425,9 @@ def get_analytics_accuracy():
         return []
 
     history = payload.get("history")
-    if not isinstance(history, list):
-        return []
-
     normalized_history: list[dict] = []
-    for item in history:
-        if not isinstance(item, dict):
-            continue
+
+    def _normalize_accuracy_item(item: dict, fallback_payload: dict, *, fallback_all_models: dict | None = None) -> dict:
         trained_at = item.get("trained_at")
         label = "Latest"
         if isinstance(trained_at, str):
@@ -440,7 +436,8 @@ def get_analytics_accuracy():
                 label = parsed.strftime("%b %d, %Y")
             except ValueError:
                 label = trained_at
-        normalized_history.append({
+        all_models = item.get("all_models") if isinstance(item.get("all_models"), dict) else (fallback_all_models or {})
+        return {
             "month": label,
             "accuracy": round(float(item.get("holdout_accuracy", 0.0)) * 100, 2),
             "cvAccuracy": round(float(item.get("cv_mean_accuracy", 0.0)) * 100, 2),
@@ -448,12 +445,52 @@ def get_analytics_accuracy():
             "recall": round(float(item.get("recall_weighted", 0.0)) * 100, 2),
             "f1": round(float(item.get("f1_weighted", 0.0)) * 100, 2),
             "trainedAt": trained_at,
-            "profile": item.get("profile") or payload.get("selected_profile"),
-            "modelName": item.get("model_name") or item.get("best_model") or payload.get("selected_model"),
-            "bestModel": item.get("best_model") or payload.get("selected_model"),
-            "allModels": item.get("all_models") if isinstance(item.get("all_models"), dict) else {},
-        })
-    return normalized_history
+            "profile": item.get("profile") or fallback_payload.get("selected_profile"),
+            "modelName": item.get("model_name") or item.get("best_model") or fallback_payload.get("selected_model"),
+            "bestModel": item.get("best_model") or fallback_payload.get("selected_model"),
+            "allModels": all_models,
+            "isSnapshot": bool(item.get("is_snapshot")),
+        }
+
+    if isinstance(history, list):
+        for item in history:
+            if not isinstance(item, dict):
+                continue
+            normalized_history.append(_normalize_accuracy_item(item, payload))
+
+    if normalized_history:
+        return normalized_history
+
+    selected_profile = payload.get("selected_profile")
+    profiles = payload.get("profiles")
+    if not isinstance(profiles, dict) or not selected_profile:
+        return []
+
+    current_profile = profiles.get(selected_profile)
+    if not isinstance(current_profile, dict):
+        return []
+
+    profile_models = current_profile.get("models")
+    if not isinstance(profile_models, dict):
+        profile_models = {}
+
+    best_model = current_profile.get("best_model") or payload.get("selected_model")
+    current_metrics = profile_models.get(best_model) if isinstance(profile_models.get(best_model), dict) else None
+    if not isinstance(current_metrics, dict):
+        current_metrics = next((value for value in profile_models.values() if isinstance(value, dict)), None)
+    if not isinstance(current_metrics, dict):
+        return []
+
+    snapshot_item = {
+        **current_metrics,
+        "trained_at": payload.get("trained_at"),
+        "profile": selected_profile,
+        "model_name": best_model,
+        "best_model": best_model,
+        "all_models": profile_models,
+        "is_snapshot": True,
+    }
+    return [_normalize_accuracy_item(snapshot_item, payload, fallback_all_models=profile_models)]
 
 
 # ----- Institution Reports (real data) -----
