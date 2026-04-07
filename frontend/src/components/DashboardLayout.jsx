@@ -88,7 +88,7 @@ export default function DashboardLayout({
 
   return (
     <div
-      className="min-h-screen relative overflow-hidden"
+      className="min-h-screen relative"
       style={{ '--dashboard-header-height': `${headerHeight}px` }}
     >
       {/* Same background as login: soft blue gradient + orbs */}
@@ -110,11 +110,11 @@ export default function DashboardLayout({
               )}
             </div>
             <div className="min-w-0">
-              <p className={`text-[12px] font-semibold uppercase tracking-[0.18em] ${textMuted}`}>{roleHomeLabel}</p>
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${textMuted}`}>{roleHomeLabel}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className={`text-lg font-bold ${textPrimary} tracking-tight truncate`}>{title}</h1>
+                <h1 className={`text-base font-bold ${textPrimary} tracking-tight truncate`}>{title}</h1>
                 <span
-                  className={`flex-shrink-0 px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wide ${
+                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
                     isAdmin ? 'bg-gray-200 text-gray-800' : isAmuStaff ? 'bg-teal-50 text-teal-700' : 'bg-blue-50 text-blue-700'
                   }`}
                 >
@@ -122,7 +122,7 @@ export default function DashboardLayout({
                 </span>
               </div>
               {subtitle && (
-                <p className={`text-sm ${textMuted} truncate mt-0.5 leading-tight`}>{subtitle}</p>
+                <p className={`text-xs ${textMuted} truncate mt-0.5 leading-tight`}>{subtitle}</p>
               )}
             </div>
           </div>
@@ -163,29 +163,29 @@ export default function DashboardLayout({
               type="button"
               onClick={handleSettings}
               title="Settings"
-              className={`p-3 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+              className={`p-2 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
               aria-label="Settings"
             >
-              <Settings className="w-[18px] h-[18px]" />
+              <Settings className="w-5 h-5" />
             </button>
             <button
               type="button"
               onClick={() => navigate('/help')}
               title="Help & FAQ"
-              className={`p-3 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+              className={`p-2 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
               aria-label="Help"
             >
-              <HelpCircle className="w-[18px] h-[18px]" />
+              <HelpCircle className="w-5 h-5" />
             </button>
             <div className={`w-px h-6 ${divider} mx-0.5`} aria-hidden />
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4.5 py-3 rounded-xl border border-gray-200 text-gray-600 text-[15px] font-medium hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               aria-label="Log out"
             >
-              <LogOut className="w-[18px] h-[18px]" />
-              Log out
+              <LogOut className="w-5 h-5" />
+              <span className="hidden sm:inline">Log out</span>
             </button>
           </div>
         </div>
@@ -193,7 +193,7 @@ export default function DashboardLayout({
           <div className={`border-t ${isInstructor ? 'border-slate-200/80' : 'border-gray-200/80'} bg-white/70 backdrop-blur-sm`}>
               <div className="max-w-[1920px] mx-auto px-6 sm:px-8 py-4">
                 <nav
-                className={`inline-flex max-w-full flex-wrap items-center gap-2.5 rounded-2xl border px-3 py-2.5 shadow-sm ${
+                className={`inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border px-2.5 py-1.5 shadow-sm ${
                   isInstructor
                     ? 'border-slate-200/90 bg-slate-50/90 shadow-slate-200/60'
                     : isAmuStaff
@@ -209,7 +209,7 @@ export default function DashboardLayout({
                       key={item.label}
                       type="button"
                       onClick={item.onClick}
-                      className={`inline-flex items-center gap-2.5 rounded-xl border px-5 py-3.5 text-base font-semibold transition-all ${
+                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${
                         isActive
                           ? isInstructor
                             ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'

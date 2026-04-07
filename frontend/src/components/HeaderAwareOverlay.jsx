@@ -29,12 +29,12 @@ export default function HeaderAwareOverlay({
       aria-labelledby={labelledBy}
     >
       <div
-        className="absolute inset-0 bg-slate-900/35"
+        className="absolute inset-0 bg-slate-900/35 z-10"
         onClick={onBackdropClick}
         aria-hidden="true"
       />
       <div
-        className={panelClasses}
+        className={panelClasses + ' relative z-20'}
         style={{ maxHeight: 'calc(100vh - var(--dashboard-header-height, 0px) - 1rem)' }}
       >
         <div className={contentClasses}>{children}</div>
