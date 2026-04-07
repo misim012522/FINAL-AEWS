@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, FileSpreadsheet, Upload } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import ScrollTableContainer from '../components/ScrollTableContainer'
 import InlineToast from '../components/InlineToast'
 import { useAuth } from '../context/AuthContext'
 import { getClass, listClassStudents, uploadPreviousGradesFiles } from '../api'
@@ -141,9 +142,9 @@ export default function PreviousMidtermGrades() {
 
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
-      <div className="space-y-4">
-        {previousGradesError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{previousGradesError}</div>}
-        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="space-y-3">
+        {previousGradesError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">{previousGradesError}</div>}
+        <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm">
           <input
             type="file"
             ref={previousGradesInputRef}
@@ -156,21 +157,21 @@ export default function PreviousMidtermGrades() {
               <button
                 type="button"
                 onClick={() => navigate(`/instructor/class/${id}/grades`)}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-100 mb-3"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-100 mb-2.5"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Grades Page
               </button>
-              <div className="flex items-center gap-2 mb-2">
-                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg font-bold text-slate-900">Previous Midterm Grades - {subjectCode}: {subjectName}</h2>
+              <div className="flex items-center gap-2 mb-1.5">
+                <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                <h2 className="text-base font-bold text-slate-900">Previous Midterm Grades - {subjectCode}: {subjectName}</h2>
               </div>
-              <p className="text-sm text-slate-600">Previous-semester midterm records with component scores (Class Standing, Laboratory, Major Output).</p>
+              <p className="text-xs text-slate-600">Previous-semester midterm records with component scores (Class Standing, Laboratory, Major Output).</p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex flex-wrap items-center gap-2">
               {GRADE_SECTIONS.map((section) => {
@@ -184,7 +185,7 @@ export default function PreviousMidtermGrades() {
                         navigate(`/instructor/class/${id}/grades`)
                       }
                     }}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                       active
                         ? 'bg-slate-900 text-white'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -197,7 +198,7 @@ export default function PreviousMidtermGrades() {
             </div>
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-[11px] font-semibold hover:bg-slate-50 transition-colors disabled:opacity-60"
               disabled={uploadingPreviousGrades}
               onClick={() => previousGradesInputRef.current && previousGradesInputRef.current.click()}
             >
@@ -217,7 +218,7 @@ export default function PreviousMidtermGrades() {
                       navigate(`/instructor/class/${id}/grades/previous-final`)
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                     active
                       ? 'bg-blue-600 text-white'
                       : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -230,22 +231,22 @@ export default function PreviousMidtermGrades() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-xs text-slate-500">Students</p>
-            <p className="text-xl font-bold text-slate-900">{rows.length || 0}</p>
+            <p className="text-lg font-bold text-slate-900">{rows.length || 0}</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-xs text-slate-500">Imported MTG</p>
-            <p className="text-xl font-bold text-slate-900">{withData}</p>
+            <p className="text-lg font-bold text-slate-900">{withData}</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-xs text-slate-500">Midterm Average</p>
-            <p className="text-xl font-bold text-slate-900">{formatScoreValue(averageMidterm)}</p>
+            <p className="text-lg font-bold text-slate-900">{formatScoreValue(averageMidterm)}</p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-3">
             <p className="text-xs text-slate-500">Latest View</p>
-            <p className="text-xl font-bold text-slate-900">Previous</p>
+            <p className="text-lg font-bold text-slate-900">Previous</p>
           </div>
         </div>
 
@@ -256,9 +257,9 @@ export default function PreviousMidtermGrades() {
           {rows.length === 0 ? (
             <div className="p-6 text-sm text-slate-500 text-center">No previous midterm grades uploaded yet for this class.</div>
           ) : (
-            <div className="overflow-x-auto">
+            <ScrollTableContainer>
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Student No.</th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Name</th>
@@ -281,7 +282,7 @@ export default function PreviousMidtermGrades() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTableContainer>
           )}
         </div>
       </div>

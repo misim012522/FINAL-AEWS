@@ -38,51 +38,51 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
   const atRisk = course.at_risk_count ?? 0
   const isArchiving = archisingId === course.id
   return (
-    <div className="group flex items-center justify-between gap-4 rounded-lg px-6 py-4 transition-colors hover:bg-slate-50/80">
+    <div className="group flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 transition-colors hover:bg-slate-50/80">
       <div className="flex-1 min-w-0">
         <div className="flex flex-1 items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0 ring-1 ring-blue-100">
-              <BookOpen className="w-5 h-5" />
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0 ring-1 ring-blue-100">
+              <BookOpen className="w-3.5 h-3.5" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-semibold text-slate-900 text-[15px] truncate leading-tight">
+              <h3 className="font-semibold text-slate-900 text-[13px] truncate leading-tight">
                 {course.subject_code}: {course.subject_name}
               </h3>
               {course.section_code && (
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5">
                   Section: <span className="font-semibold text-slate-600">{course.section_code}</span>
                 </p>
               )}
-              <div className="flex flex-wrap gap-2 mt-1.5">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-xs font-medium">
-                  <UsersIcon className="w-3.5 h-3.5 text-slate-500" />
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-medium">
+                  <UsersIcon className="w-3 h-3 text-slate-500" />
                   {course.student_count} student{course.student_count !== 1 ? 's' : ''}
                 </span>
                 {atRisk > 0 && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 text-xs font-semibold ring-1 ring-amber-100">
-                    <AlertTriangle className="w-3.5 h-3.5" />
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-semibold ring-1 ring-amber-100">
+                    <AlertTriangle className="w-3 h-3" />
                     {atRisk} at risk
                   </span>
                 )}
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => onArchive(course)}
               disabled={isArchiving}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-semibold hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-200 text-slate-700 font-semibold hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
             >
               {isArchiving ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
                   Archiving...
                 </>
               ) : (
                 <>
-                  <Archive className="w-4 h-4" />
+                  <Archive className="w-3.5 h-3.5" />
                   Archive
                 </>
               )}
@@ -91,10 +91,10 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
               type="button"
               onClick={() => onViewDetails(course)}
               disabled={isArchiving}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
             >
               View class
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -256,15 +256,15 @@ export default function InstructorDashboard() {
                   <button
                     type="button"
                     onClick={() => navigate('/instructor/archived')}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
                   >
-                    <Archive className="w-4 h-4" />
+                      <Archive className="w-4 h-4" />
                     Archived
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowAddClassModal(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.98]"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.98]"
                   >
                     <Plus className="w-4 h-4" />
                     Add class
@@ -272,7 +272,7 @@ export default function InstructorDashboard() {
                 </>
               }
             >
-              <div className="p-6 space-y-6">
+              <div className="space-y-4">
                 {classesLoading && (
                   <div className="flex flex-col items-center justify-center gap-3 py-16">
                     <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
@@ -288,34 +288,34 @@ export default function InstructorDashboard() {
 
                 {/* Overview stats */}
                 {!classesLoading && !classesError && classesList.length > 0 && (
-                  <section className="space-y-3" aria-label="Overview">
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className={`rounded-xl p-5 flex items-center gap-4 transition-colors ${colorClasses.gray}`}>
-                        <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100">
-                          <BookOpen className="w-6 h-6" />
+                  <section className="max-w-5xl space-y-2" aria-label="Overview">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                      <div className={`max-w-[17rem] rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
+                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100">
+                          <BookOpen className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-2xl font-bold text-slate-900 tabular-nums">{classesList.length}</p>
-                          <p className="text-sm font-medium text-slate-600">Total Classes</p>
+                          <p className="text-base font-bold text-slate-900 tabular-nums">{classesList.length}</p>
+                          <p className="text-[11px] font-medium text-slate-600">Total Classes</p>
                         </div>
                       </div>
-                      <div className={`rounded-xl p-5 flex items-center gap-4 transition-colors ${colorClasses.gray}`}>
-                        <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-600 ring-1 ring-slate-200/80">
-                          <UsersIcon className="w-6 h-6" />
+                      <div className={`max-w-[17rem] rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
+                        <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 ring-1 ring-slate-200/80">
+                          <UsersIcon className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-2xl font-bold text-slate-900 tabular-nums">{totalStudents}</p>
-                          <p className="text-sm font-medium text-slate-600">Total Students</p>
+                          <p className="text-base font-bold text-slate-900 tabular-nums">{totalStudents}</p>
+                          <p className="text-[11px] font-medium text-slate-600">Total Students</p>
                         </div>
                       </div>
-                      <div className={`rounded-xl p-5 flex items-center gap-4 transition-colors ${totalAtRisk > 0 ? colorClasses.amber : colorClasses.gray}`}>
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ring-1 ${totalAtRisk > 0 ? 'bg-amber-50 text-amber-600 ring-amber-100' : 'bg-slate-100 text-slate-600 ring-slate-200/80'}`}>
-                          <AlertTriangle className="w-6 h-6" />
+                      <div className={`max-w-[17rem] rounded-lg p-3 flex items-center gap-2.5 transition-colors ${totalAtRisk > 0 ? colorClasses.amber : colorClasses.gray}`}>
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ring-1 ${totalAtRisk > 0 ? 'bg-amber-50 text-amber-600 ring-amber-100' : 'bg-slate-100 text-slate-600 ring-slate-200/80'}`}>
+                          <AlertTriangle className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-2xl font-bold text-slate-900 tabular-nums">{totalAtRisk}</p>
-                          <p className="text-sm font-medium text-slate-600">At-Risk Students</p>
+                          <p className="text-base font-bold text-slate-900 tabular-nums">{totalAtRisk}</p>
+                          <p className="text-[11px] font-medium text-slate-600">At-Risk Students</p>
                         </div>
                       </div>
                     </div>
@@ -324,19 +324,19 @@ export default function InstructorDashboard() {
 
                 {/* Search and class list section */}
                 {!classesLoading && !classesError && classesList.length > 0 && (
-                  <section className="space-y-4">
+                  <section className="space-y-2.5">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Your classes</h3>
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your classes</h3>
                       <label className="sr-only" htmlFor="class-search">Search classes</label>
-                      <div className="relative w-full sm:max-w-xs">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      <div className="relative w-full sm:max-w-[16rem]">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                         <input
                           id="class-search"
                           type="text"
                           value={classSearch}
                           onChange={(e) => setClassSearch(e.target.value)}
                           placeholder="Search by code or name..."
-                          className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/80 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-colors"
+                          className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50/80 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-colors"
                         />
                       </div>
                     </div>
@@ -345,7 +345,7 @@ export default function InstructorDashboard() {
 
                 {/* Class list */}
                 {!classesLoading && !classesError && filteredClasses.length > 0 && (
-                  <ul className="divide-y divide-slate-100 -mx-6 rounded-lg overflow-hidden" aria-label="Class list">
+                  <ul className="divide-y divide-slate-100 rounded-lg overflow-hidden border border-slate-100" aria-label="Class list">
                     {filteredClasses.map((course) => (
                       <li key={course.id}>
                         <CourseCard
@@ -359,34 +359,34 @@ export default function InstructorDashboard() {
                   </ul>
                 )}
                 {!classesLoading && !classesError && classesList.length > 0 && filteredClasses.length === 0 && (
-                  <div className="py-12 px-6 text-center rounded-xl bg-slate-50/60 border border-slate-100">
+                  <div className="py-10 px-5 text-center rounded-xl bg-slate-50/60 border border-slate-100">
                     <div className="w-12 h-12 rounded-full bg-slate-200/80 flex items-center justify-center text-slate-400 mx-auto mb-3">
                       <Search className="w-6 h-6" />
                     </div>
-                    <p className="text-sm font-semibold text-slate-700">No classes match your search</p>
-                    <p className="text-xs text-slate-500 mt-1">Try a different code or name.</p>
+                    <p className="text-xs font-semibold text-slate-700">No classes match your search</p>
+                    <p className="text-[11px] text-slate-500 mt-1">Try a different code or name.</p>
                     <button
                       type="button"
                       onClick={() => setClassSearch('')}
-                      className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold text-blue-600 hover:bg-blue-50 border border-blue-200/60 transition-colors"
+                      className="mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 hover:bg-blue-50 border border-blue-200/60 transition-colors"
                     >
                       Clear search
                     </button>
                   </div>
                 )}
                 {!classesLoading && !classesError && classesList.length === 0 && (
-                  <div className="py-14 px-6 text-center rounded-xl bg-gradient-to-b from-slate-50/80 to-white border-2 border-dashed border-slate-200">
+                  <div className="py-12 px-5 text-center rounded-xl bg-gradient-to-b from-slate-50/80 to-white border-2 border-dashed border-slate-200">
                     <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 mx-auto mb-4 ring-2 ring-blue-100">
                       <GraduationCap className="w-8 h-8" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-800">No classes yet</h3>
-                    <p className="text-sm text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                    <h3 className="text-base font-bold text-slate-800">No classes yet</h3>
+                    <p className="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
                       Create your first class to start managing students and tracking at-risk alerts.
                     </p>
                     <button
                       type="button"
                       onClick={() => setShowAddClassModal(true)}
-                      className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg active:scale-[0.98]"
+                      className="mt-5 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg active:scale-[0.98]"
                     >
                       <Plus className="w-4 h-4" />
                       Add your first class

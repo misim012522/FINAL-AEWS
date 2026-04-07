@@ -2,6 +2,7 @@ import { Fragment, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Mail, Building2, BookOpen, AlertTriangle, ChevronRight, Search, ClipboardPlus, X } from 'lucide-react'
 import { createIntervention, getAmuStaffReferrals, listInterventions } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
 const DEFAULT_FORM = { type: 'Counseling session', due: '', notification_subject: '', notification_message: '' }
@@ -216,9 +217,9 @@ export default function AmuStaffReferrals() {
         </section>
 
         <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-          <div className="overflow-x-auto">
+          <ScrollTableContainer>
             <table className="w-full text-left border-collapse">
-              <thead className="bg-gray-50/80 border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
                 <tr>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Student</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Department</th>
@@ -394,7 +395,7 @@ export default function AmuStaffReferrals() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ScrollTableContainer>
         </div>
       </div>
     </div>

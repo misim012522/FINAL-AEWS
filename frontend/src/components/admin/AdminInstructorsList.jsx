@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { GraduationCap, Mail, Building2, Users, AlertTriangle } from 'lucide-react'
 import { getAdminOverviewInstructors } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 export default function AdminInstructorsList({ department = 'all' }) {
   const [instructors, setInstructors] = useState([])
@@ -54,9 +55,9 @@ export default function AdminInstructorsList({ department = 'all' }) {
           No instructors in this filter.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollTableContainer>
           <table className="w-full text-left">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
+            <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Instructor</th>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
@@ -101,7 +102,7 @@ export default function AdminInstructorsList({ department = 'all' }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTableContainer>
       )}
     </div>
   )

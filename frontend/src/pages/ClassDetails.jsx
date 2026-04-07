@@ -17,6 +17,7 @@ import {
 import DashboardLayout from '../components/DashboardLayout'
 import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
 import InlineToast from '../components/InlineToast'
+import ScrollTableContainer from '../components/ScrollTableContainer'
 import StudentPreviewModal from '../components/StudentPreviewModal'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -431,31 +432,31 @@ export default function ClassDetails() {
 
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-          <div className="px-6 pt-5">
+          <div className="px-4 pt-4">
             <button
               type="button"
               onClick={() => navigate('/instructor')}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-2 rounded-xl transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
               Back to My Classes
             </button>
           </div>
 
-          <div className="p-6 space-y-6">
-            <div className="rounded-xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-6 py-5 text-white shadow-sm overflow-hidden relative">
+          <div className="p-4 space-y-4">
+            <div className="rounded-xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-4 py-4 text-white shadow-sm overflow-hidden relative">
               <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-                    <BookOpen className="w-5 h-5" />
+                  <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                    <BookOpen className="w-4 h-4" />
                   </div>
                   <div>
-                    <h1 className="text-lg font-bold tracking-tight">
+                    <h1 className="text-base font-bold tracking-tight">
                       {subjectCode}: {subjectName}
                     </h1>
-                    <p className="text-blue-100 text-sm mt-0.5">{studentCount} student{studentCount !== 1 ? 's' : ''}</p>
+                    <p className="text-blue-100 text-xs mt-0.5">{studentCount} student{studentCount !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
 
@@ -686,9 +687,9 @@ export default function ClassDetails() {
                   No students enrolled yet. Use "Upload class list" to fetch student names and student numbers.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <ScrollTableContainer>
                   <table className="w-full text-left">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                    <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                       <tr>
                         <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
                         <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student Number</th>
@@ -750,7 +751,7 @@ export default function ClassDetails() {
                       )
                     })}
                   </table>
-                </div>
+                </ScrollTableContainer>
               )}
             </div>
           </div>

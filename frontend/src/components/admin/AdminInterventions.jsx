@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Zap, User, Building2, BookOpen, Calendar, CheckCircle, Clock, ChevronRight } from 'lucide-react'
 import { listInterventions } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const statusConfig = {
   pending: { icon: Clock, label: 'Pending', class: 'bg-amber-100 text-amber-700' },
@@ -90,9 +91,9 @@ export default function AdminInterventions() {
             No interventions in this filter. Interventions will appear when created in the system.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollTableContainer>
             <table className="w-full text-left">
-              <thead className="bg-gray-50/80 border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
                 <tr>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Student</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
@@ -151,7 +152,7 @@ export default function AdminInterventions() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollTableContainer>
         )}
       </div>
     </div>

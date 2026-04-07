@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Building2, Users, AlertTriangle, TrendingUp } from 'lucide-react'
 import { getAdminDepartmentsStats } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 export default function AdminDepartments({ department = 'all' }) {
   const [departments, setDepartments] = useState([])
@@ -54,9 +55,9 @@ export default function AdminDepartments({ department = 'all' }) {
           No departments in this filter. Departments come from instructors only.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollTableContainer>
           <table className="w-full text-left">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
+            <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Students</th>
@@ -96,7 +97,7 @@ export default function AdminDepartments({ department = 'all' }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTableContainer>
       )}
     </div>
   )

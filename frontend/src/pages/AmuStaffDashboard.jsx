@@ -98,7 +98,7 @@ export default function AmuStaffDashboard() {
         title="Student support workboard"
         description="Use the same sections every time: review referrals, manage intervention cases, and generate reports without jumping between unrelated layouts."
       >
-        <div>
+        <div className="space-y-3">
           {activeTab === 'overview' && <AmuStaffOverview />}
           {activeTab === 'referrals' && <AmuStaffReferrals />}
           {activeTab === 'cases' && <AmuStaffCases />}

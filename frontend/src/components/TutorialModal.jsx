@@ -42,53 +42,53 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
       role="dialog"
       labelledBy="tutorial-title"
       className="flex items-start justify-center bg-black/50"
-      panelClassName="max-w-lg"
-      contentClassName="rounded-2xl bg-white shadow-xl"
+      panelClassName="max-w-md"
+      contentClassName="rounded-xl bg-white shadow-xl"
     >
-      <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
+      <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-2">
-            <HelpCircle className="w-6 h-6 text-blue-600" />
-            <h2 id="tutorial-title" className="text-lg font-bold text-slate-900">{title}</h2>
+            <HelpCircle className="w-5 h-5 text-blue-600" />
+            <h2 id="tutorial-title" className="text-base font-bold text-slate-900">{title}</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+            className="p-1.5 rounded-lg text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="px-5 py-4 overflow-y-auto">
-          <p className="text-sm text-slate-600 mb-4">
+        <div className="px-4 py-3 overflow-y-auto">
+          <p className="text-xs text-slate-600 mb-3">
             Here are the main features and terms you’ll see so nothing feels confusing:
           </p>
-          <ul className="space-y-4">
+          <ul className="space-y-3">
             {items.map((item, i) => {
               const Icon = item.icon
               return (
-                <li key={i} className="flex gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
+                <li key={i} className="flex gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
                     <Icon className="w-4 h-4" />
                   </div>
                   <div>
-                    <p className="font-semibold text-slate-900 text-sm">{item.term}</p>
-                    <p className="text-slate-600 text-sm mt-0.5">{item.desc}</p>
+                    <p className="font-semibold text-slate-900 text-xs">{item.term}</p>
+                    <p className="text-slate-600 text-xs mt-0.5">{item.desc}</p>
                   </div>
                 </li>
               )
             })}
           </ul>
-          <p className="text-xs text-slate-500 mt-4">
+          <p className="text-[11px] text-slate-500 mt-3">
             You can replay this from Settings anytime, or open Help (?) on the login page for FAQ.
           </p>
         </div>
-        <div className="px-5 py-4 border-t border-slate-200 bg-slate-50">
+        <div className="px-4 py-3 border-t border-slate-200 bg-slate-50">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+            className="w-full py-2 rounded-lg text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
           >
             Got it
           </button>

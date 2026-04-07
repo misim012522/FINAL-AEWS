@@ -10,14 +10,14 @@ const ringClasses = {
 
 function KpiCard({ label, value, sub, icon: Icon, color }) {
   return (
-    <div className="rounded-xl p-5 flex items-center gap-4 transition-colors bg-gray-100 border border-slate-200/80">
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${ringClasses[color] || ringClasses.teal}`}>
-        <Icon className="w-6 h-6" />
+    <div className="max-w-[15rem] rounded-lg p-2.5 flex items-center gap-2 transition-colors bg-gray-100 border border-slate-200/80">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${ringClasses[color] || ringClasses.teal}`}>
+        <Icon className="w-4 h-4" />
       </div>
       <div>
-        <p className="text-2xl font-bold text-slate-900 tabular-nums">{value}</p>
-        <p className="text-sm font-medium text-slate-600">{label}</p>
-        <p className="text-xs text-slate-500 mt-0.5">{sub}</p>
+        <p className="text-base font-bold text-slate-900 tabular-nums">{value}</p>
+        <p className="text-[11px] font-medium text-slate-600">{label}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5">{sub}</p>
       </div>
     </div>
   )
@@ -64,14 +64,14 @@ export default function AmuStaffOverview() {
   ]
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
+    <div className="rounded-xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden">
       {/* Header strip (instructor-style) */}
-      <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
-        <h2 className="text-xl font-bold text-slate-900 tracking-tight">Overview</h2>
-        <p className="text-sm text-slate-500 mt-0.5">Monitor student support metrics and referrals</p>
+      <div className="px-5 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+        <h2 className="text-lg font-bold text-slate-900 tracking-tight">Overview</h2>
+        <p className="text-xs text-slate-500 mt-0.5">Monitor student support metrics and referrals</p>
       </div>
 
-      <div className="p-6 space-y-6">
+      <div className="p-4 space-y-3">
         {loading && (
           <div className="flex flex-col items-center justify-center gap-3 py-16">
             <div className="w-10 h-10 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
@@ -80,7 +80,7 @@ export default function AmuStaffOverview() {
         )}
 
         {error && (
-          <div className="rounded-xl bg-red-50 border border-red-200/80 px-4 py-3.5 text-sm text-red-700 flex items-center gap-2">
+          <div className="rounded-lg bg-red-50 border border-red-200/80 px-3 py-2.5 text-xs text-red-700 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             {error}
           </div>
@@ -88,18 +88,18 @@ export default function AmuStaffOverview() {
 
         {!loading && !error && (
           <>
-            <div className="rounded-xl bg-teal-50/80 border border-teal-200/80 px-4 py-3.5 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-teal-100 flex items-center justify-center text-teal-600 flex-shrink-0 ring-1 ring-teal-100">
-                <AlertTriangle className="w-5 h-5" />
+            <div className="max-w-4xl rounded-lg bg-teal-50/80 border border-teal-200/80 px-3 py-2.5 flex items-center gap-2">
+              <div className="w-9 h-9 rounded-lg bg-teal-100 flex items-center justify-center text-teal-600 flex-shrink-0 ring-1 ring-teal-100">
+                <AlertTriangle className="w-4 h-4" />
               </div>
-              <p className="text-sm font-medium text-teal-800">
+              <p className="text-xs font-medium text-teal-800">
                 Welcome to the AMU Staff dashboard. Use this view to monitor student support metrics and referrals.
               </p>
             </div>
 
-            <section className="space-y-3" aria-label="Overview">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Key metrics</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <section className="max-w-6xl space-y-2" aria-label="Overview">
+              <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Key metrics</h3>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 {cards.map((card) => (
                   <KpiCard key={card.label} {...card} />
                 ))}

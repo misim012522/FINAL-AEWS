@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { User, BookOpen, Search, AlertTriangle, CheckCircle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getInstructorStudentList } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const statusBadge = {
   ok: 'bg-slate-100 text-slate-700',
@@ -128,9 +129,9 @@ export default function InstructorStudentList() {
 
         {!loading && !error && (
           <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-            <div className="overflow-x-auto">
+            <ScrollTableContainer>
               <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student</th>
                     <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Course</th>
@@ -191,7 +192,7 @@ export default function InstructorStudentList() {
                   })}
                 </tbody>
               </table>
-            </div>
+            </ScrollTableContainer>
 
             {filtered.length === 0 && (
               <div className="p-8 text-center">

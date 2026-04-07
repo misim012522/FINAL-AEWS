@@ -125,18 +125,18 @@ export default function AdminDashboard() {
     >
       {showTutorial && <TutorialModal variant="admin" onClose={handleTutorialClose} />}
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <DashboardPageHeader
           eyebrow="Administrator workflow"
           title={contentTitle}
           description={`${contentSubtitle} Keep the main sections in one place so approvals, reports, and oversight tasks stay easier to follow.`}
         >
-          <div className="mt-1 space-y-6">
+          <div className="mt-1 space-y-4">
             {mainTab === 'overview' && (
-              <div className="grid grid-cols-1 gap-6">
-                <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden flex flex-col min-h-[32rem] min-w-0">
-                  <div className="px-6 py-2.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex-shrink-0">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">Overview sections</p>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="rounded-lg border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden flex flex-col min-h-[26rem] min-w-0">
+                  <div className="px-3.5 py-2 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex-shrink-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Overview sections</p>
                     <RoleSectionTabs
                       items={SUB_TABS}
                       activeId={subTab}
@@ -145,7 +145,7 @@ export default function AdminDashboard() {
                       accentClass="bg-slate-700 border-slate-700 text-white shadow-sm"
                     />
                   </div>
-                  <div className="p-8 flex-1 min-h-0 overflow-auto">
+                  <div className="p-4 flex-1 min-h-0 overflow-auto">
                     {subTab === 'at-risk' && <AdminStudentsAtRisk department={department} />}
                     {subTab === 'departments' && <AdminDepartments department={department} />}
                     {subTab === 'all-instructors' && <AdminInstructorsList department={department} />}

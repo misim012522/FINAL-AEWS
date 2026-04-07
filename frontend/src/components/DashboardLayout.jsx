@@ -98,23 +98,23 @@ export default function DashboardLayout({
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] rounded-full bg-blue-400/25 blur-3xl" aria-hidden="true" />
       <div className="absolute top-3/4 left-1/4 w-64 h-64 rounded-full bg-sky-400/35 blur-3xl" aria-hidden="true" />
       <header ref={headerRef} className={`relative z-30 sticky top-0 bg-white/90 backdrop-blur-sm border-b ${isInstructor ? 'border-slate-200' : 'border-gray-200'} shadow-sm`}>
-        <div className="max-w-[1920px] mx-auto px-6 sm:px-8 py-4.5 flex items-center justify-between gap-4">
+        <div className="max-w-[1680px] mx-auto px-4 sm:px-5 py-2.5 flex items-center justify-between gap-2.5">
           {/* Brand / identity */}
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className={`flex-shrink-0 w-11 h-11 rounded-xl ${accentBg} flex items-center justify-center text-white shadow-sm ring-2 ${accentRing} ring-offset-2 ring-offset-white`}
+              className={`flex-shrink-0 w-10 h-10 rounded-lg ${accentBg} flex items-center justify-center text-white shadow-sm ring-2 ${accentRing} ring-offset-2 ring-offset-white`}
               aria-hidden
             >
-              {Icon ? <Icon className="w-5 h-5" /> : (
-                <span className="text-base font-bold">M</span>
+              {Icon ? <Icon className="w-4 h-4" /> : (
+                <span className="text-sm font-bold">M</span>
               )}
             </div>
             <div className="min-w-0">
-              <p className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${textMuted}`}>{roleHomeLabel}</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className={`text-base font-bold ${textPrimary} tracking-tight truncate`}>{title}</h1>
+              <p className={`text-[10px] font-semibold uppercase tracking-[0.12em] ${textMuted}`}>{roleHomeLabel}</p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h1 className={`text-sm font-bold ${textPrimary} tracking-tight truncate`}>{title}</h1>
                 <span
-                  className={`flex-shrink-0 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
+                  className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[8px] font-semibold uppercase tracking-wide ${
                     isAdmin ? 'bg-gray-200 text-gray-800' : isAmuStaff ? 'bg-teal-50 text-teal-700' : 'bg-blue-50 text-blue-700'
                   }`}
                 >
@@ -122,28 +122,28 @@ export default function DashboardLayout({
                 </span>
               </div>
               {subtitle && (
-                <p className={`text-xs ${textMuted} truncate mt-0.5 leading-tight`}>{subtitle}</p>
+                <p className={`text-[10px] ${textMuted} truncate mt-0.5 leading-tight`}>{subtitle}</p>
               )}
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="flex items-center gap-0.5 flex-shrink-0">
             <div className="relative" ref={notificationsRef}>
               <button
                 type="button"
                 onClick={handleNotificationsClick}
                 title="Notifications"
-                className={`relative p-3 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                className={`relative p-1.5 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
                   notificationsOpen ? btnActive : ''
                 }`}
                 aria-label={`Notifications${notificationCount > 0 ? `, ${notificationCount} unread` : ''}`}
                 aria-expanded={notificationsOpen}
                 aria-haspopup="true"
               >
-                <Bell className="w-[18px] h-[18px]" />
+                <Bell className="w-4 h-4" />
                 {notificationCount > 0 && (
-                  <span className="absolute top-1 right-1 min-w-[16px] h-[16px] px-0.5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                  <span className="absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
                     {notificationCount > 9 ? '9+' : notificationCount}
                   </span>
                 )}
@@ -163,37 +163,37 @@ export default function DashboardLayout({
               type="button"
               onClick={handleSettings}
               title="Settings"
-              className={`p-2 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+              className={`p-1.5 rounded-md ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
               aria-label="Settings"
             >
-              <Settings className="w-5 h-5" />
+              <Settings className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={() => navigate('/help')}
               title="Help & FAQ"
-              className={`p-2 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+              className={`p-1.5 rounded-md ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
               aria-label="Help"
             >
-              <HelpCircle className="w-5 h-5" />
+              <HelpCircle className="w-4 h-4" />
             </button>
-            <div className={`w-px h-6 ${divider} mx-0.5`} aria-hidden />
+            <div className={`w-px h-4 ${divider} mx-0.5`} aria-hidden />
             <button
               type="button"
               onClick={handleLogout}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex items-center gap-1 px-2 py-1 rounded-md border border-gray-200 text-gray-600 text-[11px] font-medium hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               aria-label="Log out"
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Log out</span>
             </button>
           </div>
         </div>
         {navItems.length > 0 && (
           <div className={`border-t ${isInstructor ? 'border-slate-200/80' : 'border-gray-200/80'} bg-white/70 backdrop-blur-sm`}>
-              <div className="max-w-[1920px] mx-auto px-6 sm:px-8 py-4">
+              <div className="max-w-[1680px] mx-auto px-4 sm:px-5 py-2">
                 <nav
-                className={`inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border px-2.5 py-1.5 shadow-sm ${
+                className={`inline-flex max-w-full flex-wrap items-center gap-1 rounded-xl border px-1.5 py-1 shadow-sm ${
                   isInstructor
                     ? 'border-slate-200/90 bg-slate-50/90 shadow-slate-200/60'
                     : isAmuStaff
@@ -209,7 +209,7 @@ export default function DashboardLayout({
                       key={item.label}
                       type="button"
                       onClick={item.onClick}
-                      className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${
+                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-all ${
                         isActive
                           ? isInstructor
                             ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'
@@ -224,9 +224,9 @@ export default function DashboardLayout({
                       }`}
                       aria-current={isActive ? 'page' : undefined}
                     >
-                      {item.icon ? <item.icon className={`h-5 w-5 ${isActive ? '' : 'opacity-75'}`} /> : null}
+                      {item.icon ? <item.icon className={`h-4 w-4 ${isActive ? '' : 'opacity-75'}`} /> : null}
                       {item.label}
-                      {item.trailing ? <ChevronRight className="h-[18px] w-[18px] opacity-70" /> : null}
+                      {item.trailing ? <ChevronRight className="h-4 w-4 opacity-70" /> : null}
                     </button>
                   )
                 })}
@@ -236,7 +236,7 @@ export default function DashboardLayout({
         )}
       </header>
       <main className="relative z-10 min-h-[50vh]">
-        <div className="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
           {children}
         </div>
       </main>

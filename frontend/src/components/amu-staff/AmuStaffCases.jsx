@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Building2, BookOpen, Calendar, CheckCircle, Clock, Filter, ChevronRight, AlertTriangle } from 'lucide-react'
 import { listInterventions } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const statusConfig = {
   pending: { icon: Clock, label: 'Pending', class: 'bg-amber-100 text-amber-700' },
@@ -77,9 +78,9 @@ export default function AmuStaffCases() {
         </section>
 
         <div className="rounded-xl border border-slate-200/80 overflow-hidden">
-          <div className="overflow-x-auto">
+          <ScrollTableContainer>
             <table className="w-full text-left">
-              <thead className="bg-gray-50/80 border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
                 <tr>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Student</th>
                   <th className="px-5 py-4 text-[12px] font-semibold text-gray-500 uppercase tracking-wider text-left">Department</th>
@@ -143,7 +144,7 @@ export default function AmuStaffCases() {
                 )}
               </tbody>
             </table>
-          </div>
+          </ScrollTableContainer>
         </div>
       </div>
     </div>

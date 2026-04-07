@@ -469,20 +469,20 @@ export default function InstructorReports() {
         { label: 'Reports', icon: FileSpreadsheet, active: true, onClick: () => navigate('/instructor/reports') },
       ]}
     >
-      <div className="space-y-6">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+      <div className="space-y-4">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5 text-blue-600" />
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">Section Reports</h2>
+                  <FileSpreadsheet className="w-4 h-4 text-blue-600" />
+                  <h2 className="text-lg font-bold text-slate-900 tracking-tight">Section Reports</h2>
                 </div>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 mt-1">
                   Export the complete student information for one section, including risk, grades, attendance, referrals, and needs assessment indicators.
                 </p>
               </div>
-              <div className="w-full sm:w-auto sm:min-w-[20rem] flex flex-col gap-3">
+              <div className="w-full sm:w-auto sm:min-w-[18rem] flex flex-col gap-2.5">
                 <div>
                   <label htmlFor="section-report-select" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
                     Select section
@@ -492,7 +492,7 @@ export default function InstructorReports() {
                     value={selectedClassId}
                     onChange={(e) => setSelectedClassId(e.target.value)}
                     disabled={classesLoading || !classesList.length}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors disabled:opacity-60"
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-colors disabled:opacity-60"
                   >
                     {!classesList.length && <option value="">No sections available</option>}
                     {classesList.map((klass) => (
@@ -507,7 +507,7 @@ export default function InstructorReports() {
                     type="button"
                     onClick={handleExportCsv}
                     disabled={!reportData?.rows?.length}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-60 transition-colors"
                   >
                     <Download className="w-4 h-4" />
                     Export CSV
@@ -516,7 +516,7 @@ export default function InstructorReports() {
                     type="button"
                     onClick={handleExportPdf}
                     disabled={!reportData?.rows?.length}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-60 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 text-white text-xs font-semibold hover:bg-slate-800 disabled:opacity-60 transition-colors"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
                     Export PDF
@@ -526,58 +526,58 @@ export default function InstructorReports() {
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 space-y-4">
             {classesError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
                 {classesError}
               </div>
             )}
             {reportError && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">
                 {reportError}
               </div>
             )}
 
             {classesLoading || reportLoading ? (
               <div className="flex flex-col items-center justify-center gap-3 py-16">
-                <div className="w-10 h-10 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                <div className="w-9 h-9 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                 <span className="text-sm font-medium text-slate-500">Loading section report...</span>
               </div>
             ) : null}
 
             {!classesLoading && !classesList.length ? (
-              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 px-6 py-12 text-center">
-                <BookOpen className="w-10 h-10 text-slate-400 mx-auto mb-3" />
-                <p className="text-sm font-semibold text-slate-700">No sections available yet</p>
-                <p className="text-sm text-slate-500 mt-1">Create or upload a class first so you can generate a report for it.</p>
+              <div className="rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center">
+                <BookOpen className="w-9 h-9 text-slate-400 mx-auto mb-3" />
+                <p className="text-xs font-semibold text-slate-700">No sections available yet</p>
+                <p className="text-xs text-slate-500 mt-1">Create or upload a class first so you can generate a report for it.</p>
               </div>
             ) : null}
 
             {reportData && !reportLoading ? (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Section</p>
-                    <p className="mt-2 text-sm font-semibold text-slate-900">
+                    <p className="mt-1.5 text-xs font-semibold text-slate-900">
                       {[reportData.classInfo?.subject_code, reportData.classInfo?.subject_name].filter(Boolean).join(': ')}
                     </p>
                     <p className="text-xs text-slate-500 mt-1">{reportData.classInfo?.section_code || 'No section code'}</p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Students</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{reportData.totals.students}</p>
+                    <p className="mt-1.5 text-lg font-bold text-slate-900">{reportData.totals.students}</p>
                   </div>
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Medium risk</p>
-                    <p className="mt-2 text-2xl font-bold text-amber-900">{reportData.totals.medium}</p>
+                    <p className="mt-1.5 text-lg font-bold text-amber-900">{reportData.totals.medium}</p>
                   </div>
-                  <div className="rounded-xl border border-red-200 bg-red-50/70 p-4">
+                  <div className="rounded-lg border border-red-200 bg-red-50/70 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-red-700">High risk</p>
-                    <p className="mt-2 text-2xl font-bold text-red-900">{reportData.totals.high}</p>
+                    <p className="mt-1.5 text-lg font-bold text-red-900">{reportData.totals.high}</p>
                   </div>
-                  <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4">
+                  <div className="rounded-lg border border-teal-200 bg-teal-50/70 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Referred to AMU</p>
-                    <p className="mt-2 text-2xl font-bold text-teal-900">{reportData.totals.referred}</p>
+                    <p className="mt-1.5 text-lg font-bold text-teal-900">{reportData.totals.referred}</p>
                   </div>
                 </div>
 

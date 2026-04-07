@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { User, Mail, Building2, BookOpen, AlertTriangle, ChevronRight } from 'lucide-react'
 import { getAdminStudentsAtRisk } from '../../api'
 import { useAuth } from '../../context/AuthContext'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
 
@@ -70,9 +71,9 @@ export default function AdminStudentsAtRisk({ department = 'all' }) {
           No at-risk students in this filter.
         </div>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollTableContainer>
           <table className="w-full text-left">
-            <thead className="bg-gray-50/80 border-b border-gray-200">
+            <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
               <tr>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Student</th>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
@@ -127,7 +128,7 @@ export default function AdminStudentsAtRisk({ department = 'all' }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollTableContainer>
       )}
     </div>
   )

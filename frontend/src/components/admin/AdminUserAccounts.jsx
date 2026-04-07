@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { User, Mail, Shield, GraduationCap, Users, Search, MoreVertical, ChevronRight, CheckCircle, XCircle, Archive, Trash2, Building2, Save, Info } from 'lucide-react'
 import { getAdminUsers, getAdminArchivedUsers, approvePendingAccount, declinePendingAccount, archiveUser, restoreUser, deleteUser, getUser, updateUser } from '../../api'
 import HeaderAwareOverlay from '../HeaderAwareOverlay'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const roleConfig = {
   instructor: { icon: GraduationCap, label: 'Instructor', class: 'bg-blue-100 text-blue-700' },
@@ -295,9 +296,9 @@ export default function AdminUserAccounts() {
             {showArchived ? 'No archived users.' : 'No users match the current filter.'}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollTableContainer>
             <table className="w-full text-left">
-              <thead className="bg-gray-50/80 border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
                 <tr>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
@@ -427,7 +428,7 @@ export default function AdminUserAccounts() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollTableContainer>
         )}
       </div>
 

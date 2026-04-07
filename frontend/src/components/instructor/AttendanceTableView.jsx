@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Search } from 'lucide-react'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 export default function AttendanceTableView({ students, format = 'monthly' }) {
   const [searchTerm, setSearchTerm] = useState('')
@@ -65,9 +66,9 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
           />
         </div>
 
-        <div className="overflow-x-auto">
+        <ScrollTableContainer>
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10">
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10">ID</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-16 bg-slate-50 z-10">Name</th>
@@ -106,7 +107,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
               }) : renderTableShellRows(6)}
             </tbody>
           </table>
-        </div>
+        </ScrollTableContainer>
 
         {students.length > 0 && (
           <div className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-600">
@@ -130,9 +131,9 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
         />
       </div>
 
-      <div className="overflow-x-auto">
+      <ScrollTableContainer>
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr className="border-b border-slate-200 bg-slate-50">
               <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-0 bg-slate-50 z-10">ID</th>
               <th className="px-4 py-3 text-left font-semibold text-slate-700 sticky left-16 bg-slate-50 z-10">Name</th>
@@ -171,7 +172,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
             }) : renderTableShellRows(15)}
           </tbody>
         </table>
-      </div>
+      </ScrollTableContainer>
 
       {students.length > 0 && (
         <div className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-600">

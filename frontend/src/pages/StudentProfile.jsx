@@ -14,6 +14,7 @@ import {
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import DashboardLayout from '../components/DashboardLayout'
 import DashboardPageHeader from '../components/DashboardPageHeader'
+import ScrollTableContainer from '../components/ScrollTableContainer'
 import { useAuth } from '../context/AuthContext'
 
 const STUDENTS = {
@@ -182,9 +183,9 @@ export default function StudentProfile() {
               <ClipboardList className="w-4 h-4 text-blue-600" />
               Intervention history
             </h4>
-            <div className="overflow-x-auto">
+            <ScrollTableContainer>
               <table className="w-full text-left">
-                <thead className="border-b border-slate-200 bg-slate-50">
+                <thead className="sticky top-0 z-10 border-b border-slate-200 bg-slate-50">
                   <tr>
                     <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Type</th>
                     <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
@@ -218,7 +219,7 @@ export default function StudentProfile() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTableContainer>
           </section>
         </div>
       </DashboardPageHeader>

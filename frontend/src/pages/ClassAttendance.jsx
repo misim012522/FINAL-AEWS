@@ -125,10 +125,10 @@ export default function ClassAttendance() {
 
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
-      <div className="space-y-6">
-        {attendanceError && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{attendanceError}</div>}
+      <div className="space-y-4">
+        {attendanceError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">{attendanceError}</div>}
 
-        <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-6 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 shadow-sm">
           <input
             type="file"
             ref={attendanceInputRef}
@@ -141,19 +141,19 @@ export default function ClassAttendance() {
               <button
                 type="button"
                 onClick={() => navigate(`/instructor/class/${id}`)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-white/70 transition mb-4"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white/70 transition mb-3"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Class Details
               </button>
-              <div className="flex items-start gap-4">
-                <div className="rounded-lg bg-blue-100 p-3">
-                  <CalendarCheck className="w-6 h-6 text-blue-600" />
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-blue-100 p-2.5">
+                  <CalendarCheck className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Attendance Report</p>
-                  <h1 className="text-2xl font-bold text-slate-900 mt-1">{subjectCode}</h1>
-                  <p className="text-sm text-slate-600 mt-1">{subjectName}</p>
+                  <h1 className="text-xl font-bold text-slate-900 mt-1">{subjectCode}</h1>
+                  <p className="text-xs text-slate-600 mt-1">{subjectName}</p>
                 </div>
               </div>
             </div>
@@ -167,7 +167,7 @@ export default function ClassAttendance() {
               </span>
               <button
                 type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-blue-600 text-white text-[11px] font-semibold hover:bg-blue-700 transition-colors disabled:opacity-60"
                 disabled={uploadingAttendance}
                 onClick={() => attendanceInputRef.current && attendanceInputRef.current.click()}
               >
@@ -178,7 +178,7 @@ export default function ClassAttendance() {
                 type="button"
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-700 hover:bg-white/70 disabled:opacity-50 transition"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 hover:bg-white/70 disabled:opacity-50 transition"
               >
                 <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
@@ -187,81 +187,81 @@ export default function ClassAttendance() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {attendanceFormat === 'daily' ? (
             <>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Students</p>
                   <Users className="w-4 h-4 text-slate-400" />
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{analytics.total_students || 0}</p>
+                <p className="text-2xl font-bold text-slate-900">{analytics.total_students || 0}</p>
                 <p className="text-xs text-slate-500 mt-2">Total enrolled</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Present</p>
                   <CheckCircle className="w-4 h-4 text-green-500" />
                 </div>
-                <p className="text-3xl font-bold text-black">{formatMetric(analytics.total_present_days)}</p>
+                <p className="text-2xl font-bold text-black">{formatMetric(analytics.total_present_days)}</p>
                 <p className="text-xs text-slate-500 mt-2">Total present days</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Absent</p>
                   <AlertCircle className="w-4 h-4 text-red-500" />
                 </div>
-                <p className="text-3xl font-bold text-black">{formatMetric(analytics.total_absent_days)}</p>
+                <p className="text-2xl font-bold text-black">{formatMetric(analytics.total_absent_days)}</p>
                 <p className="text-xs text-slate-500 mt-2">Total absent days</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">High Absence</p>
                   <AlertCircle className="w-4 h-4 text-amber-500" />
                 </div>
-                <p className="text-3xl font-bold text-black">{analytics.high_absenteeism_count || 0}</p>
+                <p className="text-2xl font-bold text-black">{analytics.high_absenteeism_count || 0}</p>
                 <p className="text-xs text-slate-500 mt-2">Students flagged</p>
               </div>
             </>
           ) : (
             <>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Students</p>
                   <Users className="w-4 h-4 text-slate-400" />
                 </div>
-                <p className="text-3xl font-bold text-slate-900">{analytics.total_students || 0}</p>
+                <p className="text-2xl font-bold text-slate-900">{analytics.total_students || 0}</p>
                 <p className="text-xs text-slate-500 mt-2">Total enrolled</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Average</p>
                   <Calendar className="w-4 h-4 text-blue-500" />
                 </div>
-                <p className="text-3xl font-bold text-black">{formatMetric(analytics.overall_average)}%</p>
+                <p className="text-2xl font-bold text-black">{formatMetric(analytics.overall_average)}%</p>
                 <p className="text-xs text-slate-500 mt-2">Class average</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Low Attendance</p>
                   <AlertCircle className="w-4 h-4 text-red-500" />
                 </div>
-                <p className="text-3xl font-bold text-black">{analytics.low_attendance_count || 0}</p>
+                <p className="text-2xl font-bold text-black">{analytics.low_attendance_count || 0}</p>
                 <p className="text-xs text-slate-500 mt-2">Students below 75%</p>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition">
+              <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm hover:shadow-md transition">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">At Risk %</p>
                   <AlertCircle className="w-4 h-4 text-amber-500" />
                 </div>
-                <p className="text-3xl font-bold text-black">{formatMetric(analytics.low_attendance_percentage)}%</p>
+                <p className="text-2xl font-bold text-black">{formatMetric(analytics.low_attendance_percentage)}%</p>
                 <p className="text-xs text-slate-500 mt-2">Percentage at risk</p>
               </div>
             </>
           )}
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <AttendanceTableView students={students} format={attendanceFormat} />
         </div>
       </div>

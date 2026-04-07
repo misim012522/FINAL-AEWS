@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, User, BookOpen, ChevronRight } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import { getInstructorRiskAlerts, listClasses } from '../../api'
+import ScrollTableContainer from '../ScrollTableContainer'
 
 const riskClass = {
   High: 'bg-red-100 text-red-800',
@@ -132,9 +133,9 @@ export default function InstructorRiskAlerts() {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <ScrollTableContainer>
               <table className="w-full text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
+                <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                   <tr>
                     <th className="px-5 py-3 text-[12px] font-semibold text-slate-500 uppercase tracking-wider">Student</th>
                     <th className="px-5 py-3 text-[12px] font-semibold text-slate-500 uppercase tracking-wider">Course</th>
@@ -185,7 +186,7 @@ export default function InstructorRiskAlerts() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTableContainer>
           )}
         </div>
       </div>

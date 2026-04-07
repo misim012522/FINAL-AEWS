@@ -60,8 +60,8 @@ export default function ProfilePageLayout({
   if (!user) return null
 
   return (
-    <div className="rounded-3xl border border-slate-200/80 bg-white shadow-lg shadow-slate-200/50 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white">
+    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden">
+      <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white">
         <div className="flex flex-col items-start gap-3">
           {backButton && (
             <div className="self-start">
@@ -70,18 +70,18 @@ export default function ProfilePageLayout({
           )}
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Account settings</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Profile and preferences</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-500 max-w-3xl">
+            <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-900">Profile and preferences</h2>
+            <p className="mt-1 text-sm leading-5 text-slate-500 max-w-2xl">
               Update your personal details, password access, and tutorial preferences in one organized workspace.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="p-6 sm:p-7">
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+      <div className="p-4 sm:p-5">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
           <div className="xl:col-span-3">
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-6 flex flex-col items-center text-center h-full">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 flex flex-col items-center text-center h-full">
               <label className="relative block cursor-pointer group">
                 <input
                   ref={fileInputRef}
@@ -90,20 +90,20 @@ export default function ProfilePageLayout({
                   onChange={handleImageChange}
                   className="sr-only"
                 />
-                <div className="w-28 h-28 rounded-full overflow-hidden bg-white border-4 border-slate-200 flex items-center justify-center text-slate-400 group-hover:border-blue-300 transition-colors">
+                <div className="w-24 h-24 rounded-full overflow-hidden bg-white border-4 border-slate-200 flex items-center justify-center text-slate-400 group-hover:border-blue-300 transition-colors">
                   {profileImage ? (
                     <img src={profileImage} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-14 h-14" />
+                    <User className="w-12 h-12" />
                   )}
                 </div>
-                <span className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity">
                   <Camera className="w-4 h-4" />
                 </span>
               </label>
 
-              <p className="mt-4 text-lg font-bold text-slate-900 truncate w-full">{displayName}</p>
-              <p className="text-sm text-slate-500 truncate w-full flex items-center justify-center gap-1">
+              <p className="mt-3 text-base font-bold text-slate-900 truncate w-full">{displayName}</p>
+              <p className="text-xs text-slate-500 truncate w-full flex items-center justify-center gap-1">
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
                 {user.email || '—'}
               </p>
@@ -118,13 +118,13 @@ export default function ProfilePageLayout({
           </div>
 
           <div className="xl:col-span-5">
-            <div className="rounded-2xl border border-slate-200/80 bg-white overflow-hidden h-full">
-              <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
-                <h3 className="text-xl font-bold text-slate-900 tracking-tight">Profile settings</h3>
+            <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden h-full">
+              <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight">Profile settings</h3>
                 <p className="text-sm text-slate-500 mt-0.5">Keep your personal details accurate so people can identify and contact you easily.</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              <form onSubmit={handleSubmit} className="p-5 space-y-4">
                 {profileError && (
                   <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
                     {profileError}
@@ -136,7 +136,7 @@ export default function ProfilePageLayout({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>First name</label>
                     <input
@@ -205,7 +205,7 @@ export default function ProfilePageLayout({
                   <button
                     type="submit"
                     disabled={saving}
-                    className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-colors ${
+                    className={`inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
                       saved
                         ? 'bg-emerald-600 text-white'
                         : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
@@ -231,8 +231,8 @@ export default function ProfilePageLayout({
           </div>
 
           <div className="xl:col-span-4">
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 sm:p-5 h-full">
-              <div className="space-y-5">
+            <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 h-full">
+              <div className="space-y-4">
                 {rightSection}
               </div>
             </div>
