@@ -1,18 +1,19 @@
 """AMU Staff endpoints: referrals (flagged enrollments), overview stats, reports."""
 from datetime import datetime, timezone
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pymongo.errors import ServerSelectionTimeoutError
 
+from app.authz import get_current_actor
 from app.database import get_db
 from app.email_sender import send_student_support_email
 from app.notification_utils import create_notification
 from app.schemas import ReferralEmailRequest
 
 
-def require_amu_staff_role(x_user_role: str = Header(None, alias="X-User-Role")):
-    """Dependency to enforce AMU Staff access. Frontend must send X-User-Role header."""
-    normalized_role = "amu-staff" if x_user_role == "amustaff" else x_user_role
+def require_amu_staff_role(actor: dict = Depends(get_current_actor)):
+    """Dependency to enforce AMU Staff access."""
+    normalized_role = actor.get("role")
     if normalized_role != "amu-staff":
         raise HTTPException(status_code=403, detail="AMU Staff access required")
     return normalized_role

@@ -11,6 +11,7 @@ import bcrypt
 from fastapi import APIRouter, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
 
+from app.authz import create_access_token
 log = logging.getLogger(__name__)
 
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
@@ -350,4 +351,6 @@ def login(body: LoginRequest):
             "profile_image": user.get("profile_image"),
         },
         "role": user["role"],
+        "access_token": create_access_token(user_id=str(user["_id"]), role=user["role"]),
+        "token_type": "bearer",
     }

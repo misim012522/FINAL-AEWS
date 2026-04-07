@@ -5,9 +5,10 @@ students at risk, department stats, instructors list, and trends.
 from datetime import datetime
 
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from pymongo.errors import ServerSelectionTimeoutError
 
+from app.authz import get_current_actor
 from app.ai_model import load_model_metrics
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
@@ -17,14 +18,10 @@ from app.notification_utils import create_notification
 
 # ----- RBAC Helper: Ensure caller is admin -----
 
-def require_admin_role(x_user_role: str = Header(None, alias="X-User-Role")):
-    """
-    Dependency to enforce admin-only access.
-    Frontend must send X-User-Role header.
-    For production, use JWT and verify the token instead of trusting headers.
-    """
-    normalized_role = (x_user_role or "").strip().lower()
-    if normalized_role not in {"admin", "administrator"}:
+def require_admin_role(actor: dict = Depends(get_current_actor)):
+    """Dependency to enforce admin-only access."""
+    normalized_role = (actor.get("role") or "").strip().lower()
+    if normalized_role != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     return normalized_role
 

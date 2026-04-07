@@ -106,8 +106,42 @@ export async function previewClasslist(file) {
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 function normalizeRole(role) {
-  if (role === 'amustaff') return 'amu-staff'
-  return role
+  const value = String(role ?? '').trim().toLowerCase()
+  if (!value) return null
+  if (value === 'amustaff') return 'amu-staff'
+  return value
+}
+
+function readStoredAuth() {
+  try {
+    const raw = localStorage.getItem('auth')
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    const user = data?.user && typeof data.user === 'object' ? data.user : data
+    const id = user?.id || user?._id || data?.id || data?._id || null
+    const role = normalizeRole(data?.role || user?.role)
+    const accessToken = data?.accessToken || data?.access_token || data?.token || null
+
+    if (!id && !role) return null
+
+    return {
+      user: user && typeof user === 'object'
+        ? {
+            ...user,
+            ...(id ? { id } : {}),
+            ...(role ? { role } : {}),
+          }
+        : {
+            ...(id ? { id } : {}),
+            ...(role ? { role } : {}),
+          },
+      role,
+      accessToken,
+    }
+  } catch (e) {
+    console.error('Failed to parse auth token:', e)
+    return null
+  }
 }
 
 function formatErrorDetail(detail) {
@@ -124,30 +158,15 @@ function formatErrorDetail(detail) {
  */
 function getAuthHeaders() {
   const headers = {}
-  try {
-    const raw = localStorage.getItem('auth')
-    if (raw) {
-      const data = JSON.parse(raw)
-      if (data?.user?.id) headers['X-User-Id'] = data.user.id
-      const role = normalizeRole(data?.role || data?.user?.role)
-      if (role) headers['X-User-Role'] = role
-    }
-  } catch (e) {
-    console.error('Failed to parse auth token:', e)
-  }
+  const auth = readStoredAuth()
+  if (auth?.accessToken) headers.Authorization = `Bearer ${auth.accessToken}`
+  if (auth?.user?.id) headers['X-User-Id'] = auth.user.id
+  if (auth?.role) headers['X-User-Role'] = auth.role
   return headers
 }
 
 function getCurrentAuthRole() {
-  try {
-    const raw = localStorage.getItem('auth')
-    if (!raw) return null
-    const data = JSON.parse(raw)
-    return normalizeRole(data?.role || data?.user?.role) || null
-  } catch (e) {
-    console.error('Failed to parse auth role:', e)
-    return null
-  }
+  return readStoredAuth()?.role || null
 }
 
 export async function signup({ name, email, password, contact_number, department, role }) {

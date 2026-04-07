@@ -3,19 +3,35 @@ import { createContext, useContext, useState, useCallback, useMemo } from 'react
 const AUTH_KEY = 'auth'
 
 function normalizeRole(role) {
-  if (role === 'amustaff') return 'amu-staff'
-  return role
+  const value = String(role ?? '').trim().toLowerCase()
+  if (!value) return null
+  if (value === 'amustaff') return 'amu-staff'
+  return value
+}
+
+function normalizeAuthPayload(data) {
+  const user = data?.user && typeof data.user === 'object' ? data.user : data
+  const id = user?.id || user?._id || data?.id || data?._id || null
+  const role = normalizeRole(data?.role || user?.role)
+  const accessToken = data?.access_token || data?.accessToken || data?.token || null
+  if (!user || !id || !role) return null
+
+  return {
+    user: {
+      ...user,
+      id,
+      role,
+    },
+    role,
+    accessToken,
+  }
 }
 
 function readStored() {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
     if (!raw) return null
-    const data = JSON.parse(raw)
-    const role = normalizeRole(data?.role || data?.user?.role)
-    if (data?.user && role) {
-      return { user: { ...data.user, role }, role }
-    }
+    return normalizeAuthPayload(JSON.parse(raw))
   } catch (_) {}
   return null
 }
@@ -28,12 +44,8 @@ export function AuthProvider({ children }) {
   const [auth, setAuth] = useState(readStored)
 
   const login = useCallback((data) => {
-    const role = normalizeRole(data?.role || data?.user?.role)
-    const payload = {
-      user: data?.user ? { ...data.user, role } : null,
-      role: role ?? null,
-    }
-    if (payload.user && payload.role) {
+    const payload = normalizeAuthPayload(data)
+    if (payload) {
       setAuth(payload)
       localStorage.setItem(AUTH_KEY, JSON.stringify(payload))
     }
@@ -46,9 +58,11 @@ export function AuthProvider({ children }) {
 
   const updateUser = useCallback((updates) => {
     if (!auth?.user || !updates || typeof updates !== 'object') return
-    const nextUser = { ...auth.user, ...updates }
-    const role = normalizeRole(nextUser.role || auth.role)
-    const payload = { user: { ...nextUser, role }, role }
+    const payload = normalizeAuthPayload({
+      user: { ...auth.user, ...updates },
+      role: auth.role,
+    })
+    if (!payload) return
     setAuth(payload)
     localStorage.setItem(AUTH_KEY, JSON.stringify(payload))
   }, [auth])
