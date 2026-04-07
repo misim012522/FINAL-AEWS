@@ -1,5 +1,6 @@
 // import { useState } from 'react'
 import { X, AlertCircle, CheckCircle } from 'lucide-react'
+import HeaderAwareOverlay from './HeaderAwareOverlay'
 
 export default function StudentPreviewModal({
   isOpen,
@@ -13,12 +14,19 @@ export default function StudentPreviewModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+    <HeaderAwareOverlay
+      role="dialog"
+      labelledBy="student-preview-title"
+      onBackdropClick={onCancel}
+      className="flex items-center justify-center bg-black/50"
+      panelClassName="max-w-2xl"
+      contentClassName="rounded-2xl bg-white shadow-2xl"
+    >
+      <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-full">
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-slate-900">Preview Class List</h2>
+            <h2 id="student-preview-title" className="text-xl font-bold text-slate-900">Preview Class List</h2>
             <p className="text-sm text-slate-600 mt-1">{fileName}</p>
           </div>
           <button
@@ -108,6 +116,6 @@ export default function StudentPreviewModal({
           </button>
         </div>
       </div>
-    </div>
+    </HeaderAwareOverlay>
   )
 }

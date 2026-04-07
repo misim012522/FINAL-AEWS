@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { User, Mail, Shield, GraduationCap, Users, Search, MoreVertical, ChevronRight, CheckCircle, XCircle, Archive, Trash2, Building2, Save, Info } from 'lucide-react'
 import { getAdminUsers, getAdminArchivedUsers, approvePendingAccount, declinePendingAccount, archiveUser, restoreUser, deleteUser, getUser, updateUser } from '../../api'
+import HeaderAwareOverlay from '../HeaderAwareOverlay'
 
 const roleConfig = {
   instructor: { icon: GraduationCap, label: 'Instructor', class: 'bg-blue-100 text-blue-700' },
@@ -231,8 +232,13 @@ export default function AdminUserAccounts() {
   return (
     <div className="space-y-4">
       {showApproveSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="alert" aria-live="polite">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+        <HeaderAwareOverlay
+          role="alert"
+          modal={false}
+          className="flex items-center justify-center"
+          panelClassName="max-w-[280px]"
+          contentClassName=""
+        >
           <div className="relative flex flex-col items-center gap-3 rounded-2xl bg-white shadow-xl border border-emerald-200 p-6 max-w-[280px]">
             <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-emerald-600" strokeWidth={2} />
@@ -240,7 +246,7 @@ export default function AdminUserAccounts() {
             <p className="text-lg font-semibold text-gray-900">Account confirmed</p>
             <p className="text-sm text-gray-500 text-center">The user can now sign in. They will receive a confirmation email.</p>
           </div>
-        </div>
+        </HeaderAwareOverlay>
       )}
       {error && (
         <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
@@ -426,9 +432,15 @@ export default function AdminUserAccounts() {
       </div>
 
       {detailUserId && (
-        <div className="fixed inset-0 z-[200] flex items-start justify-center p-4 pt-24 pb-6" role="dialog" aria-modal="true" aria-labelledby="user-detail-modal-title">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeDetailModal} aria-hidden="true" />
-          <div className="relative w-full max-w-4xl max-h-[calc(100vh-7rem)] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
+        <HeaderAwareOverlay
+          role="dialog"
+          labelledBy="user-detail-modal-title"
+          onBackdropClick={closeDetailModal}
+          className="z-[200] pt-4"
+          panelClassName="max-w-4xl"
+          contentClassName="rounded-2xl border border-slate-200 bg-white shadow-2xl"
+        >
+          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex items-start justify-between gap-4">
               <div>
                 <h2 id="user-detail-modal-title" className="text-2xl font-bold text-slate-900 tracking-tight">User details</h2>
@@ -518,21 +530,18 @@ export default function AdminUserAccounts() {
               ) : null}
             </div>
           </div>
-        </div>
+        </HeaderAwareOverlay>
       )}
 
       {deleteTarget && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+        <HeaderAwareOverlay
           role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-modal-title"
+          labelledBy="delete-modal-title"
+          onBackdropClick={closeDeleteModal}
+          className="z-[100] flex items-center justify-center"
+          panelClassName="max-w-sm"
+          contentClassName=""
         >
-          <div
-            className="absolute inset-0 bg-black/50 transition-opacity"
-            onClick={closeDeleteModal}
-            aria-hidden="true"
-          />
           <div className="relative w-full max-w-sm rounded-xl bg-white shadow-xl border border-gray-200 p-5 space-y-4">
             <div className="flex items-center gap-2 text-red-600">
               <Trash2 className="w-5 h-5 shrink-0" />
@@ -572,7 +581,7 @@ export default function AdminUserAccounts() {
               </button>
             </div>
           </div>
-        </div>
+        </HeaderAwareOverlay>
       )}
     </div>
   )

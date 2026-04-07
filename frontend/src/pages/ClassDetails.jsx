@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
+import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
 import InlineToast from '../components/InlineToast'
 import StudentPreviewModal from '../components/StudentPreviewModal'
 import { useAuth } from '../context/AuthContext'
@@ -796,11 +797,12 @@ export default function ClassDetails() {
         }}
       />
       {activeAIStudent && (
-        <div
-          className="fixed inset-x-0 bottom-0 top-[73px] z-20 bg-slate-900/35 px-4 pb-4 pt-3 sm:px-6 sm:pb-6"
+        <HeaderAwareOverlay
           role="dialog"
-          aria-modal="true"
-          aria-labelledby="student-risk-details-title"
+          labelledBy="student-risk-details-title"
+          className="bg-slate-900/35"
+          panelClassName="max-w-5xl"
+          contentClassName="rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10"
         >
           <div className="mx-auto flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-white via-slate-50 to-cyan-50/40 px-6 py-5">
@@ -1081,7 +1083,7 @@ export default function ClassDetails() {
               </div>
             </div>
           </div>
-        </div>
+        </HeaderAwareOverlay>
       )}
       <InlineToast
         message={aiUploadMessage}

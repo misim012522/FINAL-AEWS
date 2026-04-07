@@ -21,6 +21,8 @@ export default function DashboardLayout({
   const notifications = notificationsApi ? notificationsApi.getNotifications(variant) : []
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const notificationsRef = useRef(null)
+  const headerRef = useRef(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
 
   const isAdmin = variant === 'admin'
   const isAmuStaff = variant === 'amu-staff'
@@ -42,6 +44,31 @@ export default function DashboardLayout({
     return () => document.removeEventListener('click', handleClickOutside, true)
   }, [notificationsOpen])
 
+  useEffect(() => {
+    const node = headerRef.current
+    if (!node) return
+
+    const updateHeaderHeight = () => {
+      setHeaderHeight(node.getBoundingClientRect().height)
+    }
+
+    updateHeaderHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateHeaderHeight)
+      return () => window.removeEventListener('resize', updateHeaderHeight)
+    }
+
+    const observer = new ResizeObserver(() => updateHeaderHeight())
+    observer.observe(node)
+    window.addEventListener('resize', updateHeaderHeight)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', updateHeaderHeight)
+    }
+  }, [navItems.length, title, subtitle, variant])
+
   const handleLogout = () => {
     logout()
     navigate('/')
@@ -60,14 +87,17 @@ export default function DashboardLayout({
   const roleHomeLabel = isAdmin ? 'System workspace' : isAmuStaff ? 'Support workspace' : 'Teaching workspace'
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div
+      className="min-h-screen relative overflow-hidden"
+      style={{ '--dashboard-header-height': `${headerHeight}px` }}
+    >
       {/* Same background as login: soft blue gradient + orbs */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-200 via-indigo-200/95 to-blue-300/90" aria-hidden="true" />
       <div className="absolute top-1/4 -left-20 w-72 h-72 rounded-full bg-blue-400/45 blur-3xl" aria-hidden="true" />
       <div className="absolute bottom-1/4 -right-20 w-96 h-96 rounded-full bg-indigo-400/40 blur-3xl" aria-hidden="true" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[32rem] h-[32rem] rounded-full bg-blue-400/25 blur-3xl" aria-hidden="true" />
       <div className="absolute top-3/4 left-1/4 w-64 h-64 rounded-full bg-sky-400/35 blur-3xl" aria-hidden="true" />
-      <header className={`relative z-30 sticky top-0 bg-white/90 backdrop-blur-sm border-b ${isInstructor ? 'border-slate-200' : 'border-gray-200'} shadow-sm`}>
+      <header ref={headerRef} className={`relative z-30 sticky top-0 bg-white/90 backdrop-blur-sm border-b ${isInstructor ? 'border-slate-200' : 'border-gray-200'} shadow-sm`}>
         <div className="max-w-[1920px] mx-auto px-6 sm:px-8 py-4.5 flex items-center justify-between gap-4">
           {/* Brand / identity */}
           <div className="flex items-center gap-3 min-w-0">

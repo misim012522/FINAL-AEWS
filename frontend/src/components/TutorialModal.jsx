@@ -1,4 +1,5 @@
 import { X, BookOpen, AlertTriangle, ClipboardList, Users, BarChart3, HelpCircle, FileText, User, Zap, Building2 } from 'lucide-react'
+import HeaderAwareOverlay from './HeaderAwareOverlay'
 
 const INSTRUCTOR_ITEMS = [
   { icon: BookOpen, term: 'My Classes', desc: 'Your courses. Each card shows student count and how many students are at risk.' },
@@ -37,8 +38,14 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
   const { title, items } = config
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
-      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <HeaderAwareOverlay
+      role="dialog"
+      labelledBy="tutorial-title"
+      className="flex items-start justify-center bg-black/50"
+      panelClassName="max-w-lg"
+      contentClassName="rounded-2xl bg-white shadow-xl"
+    >
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center gap-2">
             <HelpCircle className="w-6 h-6 text-blue-600" />
@@ -87,7 +94,7 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </HeaderAwareOverlay>
   )
 }
 
