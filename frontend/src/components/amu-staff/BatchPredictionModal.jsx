@@ -85,9 +85,6 @@ export default function BatchPredictionModal({ refIds, onClose }) {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 px-4 py-3 border-t border-slate-200">
-          <button onClick={onClose} className="px-4 py-2 rounded-md border">Close</button>
-        </div>
       </div>
     </div>
   )

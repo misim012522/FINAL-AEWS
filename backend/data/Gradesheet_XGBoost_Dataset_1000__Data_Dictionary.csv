@@ -1,0 +1,28 @@
+﻿Column_Name,Data_Type,Description,Source_File
+Student_No,int64,Unique student identifier from gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Name,object,Student full name from gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_CS_Equivalent,float64,Equivalent grade shown in the final gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_LAB_Equivalent,float64,Equivalent grade shown in the final gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_MO_Equivalent,float64,Equivalent grade shown in the final gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_Grade,object,Grade value as shown in the gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_CS_Equivalent,float64,Equivalent grade shown in the final gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_LAB_Equivalent,float64,Equivalent grade shown in the final gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_MO_Equivalent,float64,Equivalent grade shown in the final gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_Grade,object,Grade value as shown in the gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_Weighted_Component,float64,Weighted term contribution shown in summary sheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_Weighted_Component,float64,Weighted term contribution shown in summary sheet.,Gradesheet_Dataset_300_Final.xlsx
+Final_Grade,object,Grade value as shown in the gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Remarks,object,Final pass/fail remark from gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_CS_Raw_Short_Film_Proposal,int64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_LAB_Raw_Storyboard,int64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_MO_Raw_Long_Quiz_50pts,float64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_CS_Max,int64,Maximum score for the corresponding raw assessment.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_LAB_Max,int64,Maximum score for the corresponding raw assessment.,Gradesheet_Dataset_300_Final.xlsx
+Midterm_MO_Max,int64,Maximum score for the corresponding raw assessment.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_PPR1_Raw_5pts,float64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_PPR2_Raw_5pts,float64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_PPR3_Raw_5pts,float64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_PPR4_Raw_5pts,float64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_PPR5_Raw_5pts,float64,Raw score copied from the source gradesheet.,Gradesheet_Dataset_300_Final.xlsx
+Finalterm_PPR_Max_Each,int64,Maximum score for the corresponding raw assessment.,Gradesheet_Dataset_300_Final.xlsx
+Remarks_Label,int64,"Encoded target: Passed=1, Failed=0.",Derived for XGBoost_Ready

@@ -91,13 +91,6 @@ export default function AmuStaffOverview() {
 
         {!loading && !error && (
           <>
-            <div className="rounded-xl bg-teal-50/80 border border-teal-200/80 px-4 py-3">
-              <p className="text-sm font-semibold text-teal-900">AMU workflow at a glance</p>
-              <p className="mt-1 text-[13px] leading-6 text-teal-800">
-                Review instructor referrals, decide if a needs assessment is required, upload the assessment, and use the AI result to determine the most appropriate support outcome.
-              </p>
-            </div>
-
             <section className="space-y-2" aria-label="Overview">
               <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Key metrics</h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

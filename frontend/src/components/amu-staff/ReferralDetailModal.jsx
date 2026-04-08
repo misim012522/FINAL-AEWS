@@ -120,15 +120,6 @@ export default function ReferralDetailModal({ refId, onClose }) {
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-end pt-4 border-t border-slate-200">
-              <button
-                onClick={onClose}
-                className="inline-flex items-center justify-center rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Close
-              </button>
-            </div>
           </div>
         ) : null}
       </div>

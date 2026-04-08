@@ -1,0 +1,23 @@
+﻿Column_Name,Data_Type,Description,Source_File
+No,int64,Roster number in the attendance document.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Student_ID,int64,Unique student identifier copied from attendance document.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Name,object,Student full name copied from attendance document.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_1,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_2,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_3,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_4,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_5,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_6,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_7,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_F2F_Session_8,int64,"Binary attendance mark for face-to-face session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_Online_Session_1,int64,"Binary attendance mark for synchronous/asynchronous session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_Online_Session_2,int64,"Binary attendance mark for synchronous/asynchronous session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_Online_Session_3,int64,"Binary attendance mark for synchronous/asynchronous session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_Online_Session_4,int64,"Binary attendance mark for synchronous/asynchronous session (1=✓ present, 0=blank absent).",Monthly_Class_Attendance_Dataset_300_Matched.docx
+F2F_Present_Count,int64,Derived attendance count.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Online_Present_Count,int64,Derived attendance count.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Total_Present_Count,int64,Derived attendance count.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+F2F_Absent_Count,int64,Derived attendance count.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Online_Absent_Count,int64,Derived attendance count.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Total_Absent_Count,int64,Derived attendance count.,Monthly_Class_Attendance_Dataset_300_Matched.docx
+Attendance_Rate,float64,Derived attendance rate based on 12 sessions.,Monthly_Class_Attendance_Dataset_300_Matched.docx
