@@ -1,0 +1,293 @@
+{
+  "model": "xgboost",
+  "profile": "midterm_attendance_needs",
+  "class_names": [
+    "Low",
+    "Medium",
+    "High"
+  ],
+  "feature_columns": [
+    "previous_gpa",
+    "failed_subject_count",
+    "attendance_rate",
+    "academic_challenge_score",
+    "external_factor_score",
+    "midterm_grade"
+  ],
+  "expected_value": [
+    0.2611342668533325,
+    0.22540859878063202,
+    0.6586084961891174
+  ],
+  "dataset_rows": 1000,
+  "predicted_class_distribution": {
+    "Low": 306,
+    "Medium": 311,
+    "High": 383
+  },
+  "global_feature_importance": [
+    {
+      "feature": "previous_gpa",
+      "mean_abs_shap_overall": 2.8277857303619385,
+      "mean_shap_overall": -0.791443943977356,
+      "feature_mean": 2.96425,
+      "feature_min": 1.0,
+      "feature_max": 5.0,
+      "impact_correlation": 0.08329627755690881,
+      "per_class": {
+        "Low": {
+          "mean_abs_shap": 2.8555290699005127,
+          "mean_shap": -0.9239730834960938
+        },
+        "Medium": {
+          "mean_abs_shap": 2.6961116790771484,
+          "mean_shap": -0.749951183795929
+        },
+        "High": {
+          "mean_abs_shap": 2.9317166805267334,
+          "mean_shap": -0.7004184722900391
+        }
+      }
+    },
+    {
+      "feature": "midterm_grade",
+      "mean_abs_shap_overall": 0.32087868452072144,
+      "mean_shap_overall": -0.07528501749038696,
+      "feature_mean": 2.72475,
+      "feature_min": 1.0,
+      "feature_max": 5.0,
+      "impact_correlation": -0.7816217225848544,
+      "per_class": {
+        "Low": {
+          "mean_abs_shap": 0.6826657056808472,
+          "mean_shap": -0.2113991379737854
+        },
+        "Medium": {
+          "mean_abs_shap": 0.25703710317611694,
+          "mean_shap": -0.00880586076527834
+        },
+        "High": {
+          "mean_abs_shap": 0.022934379056096077,
+          "mean_shap": -0.005650002509355545
+        }
+      }
+    },
+    {
+      "feature": "failed_subject_count",
+      "mean_abs_shap_overall": 0.2803434133529663,
+      "mean_shap_overall": -0.07959839701652527,
+      "feature_mean": 1.383,
+      "feature_min": 1.0,
+      "feature_max": 2.0,
+      "impact_correlation": 0.9954011828089754,
+      "per_class": {
+        "Low": {
+          "mean_abs_shap": 0.0,
+          "mean_shap": 0.0
+        },
+        "Medium": {
+          "mean_abs_shap": 0.22662518918514252,
+          "mean_shap": -0.08291720598936081
+        },
+        "High": {
+          "mean_abs_shap": 0.6144058704376221,
+          "mean_shap": -0.1558779925107956
+        }
+      }
+    },
+    {
+      "feature": "external_factor_score",
+      "mean_abs_shap_overall": 0.03273401036858559,
+      "mean_shap_overall": -0.0017008904833346605,
+      "feature_mean": 2.272,
+      "feature_min": 0.0,
+      "feature_max": 5.0,
+      "impact_correlation": -0.8690819205150093,
+      "per_class": {
+        "Low": {
+          "mean_abs_shap": 0.0018902341835200787,
+          "mean_shap": 0.00023543178394902498
+        },
+        "Medium": {
+          "mean_abs_shap": 0.09631165862083435,
+          "mean_shap": -0.005338090006262064
+        },
+        "High": {
+          "mean_abs_shap": 0.0,
+          "mean_shap": 0.0
+        }
+      }
+    },
+    {
+      "feature": "attendance_rate",
+      "mean_abs_shap_overall": 0.00373187568038702,
+      "mean_shap_overall": -0.00025166041450574994,
+      "feature_mean": 77.14166666666665,
+      "feature_min": 16.66666666666667,
+      "feature_max": 100.0,
+      "impact_correlation": 0.12269273995762792,
+      "per_class": {
+        "Low": {
+          "mean_abs_shap": 0.006093991454690695,
+          "mean_shap": -0.0004433841095305979
+        },
+        "Medium": {
+          "mean_abs_shap": 0.005101632792502642,
+          "mean_shap": -0.0003115972795058042
+        },
+        "High": {
+          "mean_abs_shap": 0.0,
+          "mean_shap": 0.0
+        }
+      }
+    },
+    {
+      "feature": "academic_challenge_score",
+      "mean_abs_shap_overall": 0.0,
+      "mean_shap_overall": 0.0,
+      "feature_mean": 4.678,
+      "feature_min": 4.0,
+      "feature_max": 5.0,
+      "impact_correlation": null,
+      "per_class": {
+        "Low": {
+          "mean_abs_shap": 0.0,
+          "mean_shap": 0.0
+        },
+        "Medium": {
+          "mean_abs_shap": 0.0,
+          "mean_shap": 0.0
+        },
+        "High": {
+          "mean_abs_shap": 0.0,
+          "mean_shap": 0.0
+        }
+      }
+    }
+  ],
+  "sample_cases": [
+    {
+      "row_index": 0,
+      "predicted_class": "Low",
+      "predicted_probabilities": {
+        "Low": 0.9977686405181885,
+        "Medium": 0.0013051952701061964,
+        "High": 0.0009261904051527381
+      },
+      "top_contributors_for_predicted_class": [
+        {
+          "feature": "previous_gpa",
+          "feature_value": 2.0,
+          "shap_value": 3.156137466430664
+        },
+        {
+          "feature": "midterm_grade",
+          "feature_value": 2.0,
+          "shap_value": 0.6069828271865845
+        },
+        {
+          "feature": "attendance_rate",
+          "feature_value": 100.0,
+          "shap_value": 0.023412177339196205
+        },
+        {
+          "feature": "external_factor_score",
+          "feature_value": 4.0,
+          "shap_value": 0.002559234853833914
+        },
+        {
+          "feature": "academic_challenge_score",
+          "feature_value": 4.0,
+          "shap_value": 0.0
+        },
+        {
+          "feature": "failed_subject_count",
+          "feature_value": 1.0,
+          "shap_value": 0.0
+        }
+      ]
+    },
+    {
+      "row_index": 7,
+      "predicted_class": "Medium",
+      "predicted_probabilities": {
+        "Low": 0.0018231257563456893,
+        "Medium": 0.996690034866333,
+        "High": 0.0014868187718093395
+      },
+      "top_contributors_for_predicted_class": [
+        {
+          "feature": "previous_gpa",
+          "feature_value": 2.25,
+          "shap_value": 3.1525402069091797
+        },
+        {
+          "feature": "failed_subject_count",
+          "feature_value": 1.0,
+          "shap_value": 0.15770308673381805
+        },
+        {
+          "feature": "midterm_grade",
+          "feature_value": 2.25,
+          "shap_value": 0.14858615398406982
+        },
+        {
+          "feature": "external_factor_score",
+          "feature_value": 4.0,
+          "shap_value": -0.10441885888576508
+        },
+        {
+          "feature": "attendance_rate",
+          "feature_value": 41.66666666666667,
+          "shap_value": -0.003987144213169813
+        },
+        {
+          "feature": "academic_challenge_score",
+          "feature_value": 5.0,
+          "shap_value": 0.0
+        }
+      ]
+    },
+    {
+      "row_index": 1,
+      "predicted_class": "High",
+      "predicted_probabilities": {
+        "Low": 0.0006425007013604045,
+        "Medium": 0.0012870361097157001,
+        "High": 0.9980705380439758
+      },
+      "top_contributors_for_predicted_class": [
+        {
+          "feature": "previous_gpa",
+          "feature_value": 3.0,
+          "shap_value": 2.9129221439361572
+        },
+        {
+          "feature": "failed_subject_count",
+          "feature_value": 2.0,
+          "shap_value": 0.598600447177887
+        },
+        {
+          "feature": "midterm_grade",
+          "feature_value": 3.25,
+          "shap_value": 0.022862929850816727
+        },
+        {
+          "feature": "external_factor_score",
+          "feature_value": 0.0,
+          "shap_value": 0.0
+        },
+        {
+          "feature": "attendance_rate",
+          "feature_value": 91.66666666666666,
+          "shap_value": 0.0
+        },
+        {
+          "feature": "academic_challenge_score",
+          "feature_value": 4.0,
+          "shap_value": 0.0
+        }
+      ]
+    }
+  ]
+}

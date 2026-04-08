@@ -962,11 +962,23 @@ def get_overview(actor: dict = Depends(get_current_actor)):
     """Return counts for the AMU overview dashboard."""
     try:
         db = get_db()
-        referrals_count = db.enrollments.count_documents({"flagged_for_mentoring": True, "assigned_amu_staff_id": actor["id"]})
-        courses_with_referrals = len(db.enrollments.distinct("class_id", {"flagged_for_mentoring": True, "assigned_amu_staff_id": actor["id"]}))
+        base_match = {"flagged_for_mentoring": True, "assigned_amu_staff_id": actor["id"]}
+        referrals_count = db.enrollments.count_documents(base_match)
+        courses_with_referrals = len(db.enrollments.distinct("class_id", base_match))
+        needs_assessment_queue = db.enrollments.count_documents({
+            **base_match,
+            "amu_final_verdict": {"$exists": False},
+        })
+        prediction_ready = db.enrollments.count_documents({
+            **base_match,
+            "needs_assessment": {"$exists": True, "$ne": None},
+            "amu_final_verdict": {"$exists": False},
+        })
         return {
             "referrals_count": referrals_count,
             "courses_monitored": courses_with_referrals,
+            "needs_assessment_queue": needs_assessment_queue,
+            "prediction_ready": prediction_ready,
         }
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
