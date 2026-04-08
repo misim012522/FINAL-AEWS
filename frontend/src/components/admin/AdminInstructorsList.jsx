@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { GraduationCap, Mail, Building2, Users, AlertTriangle } from 'lucide-react'
+import { GraduationCap, Mail, Building2, Users } from 'lucide-react'
 import { getAdminOverviewInstructors } from '../../api'
 import ScrollTableContainer from '../ScrollTableContainer'
 
@@ -32,7 +32,7 @@ export default function AdminInstructorsList({ department = 'all' }) {
   }, [department])
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden min-h-[22rem]">
+    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden min-h-[16rem]">
       {error && (
         <div className="px-4 py-3 bg-red-50 border-b border-red-100 text-sm text-red-700">
           {error}
@@ -51,7 +51,7 @@ export default function AdminInstructorsList({ department = 'all' }) {
           Loading...
         </div>
       ) : instructors.length === 0 ? (
-        <div className="p-12 text-center text-sm text-gray-500">
+        <div className="p-8 text-center text-sm text-gray-500">
           No instructors in this filter.
         </div>
       ) : (
@@ -63,7 +63,6 @@ export default function AdminInstructorsList({ department = 'all' }) {
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Classes</th>
                 <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Students</th>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">At Risk</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -92,11 +91,6 @@ export default function AdminInstructorsList({ department = 'all' }) {
                     <div className="flex items-center gap-1.5">
                       <Users className="w-4 h-4 text-gray-400" /> {i.students ?? 0}
                     </div>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
-                      <AlertTriangle className="w-3 h-3" /> {i.atRisk ?? 0}
-                    </span>
                   </td>
                 </tr>
               ))}

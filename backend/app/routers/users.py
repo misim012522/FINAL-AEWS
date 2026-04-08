@@ -22,6 +22,9 @@ def _user_doc_to_response(doc, role: str) -> dict:
     out = {k: v for k, v in doc.items() if k != "_id" and k != "password_hash"}
     out["id"] = str(doc["_id"])
     out["role"] = role
+    # Ensure college field is always present
+    if "college" not in out or not out.get("college"):
+        out["college"] = out.get("department") or ""
     return out
 
 
@@ -107,7 +110,7 @@ def update_user(user_id: str, body: UserUpdate, actor: dict = Depends(get_curren
     payload.pop("password", None)
     if actor["role"] != "admin":
         payload.pop("role", None)
-        payload.pop("department", None)
+        payload.pop("college", None)
         payload.pop("status", None)
     new_email = payload.get("email")
     email_changed = False

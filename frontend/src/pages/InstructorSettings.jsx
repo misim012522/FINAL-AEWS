@@ -5,7 +5,7 @@ import { getPlayTutorialEveryLogin, setPlayTutorialEveryLogin } from '../lib/tut
 import DashboardLayout from '../components/DashboardLayout'
 import ProfilePageLayout from '../components/ProfilePageLayout'
 import { useAuth } from '../context/AuthContext'
-import { updateUser as updateUserApi } from '../api'
+import { updateUser as updateUserApi, getUser } from '../api'
 
 export default function InstructorSettings() {
   const navigate = useNavigate()
@@ -24,6 +24,25 @@ export default function InstructorSettings() {
   useEffect(() => {
     if (user === null) navigate('/', { replace: true })
   }, [user, navigate])
+
+  // Load fresh user data from API to ensure all fields (including college) are up to date
+  useEffect(() => {
+    if (!user?.id) return
+    let isMounted = true
+    getUser(user.id)
+      .then((freshUser) => {
+        if (isMounted && freshUser) {
+          updateUser(freshUser)
+        }
+      })
+      .catch((err) => {
+        // Silently fail - use cached user data if API call fails
+        console.debug('Failed to refresh user data:', err)
+      })
+    return () => {
+      isMounted = false
+    }
+  }, [user?.id, updateUser])
 
   const handleSaveProfile = async (payload) => {
     setProfileError('')
@@ -73,7 +92,7 @@ export default function InstructorSettings() {
     )
   }
 
-  const subtitle = [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor'
+  const subtitle = [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor'
 
   const rightSection = (
     <div className="space-y-6">
@@ -145,16 +164,6 @@ export default function InstructorSettings() {
           saved={saved}
           profileError={profileError}
           profileNotice={profileNotice}
-          backButton={
-            <button
-              type="button"
-              onClick={() => navigate('/instructor')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to dashboard
-            </button>
-          }
           rightSection={rightSection}
           saveButtonLabel="Save profile"
         />

@@ -48,8 +48,16 @@ export default function AdminPendingAccounts() {
 
   useEffect(() => {
     if (!showApproveSuccess) return
+    document.body.classList.add('modal-open')
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
     const t = setTimeout(() => setShowApproveSuccess(false), SUCCESS_AUTO_CLOSE_MS)
-    return () => clearTimeout(t)
+    return () => {
+      clearTimeout(t)
+      document.body.classList.remove('modal-open')
+      document.documentElement.style.overflow = 'auto'
+      document.body.style.overflow = 'auto'
+    }
   }, [showApproveSuccess])
 
   const handleDecline = async (userId) => {
@@ -68,7 +76,7 @@ export default function AdminPendingAccounts() {
     <div className="space-y-4">
       {showApproveSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="alert" aria-live="polite">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+          <div className="absolute inset-0 bg-black/40" aria-hidden="true" />
           <div className="relative flex flex-col items-center gap-3 rounded-2xl bg-white shadow-xl border border-emerald-200 p-6 max-w-[280px]">
             <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-emerald-600" strokeWidth={2} />
@@ -86,14 +94,14 @@ export default function AdminPendingAccounts() {
           {error}
         </div>
       )}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden min-h-[20rem]">
+      <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden min-h-[16rem]">
         {loading ? (
           <div className="p-10 text-center text-sm text-gray-500 flex items-center justify-center gap-3">
             <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
             Loading pending accounts...
           </div>
         ) : list.length === 0 ? (
-          <div className="p-12 text-center text-sm text-gray-500">
+          <div className="p-8 text-center text-sm text-gray-500">
             No pending account requests.
           </div>
         ) : (

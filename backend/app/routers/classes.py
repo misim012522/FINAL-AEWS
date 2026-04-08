@@ -19,13 +19,14 @@ from pymongo.errors import ServerSelectionTimeoutError
 import os
 from pathlib import Path
 import shutil
-from typing import List
+from typing import Any, List
 import uuid
 from fastapi.responses import JSONResponse
 
 from app.authz import get_current_actor
 from app.database import get_db
-from app.ai_model import predict_student_risk
+from app.ai_features import build_model_feature_dict
+from app.ai_model import _extract_topic_difficulty, _format_activity_title, predict_student_risk
 from app.notification_utils import create_notification
 from app.schemas import (
     BatchAddStudentsRequest,
@@ -311,6 +312,120 @@ def _rows_to_dicts(raw_rows) -> list[dict]:
         if any(v for v in row_dict.values()):
             rows.append(row_dict)
     return rows
+
+
+def _resolve_workbook_term_prefix(sheet_name: str) -> str | None:
+    normalized = _normalize_cell(sheet_name).lower()
+    if "midterm" in normalized or "mid term" in normalized:
+        return "midterm"
+    if "finalterm" in normalized or "final term" in normalized or "finals" in normalized or "final" in normalized:
+        return "finals"
+    return None
+
+
+def _extract_buksu_raw_activity_rows(ws, term_prefix: str) -> list[dict]:
+    """Parse BukSU raw-score worksheets where activity titles live on rows 15-17."""
+    if ws.max_row < 18 or ws.max_column < 8:
+        return []
+
+    id_header = _normalize_cell(ws.cell(row=13, column=6).value).lower().strip()
+    name_header = _normalize_cell(ws.cell(row=13, column=7).value).lower().strip()
+    if id_header not in {"id number", "student id", "student no."} or name_header not in {"name", "name of students"}:
+        return []
+
+    headers_by_col: dict[int, str] = {}
+    current_bucket = None
+
+    for col_idx in range(8, ws.max_column + 1):
+        bucket_value = _normalize_cell(ws.cell(row=13, column=col_idx).value).lower().strip()
+        detected_bucket = _normalize_component_bucket_label(bucket_value)
+        if detected_bucket:
+            current_bucket = detected_bucket
+
+        if not current_bucket:
+            continue
+
+        title = _normalize_cell(ws.cell(row=16, column=col_idx).value).strip()
+        if not title:
+            continue
+
+        slug = _slugify_header_fragment(title)
+        if not slug:
+            continue
+
+        headers_by_col[col_idx] = f"{term_prefix}_{current_bucket}_{slug}"
+
+    if not headers_by_col:
+        return []
+
+    parsed_rows: list[dict] = []
+    for row_idx in range(18, ws.max_row + 1):
+        student_id = _normalize_cell(ws.cell(row=row_idx, column=6).value).strip()
+        student_name = _normalize_cell(ws.cell(row=row_idx, column=7).value).strip()
+
+        if not student_id and not student_name:
+            continue
+
+        row_dict = {
+            "student_id": student_id,
+            "student_name": student_name,
+        }
+
+        has_scores = False
+        for col_idx, header in headers_by_col.items():
+            value = _normalize_cell(ws.cell(row=row_idx, column=col_idx).value).strip()
+            if not value:
+                continue
+            row_dict[header] = value
+            has_scores = True
+
+        if has_scores or student_id or student_name:
+            parsed_rows.append(row_dict)
+
+    return parsed_rows
+
+
+def _merge_gradesheet_row_sets(base_rows: list[dict], extra_rows: list[dict]) -> list[dict]:
+    """Merge workbook row sets by student id/name so summary and raw activity sheets combine."""
+    if not base_rows:
+        return extra_rows
+    if not extra_rows:
+        return base_rows
+
+    def build_keys(row: dict) -> list[str]:
+        keys: list[str] = []
+        student_id = _normalize_cell(row.get("student_id") or row.get("id number") or row.get("student no.")).strip().lower()
+        student_name = _normalize_cell(row.get("student_name") or row.get("name of students") or row.get("name")).strip().lower()
+        if student_id:
+            keys.append(f"id:{student_id}")
+        if student_name:
+            keys.append(f"name:{student_name}")
+        return keys
+
+    merged_rows = [dict(row) for row in base_rows]
+    row_lookup: dict[str, dict] = {}
+    for row in merged_rows:
+        for key in build_keys(row):
+            row_lookup.setdefault(key, row)
+
+    for extra_row in extra_rows:
+        target = None
+        for key in build_keys(extra_row):
+            if key in row_lookup:
+                target = row_lookup[key]
+                break
+        if target is None:
+            target = dict(extra_row)
+            merged_rows.append(target)
+        else:
+            for key, value in extra_row.items():
+                if value not in (None, ""):
+                    target[key] = value
+
+        for key in build_keys(target):
+            row_lookup[key] = target
+
+    return merged_rows
 
 
 def _score_rows_for_preferred_type(rows: list[dict], preferred_type: str | None) -> int:
@@ -662,6 +777,18 @@ def _build_raw_score_column_aliases(
     aliases = {}
     identity_cols = set(identity_cols or set())
 
+    canonical_dynamic_keys = [
+        col
+        for col in keys
+        if _normalize_cell(col).lower().strip().startswith(("midterm_", "finals_"))
+    ]
+    if canonical_dynamic_keys:
+        for col in canonical_dynamic_keys:
+            normalized = _normalize_cell(col).lower().strip()
+            if normalized:
+                aliases[col] = normalized
+        return aliases
+
     current_bucket = None
     bucket_counts = {
         "class standing": 0,
@@ -691,6 +818,10 @@ def _build_raw_score_column_aliases(
 
         normalized = _normalize_cell(col).lower().strip()
         if not normalized:
+            continue
+
+        if normalized.startswith(("midterm_", "finals_")):
+            aliases[col] = normalized
             continue
 
         detected_bucket = _detect_raw_component_bucket(normalized)
@@ -772,6 +903,13 @@ def _build_raw_score_column_terms(
         if not normalized:
             continue
 
+        if normalized.startswith("midterm_"):
+            terms[col] = "midterm"
+            continue
+        if normalized.startswith("finals_"):
+            terms[col] = "final"
+            continue
+
         if _is_midterm_to_final_boundary_column(normalized):
             current_term = "final"
             continue
@@ -783,6 +921,208 @@ def _build_raw_score_column_terms(
             terms[col] = current_term
 
     return terms
+
+
+def _format_score_column_display_name(score_col: str, score_term: str | None = None) -> str:
+    normalized_col = _normalize_cell(score_col).strip()
+    pretty_col = normalized_col.title()
+    normalized_term = _normalize_score_term(score_term)
+    if normalized_term == "midterm":
+        return f"Midterm - {pretty_col}"
+    if normalized_term == "final":
+        return f"Final - {pretty_col}"
+    return pretty_col
+
+
+def _collect_class_score_column_metadata(enrollments: list[dict]) -> tuple[list[str], dict[str, str]]:
+    score_columns: list[str] = []
+    score_column_terms: dict[str, str] = {}
+    has_breakdown_scores = any(bool(enrollment.get("grades_breakdown")) for enrollment in enrollments)
+
+    for enrollment in enrollments:
+        stored_scores = dict(enrollment.get("grades_breakdown") or {})
+        stored_column_order = list(enrollment.get("grades_column_order") or list(stored_scores.keys()))
+        stored_terms = dict(enrollment.get("grades_column_terms") or {})
+
+        for source_col in stored_column_order:
+            if source_col not in stored_scores:
+                continue
+            value = stored_scores[source_col]
+            if not _should_include_score_column(source_col, _normalize_cell(value), value):
+                continue
+            inferred_term = (
+                _normalize_score_term(stored_terms.get(source_col))
+                or ("final" if _is_final_term_hint_column(source_col) else None)
+                or "midterm"
+            )
+            score_column_terms.setdefault(source_col, inferred_term)
+            if source_col not in score_columns:
+                score_columns.append(source_col)
+
+        if has_breakdown_scores:
+            continue
+
+        legacy_scores = _legacy_grade_score_map(enrollment)
+        legacy_aliases = _build_raw_score_column_aliases(
+            list(legacy_scores.keys()),
+            set(),
+            alias_all_section_columns=True,
+        )
+        for legacy_col, legacy_value in legacy_scores.items():
+            score_col = legacy_aliases.get(legacy_col, legacy_col)
+            if not _should_include_score_column(score_col, _normalize_cell(legacy_value), legacy_value):
+                continue
+            score_column_terms.setdefault(score_col, "final" if legacy_col.startswith("final_") else "midterm")
+            if score_col not in score_columns:
+                score_columns.append(score_col)
+
+    score_columns = sorted(score_columns, key=_raw_score_column_sort_key)
+    score_column_terms = _infer_missing_score_column_terms(score_columns, score_column_terms)
+    return score_columns, score_column_terms
+
+
+def _build_score_column_lookup(score_columns: list[str], score_column_terms: dict[str, str]) -> dict[str, str]:
+    lookup: dict[str, str] = {}
+
+    for score_col in score_columns:
+        normalized_col = _normalize_cell(score_col).lower().strip()
+        if normalized_col:
+            lookup.setdefault(normalized_col, score_col)
+
+        display_name = _format_score_column_display_name(score_col, score_column_terms.get(score_col))
+        normalized_display = _normalize_cell(display_name).lower().strip()
+        if normalized_display:
+            lookup.setdefault(normalized_display, score_col)
+
+    return lookup
+
+
+def _parse_activity_item_number(value: Any) -> int | None:
+    text = _normalize_cell(value).strip()
+    if not text:
+        return None
+    match = re.search(r"(\d+)", text)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _resolve_mapping_target_column(
+    row: dict[str, Any],
+    keys: list[str],
+    score_columns: list[str],
+    score_column_terms: dict[str, str],
+    score_column_lookup: dict[str, str],
+) -> str | None:
+    column_key = _find_column(
+        keys,
+        [
+            "activity column", "activity_column", "score column", "score_column",
+            "column", "feature", "feature key", "feature_key", "activity key", "activity_key",
+        ],
+    )
+    if column_key:
+        normalized_value = _normalize_cell(row.get(column_key)).lower().strip()
+        if normalized_value:
+            matched = score_column_lookup.get(normalized_value)
+            if matched:
+                return matched
+
+    term_key = _find_column(keys, ["term", "grading term", "period"])
+    component_key = _find_column(keys, ["component", "bucket", "section", "category"])
+    item_key = _find_column(keys, ["item", "item no", "item number", "activity no", "activity number", "order", "index"])
+
+    term_value = _normalize_score_term(row.get(term_key)) if term_key else None
+    component_value = _detect_raw_component_bucket(row.get(component_key)) if component_key else None
+    item_number = _parse_activity_item_number(row.get(item_key)) if item_key else None
+
+    if term_value and component_value and item_number:
+        matching_columns = [
+            score_col
+            for score_col in score_columns
+            if _normalize_score_term(score_column_terms.get(score_col)) == term_value
+            and _detect_raw_component_bucket(score_col) == component_value
+        ]
+        ordered_matches = sorted(matching_columns, key=_raw_score_column_sort_key)
+        if 1 <= item_number <= len(ordered_matches):
+            return ordered_matches[item_number - 1]
+
+    return None
+
+
+def _build_activity_title_mapping_payload(
+    rows: list[dict],
+    score_columns: list[str],
+    score_column_terms: dict[str, str],
+    existing_mappings: dict[str, Any] | None = None,
+) -> tuple[dict[str, dict[str, str]], int]:
+    keys = list(rows[0].keys()) if rows else []
+    score_column_lookup = _build_score_column_lookup(score_columns, score_column_terms)
+    payload: dict[str, dict[str, str]] = {}
+    unmatched_rows = 0
+
+    for score_col, mapping in (existing_mappings or {}).items():
+        if isinstance(mapping, dict) and score_col in score_columns:
+            title = str(mapping.get("title") or "").strip()
+            if not title:
+                continue
+            payload[score_col] = {
+                "title": title,
+                "term": _normalize_score_term(mapping.get("term")) or _normalize_score_term(score_column_terms.get(score_col)) or "",
+                "component": _detect_raw_component_bucket(mapping.get("component")) or _detect_raw_component_bucket(score_col) or "",
+            }
+
+    for row in rows:
+        title_key = _find_column(keys, ["activity title", "activity_title", "title", "activity", "label", "name"])
+        title = _normalize_cell(row.get(title_key)).strip() if title_key else ""
+        if not title:
+            unmatched_rows += 1
+            continue
+
+        score_col = _resolve_mapping_target_column(row, keys, score_columns, score_column_terms, score_column_lookup)
+        if not score_col:
+            unmatched_rows += 1
+            continue
+
+        payload[score_col] = {
+            "title": title,
+            "term": _normalize_score_term(score_column_terms.get(score_col)) or "",
+            "component": _detect_raw_component_bucket(score_col) or "",
+        }
+
+    return payload, unmatched_rows
+
+
+def _extract_activity_title_mappings_from_score_keys(
+    score_keys: list[str],
+    score_column_terms: dict[str, str] | None = None,
+) -> dict[str, dict[str, str]]:
+    mappings: dict[str, dict[str, str]] = {}
+
+    for score_key in score_keys:
+        normalized_key = _normalize_cell(score_key).lower().strip()
+        if not normalized_key.startswith(("midterm_", "finals_")):
+            continue
+        if not any(
+            normalized_key.startswith(prefix)
+            for prefix in (
+                "midterm_class_standing_",
+                "midterm_laboratory_",
+                "midterm_major_output_",
+                "finals_class_standing_",
+                "finals_laboratory_",
+                "finals_major_output_",
+            )
+        ):
+            continue
+
+        mappings[normalized_key] = {
+            "title": _format_activity_title(normalized_key),
+            "term": _normalize_score_term((score_column_terms or {}).get(normalized_key)) or ("final" if normalized_key.startswith("finals_") else "midterm"),
+            "component": _detect_raw_component_bucket(normalized_key) or "",
+        }
+
+    return mappings
 
 
 def _infer_missing_score_column_terms(score_columns: list[str], existing_terms: dict[str, str]) -> dict[str, str]:
@@ -1196,11 +1536,12 @@ def _parse_file_to_rows(file_path: Path, preferred_type: str | None = None) -> l
     elif ext == ".xlsx":
         if not _HAS_OPENPYXL:
             raise HTTPException(status_code=500, detail="openpyxl required for .xlsx files.")
-        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        wb = openpyxl.load_workbook(file_path, data_only=True)
         try:
             if preferred_type:
                 best_rows = []
                 best_score = -1
+                raw_activity_rows: list[dict] = []
 
                 for sheet_name in wb.sheetnames:
                     ws = wb[sheet_name]
@@ -1214,12 +1555,20 @@ def _parse_file_to_rows(file_path: Path, preferred_type: str | None = None) -> l
                         best_score = candidate_score
                         best_rows = candidate_rows
 
+                    if preferred_type == "gradesheet":
+                        term_prefix = _resolve_workbook_term_prefix(sheet_name)
+                        if term_prefix:
+                            raw_activity_rows = _merge_gradesheet_row_sets(
+                                raw_activity_rows,
+                                _extract_buksu_raw_activity_rows(ws, term_prefix),
+                            )
+
                 if best_rows:
-                    rows = best_rows
+                    rows = _merge_gradesheet_row_sets(best_rows, raw_activity_rows)
                 else:
                     ws = wb[wb.sheetnames[0]]
                     raw_rows = list(ws.iter_rows(values_only=True))
-                    rows = _rows_to_dicts(raw_rows)
+                    rows = _merge_gradesheet_row_sets(_rows_to_dicts(raw_rows), raw_activity_rows)
             else:
                 ws = wb[wb.sheetnames[0]]
                 raw_rows = list(ws.iter_rows(values_only=True))
@@ -1553,6 +1902,7 @@ async def upload_class_files(
     updated_count = 0
     not_enrolled = []
     missing_identifiers = 0
+    auto_activity_title_mappings: dict[str, dict[str, str]] = {}
 
     try:
         db = get_db()
@@ -1581,6 +1931,13 @@ async def upload_class_files(
             raise HTTPException(status_code=400, detail=f"{upload.filename} did not contain any readable rows.")
 
         keys = list(rows[0].keys())
+        if type == "gradesheet":
+            detected_type = _detect_file_type(keys)
+            if detected_type == "attendance":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Attendance files should be uploaded from the Attendance page, not the Grades page.",
+                )
         email_col = _find_column(keys, ['email'])
         # Detect name columns for excluding from extra data
         _name_cols = set()
@@ -1675,6 +2032,12 @@ async def upload_class_files(
                 keys,
                 score_aliases,
                 identity_cols,
+            )
+            auto_activity_title_mappings.update(
+                _extract_activity_title_mappings_from_score_keys(
+                    list(score_aliases.values()),
+                    score_alias_terms,
+                )
             )
             active_score_source_cols = _detect_active_score_source_columns(
                 rows,
@@ -1778,6 +2141,36 @@ async def upload_class_files(
                         {"$set": update_data}
                     )
                     updated_count += 1
+
+    if type == "gradesheet" and auto_activity_title_mappings:
+        db.classes.update_one(
+            {"_id": ObjectId(class_id)},
+            {
+                "$set": {
+                    "activity_title_mappings": auto_activity_title_mappings,
+                    "activity_title_mapping_updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+        for enrollment in db.enrollments.find({"class_id": class_id}):
+            enriched_enrollment = {
+                **enrollment,
+                "activity_title_mappings": auto_activity_title_mappings,
+            }
+            topic_payload = _extract_topic_difficulty(
+                enriched_enrollment,
+                build_model_feature_dict(enriched_enrollment),
+            )
+            db.enrollments.update_one(
+                {"_id": enrollment["_id"]},
+                {
+                    "$set": {
+                        "activity_title_mappings": auto_activity_title_mappings,
+                        "midterm_topic_difficulties": topic_payload.get("midterm_topic_difficulties") or [],
+                        "hardest_midterm_topics": topic_payload.get("hardest_midterm_topics") or [],
+                    }
+                },
+            )
 
     result = {"message": f"{type.capitalize()} file(s) uploaded and saved successfully.", "files": saved_files}
     if type == "classlist":
@@ -2492,6 +2885,11 @@ def list_class_students(class_id: str, actor: dict = Depends(get_current_actor))
             "hardest_midterm_topics",
             "top_contributing_signals",
             "received_academic_support",
+            "on_probation_status",
+            "has_subject_grade_2_5",
+            "gwa_2_5_or_below",
+            "low_midterm_academic_performance",
+            "difficulty_catching_up_instructions",
             "difficulty_understanding_lectures",
             "struggles_specific_subjects",
             "weak_study_habits_time_management",
@@ -2624,14 +3022,14 @@ def get_class_grades_with_analytics(class_id: str, actor: dict = Depends(get_cur
         
         # Build student grades list
         students = []
-        score_columns = []
-        score_column_terms = {}
         grade_values = []
         midterm_grades = []
         final_grades = []
         pass_count = 0
         fail_count = 0
         has_breakdown_scores = any(bool(enrollment.get("grades_breakdown")) for enrollment in enrollments)
+        score_columns, score_column_terms = _collect_class_score_column_metadata(enrollments)
+        activity_title_mappings = class_doc.get("activity_title_mappings") or {}
         
         for enrollment in enrollments:
             student_email, student_name, student_id, student_key = _get_enrollment_identity(enrollment)
@@ -2684,10 +3082,6 @@ def get_class_grades_with_analytics(class_id: str, actor: dict = Depends(get_cur
                     score_column_terms.setdefault(score_col, legacy_term)
                     if score_col not in column_order:
                         column_order.append(score_col)
-
-            for col in column_order:
-                if col not in score_columns:
-                    score_columns.append(col)
 
             # Keep student-level order grouped by CS -> LAB -> MO, each in numeric item order.
             column_order = sorted(column_order, key=_raw_score_column_sort_key)
@@ -2757,10 +3151,6 @@ def get_class_grades_with_analytics(class_id: str, actor: dict = Depends(get_cur
                     else:
                         fail_count += 1
         
-        # Calculate analytics
-        score_columns = sorted(score_columns, key=_raw_score_column_sort_key)
-        score_column_terms = _infer_missing_score_column_terms(score_columns, score_column_terms)
-
         analytics = {
             "total_students": len(students),
             "gpa_average": round(sum(grade_values) / len(grade_values), 2) if grade_values else 0,
@@ -2780,6 +3170,8 @@ def get_class_grades_with_analytics(class_id: str, actor: dict = Depends(get_cur
             },
             "score_columns": score_columns,
             "score_column_terms": score_column_terms,
+            "activity_title_mappings": activity_title_mappings,
+            "activity_title_mapping_count": len(activity_title_mappings) if isinstance(activity_title_mappings, dict) else 0,
             "students": students,
             "analytics": analytics,
         }
@@ -2973,12 +3365,9 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
         if not payload:
             return {"message": "No updates.", "student_email": student_email or None, "student_id": student_id or None}
         if payload.get("flagged_for_mentoring") is True:
-            current_risk = str(doc.get("risk") or "").strip()
-            if not current_risk:
-                raise HTTPException(
-                    status_code=400,
-                    detail="This student cannot be referred to AMU until a risk result is available.",
-                )
+            # Debug: log the referral_reasons being received
+            if "referral_reasons" in payload:
+                print(f"DEBUG: Referral reasons received: {payload['referral_reasons']}")
             assigned_amu_staff_id = str(payload.get("assigned_amu_staff_id") or "").strip()
             assigned_amu_staff_name = str(payload.get("assigned_amu_staff_name") or "").strip()
             assigned_amu_staff_college = str(payload.get("assigned_amu_staff_college") or "").strip()
@@ -3143,13 +3532,13 @@ async def upload_needs_assessment_file(
     }
 
 
-@router.post("/{class_id}/upload-previous-grades", status_code=201)
-async def upload_previous_grades_file(
+@router.post("/{class_id}/upload-activity-titles", status_code=201)
+async def upload_activity_title_mapping_file(
     class_id: str,
     actor: dict = Depends(get_current_actor),
-    files: List[UploadFile] = File(..., description="CSV or XLSX files with previous-grades columns"),
+    files: List[UploadFile] = File(..., description="CSV or XLSX files with activity-title mappings"),
 ):
-    """Bulk upload previous-grade history fields for students in a class."""
+    """Upload a class-level activity-title mapping for score columns."""
     if not ObjectId.is_valid(class_id):
         raise HTTPException(status_code=404, detail="Class not found")
 
@@ -3158,19 +3547,27 @@ async def upload_previous_grades_file(
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
-    _get_class_for_actor(db, class_id, actor)
+    class_doc = _get_class_for_actor(db, class_id, actor)
+    enrollments = list(db.enrollments.find({"class_id": class_id}))
+    score_columns, score_column_terms = _collect_class_score_column_metadata(enrollments)
+    if not score_columns:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload a current gradesheet first before importing activity titles.",
+        )
 
+    existing_mappings = class_doc.get("activity_title_mappings") or {}
     saved_files = []
-    updated = 0
-    not_enrolled = []
-    missing_identifiers = 0
+    merged_mappings = dict(existing_mappings) if isinstance(existing_mappings, dict) else {}
+    unmatched_rows = 0
+    matched_rows = 0
 
     for upload in files:
         ext = os.path.splitext(upload.filename or "")[1].lower()
         if ext not in [".csv", ".xlsx"]:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}. Please upload CSV or XLSX files only.")
 
-        unique_name = f"{class_id}_previous_grades_{uuid.uuid4().hex}{ext}"
+        unique_name = f"{class_id}_activity_titles_{uuid.uuid4().hex}{ext}"
         dest = UPLOAD_DIR / unique_name
         with dest.open("wb") as buffer:
             shutil.copyfileobj(upload.file, buffer)
@@ -3184,29 +3581,62 @@ async def upload_previous_grades_file(
         if not rows:
             raise HTTPException(status_code=400, detail=f"{upload.filename} did not contain any readable rows.")
 
-        keys = list(rows[0].keys())
-        for row in rows:
-            enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
-            if not enrollment:
-                if not _row_identifier_label(row, keys):
-                    missing_identifiers += 1
-                if lookup_identifier:
-                    not_enrolled.append(lookup_identifier)
-                continue
+        file_mappings, file_unmatched_rows = _build_activity_title_mapping_payload(
+            rows,
+            score_columns,
+            score_column_terms,
+            merged_mappings,
+        )
+        merged_mappings = file_mappings
+        unmatched_rows += file_unmatched_rows
 
-            update_data = _build_previous_grades_update_data(row, keys)
-            if not update_data:
-                continue
+    matched_rows = len(merged_mappings)
+    if not merged_mappings:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No activity titles matched your class score columns. "
+                "Use either 'activity column' + 'activity title', or 'term' + 'component' + 'item' + 'activity title'."
+            ),
+        )
 
-            db.enrollments.update_one({"_id": enrollment["_id"]}, {"$set": update_data})
-            updated += 1
+    updated_at = datetime.now(timezone.utc)
+    db.classes.update_one(
+        {"_id": ObjectId(class_id)},
+        {
+            "$set": {
+                "activity_title_mappings": merged_mappings,
+                "activity_title_mapping_files": saved_files,
+                "activity_title_mapping_updated_at": updated_at,
+            }
+        },
+    )
+
+    for enrollment in enrollments:
+        topic_payload = _extract_topic_difficulty(
+            {
+                **enrollment,
+                "activity_title_mappings": merged_mappings,
+            },
+            enrollment.get("model_features") or {},
+        )
+        db.enrollments.update_one(
+            {"_id": enrollment["_id"]},
+            {
+                "$set": {
+                    "activity_title_mappings": merged_mappings,
+                    "midterm_topic_difficulties": topic_payload.get("midterm_topic_difficulties") or [],
+                    "hardest_midterm_topics": topic_payload.get("hardest_midterm_topics") or [],
+                }
+            },
+        )
 
     return {
-        "message": "Previous grades file(s) uploaded successfully.",
+        "message": "Activity title mapping uploaded successfully.",
         "files": saved_files,
-        "updated": updated,
-        "not_enrolled": sorted(set(not_enrolled))[:25],
-        "missing_identifiers": missing_identifiers,
+        "matched": matched_rows,
+        "unmatched_rows": unmatched_rows,
+        "activity_title_mappings": merged_mappings,
     }
 
 

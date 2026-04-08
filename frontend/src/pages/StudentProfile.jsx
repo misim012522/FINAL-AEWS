@@ -20,10 +20,10 @@ import { useAuth } from '../context/AuthContext'
 const STUDENTS = {
   1: { name: 'Alex Chen', email: 'achen@university.edu', status: 'critical', gpa: 1.8, attendance: 62, lmsActivity: 55, course: 'CS 201' },
   2: { name: 'Jordan Lee', email: 'jlee@university.edu', status: 'ok', gpa: 3.2, attendance: 91, lmsActivity: 88, course: 'CS 202' },
-  3: { name: 'Sam Rivera', email: 'srivera@university.edu', status: 'at-risk', gpa: 2.1, attendance: 78, lmsActivity: 72, course: 'CS 201' },
+  3: { name: 'Sam Rivera', email: 'srivera@university.edu', status: 'follow-up', gpa: 2.1, attendance: 78, lmsActivity: 72, course: 'CS 201' },
   4: { name: 'Morgan Kim', email: 'mkim@university.edu', status: 'ok', gpa: 3.5, attendance: 95, lmsActivity: 92, course: 'CS 301' },
   5: { name: 'Taylor Brooks', email: 'tbrooks@university.edu', status: 'critical', gpa: 2.0, attendance: 68, lmsActivity: 60, course: 'CS 202' },
-  6: { name: 'Casey Davis', email: 'cdavis@university.edu', status: 'at-risk', gpa: 2.4, attendance: 72, lmsActivity: 70, course: 'CS 201' },
+  6: { name: 'Casey Davis', email: 'cdavis@university.edu', status: 'follow-up', gpa: 2.4, attendance: 72, lmsActivity: 70, course: 'CS 201' },
   7: { name: 'Riley Martinez', email: 'rmartinez@university.edu', status: 'ok', gpa: 3.0, attendance: 88, lmsActivity: 82, course: 'CS 301' },
   8: { name: 'Jamie Wilson', email: 'jwilson@university.edu', status: 'critical', gpa: 1.9, attendance: 65, lmsActivity: 58, course: 'CS 202' },
 }
@@ -36,19 +36,19 @@ const PROGRESS_DATA = [
   { week: 'W5', gpa: 1.8, attendance: 62 },
 ]
 
-const INTERVENTIONS = [
-  { id: 1, type: '1:1 meeting', status: 'pending', due: 'Feb 3, 2026', notes: 'Suggested by AI due to declining attendance' },
-  { id: 2, type: 'Email check-in', status: 'completed', completed: 'Jan 28, 2026', notes: 'Sent reminder and follow-up guidance' },
+const SUPPORT_HISTORY = [
+  { id: 1, type: 'AMU referral submitted', status: 'pending', due: 'Feb 3, 2026', notes: 'Student was referred because of declining attendance and low grades.' },
+  { id: 2, type: 'Instructor check-in email', status: 'completed', completed: 'Jan 28, 2026', notes: 'Sent reminder and follow-up guidance to the student.' },
 ]
 
 const ALERTS = [
-  { id: 1, reason: 'Dropping attendance and low quiz scores', date: '2 hours ago', risk: 'High' },
-  { id: 2, reason: 'GPA decline from 2.1 to 1.8', date: '1 day ago', risk: 'Medium' },
+  { id: 1, reason: 'Dropping attendance and low quiz scores', date: '2 hours ago', priority: 'Urgent' },
+  { id: 2, reason: 'GPA decline from 2.1 to 1.8', date: '1 day ago', priority: 'Follow-up' },
 ]
 
 const statusClass = {
   ok: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100',
-  'at-risk': 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
+  'follow-up': 'bg-amber-50 text-amber-700 ring-1 ring-amber-100',
   critical: 'bg-rose-50 text-rose-700 ring-1 ring-rose-100',
 }
 
@@ -57,7 +57,7 @@ export default function StudentProfile() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const student = STUDENTS[id] || STUDENTS[1]
-  const instructorSubtitle = user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
+  const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   return (
     <DashboardLayout
@@ -70,7 +70,7 @@ export default function StudentProfile() {
       <DashboardPageHeader
         eyebrow="Student support view"
         title="Student profile"
-        description="This page brings the student's current status, alerts, and intervention history together so you can decide on the next action quickly."
+        description="This page brings the student's current status, alerts, and support history together so you can decide on the next action quickly."
         actions={
           <button
             type="button"
@@ -103,7 +103,7 @@ export default function StudentProfile() {
                   </p>
                   <span className={`mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${statusClass[student.status]}`}>
                     {student.status === 'ok' ? <CheckCircle className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
-                    {student.status === 'ok' ? 'Performing well' : student.status === 'at-risk' ? 'At risk' : 'Needs urgent attention'}
+                    {student.status === 'ok' ? 'Performing well' : student.status === 'follow-up' ? 'Needs follow-up' : 'Needs urgent attention'}
                   </span>
                 </div>
               </div>
@@ -113,7 +113,7 @@ export default function StudentProfile() {
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
               >
                 <MessageSquare className="w-4 h-4" />
-                Log intervention
+                Add support note
               </button>
             </div>
 
@@ -165,13 +165,13 @@ export default function StudentProfile() {
             <section className="p-5">
               <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
                 <AlertTriangle className="w-4 h-4 text-amber-600" />
-                Risk alerts
+                Student alerts
               </h4>
               <ul className="space-y-3">
                 {ALERTS.map((alert) => (
                   <li key={alert.id} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
                     <p className="text-sm font-semibold text-slate-900">{alert.reason}</p>
-                    <p className="mt-1 text-xs text-slate-500">{alert.date} · {alert.risk} priority</p>
+                    <p className="mt-1 text-xs text-slate-500">{alert.date} · {alert.priority} priority</p>
                   </li>
                 ))}
               </ul>
@@ -181,7 +181,7 @@ export default function StudentProfile() {
           <section className="border-t border-slate-200 p-5">
             <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
               <ClipboardList className="w-4 h-4 text-blue-600" />
-              Intervention history
+              Support history
             </h4>
             <ScrollTableContainer>
               <table className="w-full text-left">
@@ -195,7 +195,7 @@ export default function StudentProfile() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {INTERVENTIONS.map((item) => (
+                  {SUPPORT_HISTORY.map((item) => (
                     <tr key={item.id} className="transition-colors hover:bg-blue-50/40">
                       <td className="px-3 py-3 text-sm font-medium text-slate-900">{item.type}</td>
                       <td className="px-3 py-3">

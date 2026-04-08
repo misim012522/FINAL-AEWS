@@ -12,7 +12,6 @@ from app.authz import get_current_actor
 from app.ai_model import load_model_metrics
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
-from app.intervention_backfill import get_intervention_backfill_status
 from app.notification_utils import create_notification
 
 
@@ -54,15 +53,6 @@ def _student_identifier(doc: dict) -> str:
     if student_name:
         return student_name
     return str(doc.get("_id") or "")
-
-
-@router.get("/debug/interventions/backfill-status")
-def get_intervention_backfill_debug_status():
-    """Admin-only status for referral-id backfill coverage on interventions."""
-    try:
-        return get_intervention_backfill_status()
-    except ServerSelectionTimeoutError:
-        raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
 @router.get("/students/{student_identifier:path}")
@@ -153,7 +143,6 @@ def get_overview(department: str | None = None):
                 "at_risk_students": 0,
                 "instructors_count": 0,
                 "active_alerts": 0,
-                "interventions_count": 0,
                 "at_risk_percent": 0,
             }
         # Classes belonging to (filtered) instructors
@@ -168,14 +157,12 @@ def get_overview(department: str | None = None):
             else 0
         )
         instructors_count = len(instructor_ids)
-        interventions_count = db.interventions.count_documents({}) if "interventions" in db.list_collection_names() else 0
         at_risk_percent = round(100 * at_risk_students / total_students, 1) if total_students else 0
         return {
             "total_students": total_students,
             "at_risk_students": at_risk_students,
             "instructors_count": instructors_count,
             "active_alerts": at_risk_students,
-            "interventions_count": interventions_count,
             "at_risk_percent": at_risk_percent,
         }
     except ServerSelectionTimeoutError:
@@ -184,7 +171,6 @@ def get_overview(department: str | None = None):
             "at_risk_students": 0,
             "instructors_count": 0,
             "active_alerts": 0,
-            "interventions_count": 0,
             "at_risk_percent": 0,
         }
 
@@ -498,7 +484,7 @@ def _build_reports_list(db) -> list[dict]:
     today = datetime.utcnow().strftime("%b %d, %Y")
     depts = [d for d in sorted(db.instructor.distinct("department", {"archived": {"$ne": True}})) if d]
     reports = [
-        {"id": "general", "name": "Institution General Report", "type": "General", "date": today, "department": "All", "description": "Single report with institution-wide summary, at-risk students, department performance, and interventions."},
+        {"id": "general", "name": "Institution General Report", "type": "General", "date": today, "department": "All", "description": "Single report with institution-wide summary, at-risk students, and department performance."},
     ]
     for d in depts:
         safe_id = "at-risk-" + d.replace(" ", "-").replace(",", "")
@@ -525,7 +511,7 @@ def list_reports():
 
 @router.get("/reports/{report_id}/download")
 def download_report(report_id: str):
-    """Download report as CSV. Supports general, at-risk-summary, at-risk-{department}, department-performance, interventions."""
+    """Download report as CSV. Supports general, at-risk-summary, at-risk-{department}, and department-performance."""
     try:
         db = get_db()
         from fastapi.responses import StreamingResponse
@@ -533,7 +519,7 @@ def download_report(report_id: str):
         import csv
         from datetime import datetime
 
-        # general: one CSV with sections (summary, at-risk, department, interventions)
+        # general: one CSV with sections (summary, at-risk, department)
         if report_id == "general":
             instructor_ids = _instructor_ids_by_department(db, None)
             classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
@@ -545,8 +531,6 @@ def download_report(report_id: str):
             total_enrollments = db.enrollments.count_documents({"class_id": {"$in": class_ids}})
             at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}})
             dept_count = len([d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d])
-            interventions_coll = db.interventions if "interventions" in db.list_collection_names() else None
-            intervention_count = interventions_coll.count_documents({}) if interventions_coll else 0
 
             buf = io.StringIO()
             w = csv.writer(buf)
@@ -556,7 +540,6 @@ def download_report(report_id: str):
             w.writerow(["Summary", "Total enrollments", total_enrollments])
             w.writerow(["Summary", "At-risk students (High/Medium)", at_risk_count])
             w.writerow(["Summary", "Departments", dept_count])
-            w.writerow(["Summary", "Interventions (all)", intervention_count])
             w.writerow([])
 
             w.writerow(["At-Risk", "student_email", "risk", "department", "course", "instructor"])
@@ -595,21 +578,6 @@ def download_report(report_id: str):
             for d in sorted(dept_to_ids.keys()):
                 w.writerow(["Department", d, dept_total.get(d, 0), dept_at_risk.get(d, 0), len(dept_to_ids[d])])
             w.writerow([])
-
-            w.writerow(["Intervention", "student", "department", "course", "type", "status", "instructor", "due", "completed"])
-            cursor = db.interventions.find({}) if "interventions" in db.list_collection_names() else []
-            for doc in cursor:
-                w.writerow([
-                    "Intervention",
-                    doc.get("student", ""),
-                    doc.get("department", ""),
-                    doc.get("course", ""),
-                    doc.get("type", ""),
-                    doc.get("status", ""),
-                    doc.get("instructor", ""),
-                    doc.get("due", ""),
-                    doc.get("completed", ""),
-                ])
 
             return StreamingResponse(
                 io.BytesIO(buf.getvalue().encode("utf-8")),
@@ -705,27 +673,6 @@ def download_report(report_id: str):
             w.writeheader()
             w.writerows(rows)
             return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=department-performance.csv"})
-
-        # interventions: list interventions
-        if report_id == "interventions":
-            cursor = db.interventions.find({}) if "interventions" in db.list_collection_names() else []
-            rows = []
-            for doc in cursor:
-                rows.append({
-                    "student": doc.get("student", ""),
-                    "department": doc.get("department", ""),
-                    "course": doc.get("course", ""),
-                    "type": doc.get("type", ""),
-                    "status": doc.get("status", ""),
-                    "instructor": doc.get("instructor", ""),
-                    "due": doc.get("due", ""),
-                    "completed": doc.get("completed", ""),
-                })
-            buf = io.StringIO()
-            w = csv.DictWriter(buf, fieldnames=["student", "department", "course", "type", "status", "instructor", "due", "completed"])
-            w.writeheader()
-            w.writerows(rows)
-            return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=interventions.csv"})
 
         # ai-accuracy: no data
         raise HTTPException(status_code=404, detail="Report not found or not available for download.")
@@ -885,7 +832,7 @@ def list_pending_accounts():
                     "name": doc.get("name", ""),
                     "email": doc.get("email", ""),
                     "role": role_label,
-                    "department": doc.get("department", ""),
+                    "college": doc.get("college") or doc.get("department") or "",
                     "contact_number": doc.get("contact_number", ""),
                     "status": doc.get("status", "pending"),
                 })

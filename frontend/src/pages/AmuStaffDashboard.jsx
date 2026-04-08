@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Users as UsersIcon, LayoutDashboard, AlertTriangle, ClipboardList, FileText } from 'lucide-react'
+import { Users as UsersIcon, LayoutDashboard, AlertTriangle, TrendingUp, ClipboardList } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import DashboardPageHeader from '../components/DashboardPageHeader'
 import TutorialModal from '../components/TutorialModal'
 import AmuStaffOverview from '../components/amu-staff/AmuStaffOverview'
+import AmuStaffReports from '../components/amu-staff/AmuStaffReports'
 import {
   hasSeenTutorial,
   setTutorialSeen,
@@ -14,14 +15,12 @@ import {
 } from '../lib/tutorialPrefs'
 import { useAuth } from '../context/AuthContext'
 import AmuStaffReferrals from '../components/amu-staff/AmuStaffReferrals'
-import AmuStaffCases from '../components/amu-staff/AmuStaffCases'
-import AmuStaffReports from '../components/amu-staff/AmuStaffReports'
+import { useNavigate as useRouterNavigate } from 'react-router-dom'
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'referrals', label: 'Referrals', icon: AlertTriangle },
-  { id: 'cases', label: 'Interventions', icon: ClipboardList },
-  { id: 'reports', label: 'Reports', icon: FileText },
+  { id: 'reports', label: 'Reports', icon: TrendingUp },
 ]
 const VALID_TABS = new Set(TABS.map((tab) => tab.id))
 
@@ -29,6 +28,7 @@ const ROLE_PATH = { instructor: '/instructor', admin: '/admin', 'amu-staff': '/a
 
 export default function AmuStaffDashboard() {
   const navigate = useNavigate()
+  const routerNavigate = useRouterNavigate()
   const location = useLocation()
   const { user } = useAuth()
   const getTabFromSearch = (search) => {
@@ -82,31 +82,42 @@ export default function AmuStaffDashboard() {
   return (
     <DashboardLayout
       title="AMU Staff Dashboard"
-      subtitle="Academic support overview"
+      subtitle={user ? [user.name, user.college].filter(Boolean).join(' - ') || 'AMU Staff' : 'AMU Staff'}
       icon={UsersIcon}
       variant="amu-staff"
-      navItems={TABS.map((tab) => ({
-        label: tab.label,
-        icon: tab.icon,
-        active: activeTab === tab.id,
-        onClick: () => setActiveTab(tab.id),
-      }))}
+      navItems={[
+        {
+          label: 'Overview',
+          icon: LayoutDashboard,
+          active: activeTab === 'overview',
+          onClick: () => navigate('/amu-staff?tab=overview'),
+        },
+        {
+          label: 'Referrals',
+          icon: AlertTriangle,
+          active: activeTab === 'referrals',
+          onClick: () => navigate('/amu-staff?tab=referrals'),
+        },
+        {
+          label: 'Needs assessments',
+          icon: ClipboardList,
+          active: location.pathname === '/amu-staff/needs-assessments',
+          onClick: () => routerNavigate('/amu-staff/needs-assessments'),
+        },
+        {
+          label: 'Reports',
+          icon: TrendingUp,
+          active: activeTab === 'reports',
+          onClick: () => navigate('/amu-staff?tab=reports'),
+        },
+      ]}
     >
       {showTutorial && <TutorialModal variant="amu-staff" onClose={handleTutorialClose} />}
-      <DashboardPageHeader
-        eyebrow="AMU workflow"
-        title="Student support workboard"
-        description="Use the same sections every time: review referrals, manage intervention cases, and generate reports without jumping between unrelated layouts."
-      >
-        <div className="space-y-3">
-          {activeTab === 'overview' && <AmuStaffOverview />}
-          {activeTab === 'referrals' && <AmuStaffReferrals />}
-          {activeTab === 'cases' && <AmuStaffCases />}
-          {activeTab === 'reports' && <AmuStaffReports />}
-        </div>
-      </DashboardPageHeader>
+      <div className="space-y-3">
+        {activeTab === 'overview' && <AmuStaffOverview />}
+        {activeTab === 'referrals' && <AmuStaffReferrals />}
+        {activeTab === 'reports' && <AmuStaffReports />}
+      </div>
     </DashboardLayout>
   )
 }
-
-

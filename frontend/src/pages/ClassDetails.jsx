@@ -19,41 +19,17 @@ import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
 import InlineToast from '../components/InlineToast'
 import ScrollTableContainer from '../components/ScrollTableContainer'
 import StudentPreviewModal from '../components/StudentPreviewModal'
+import StudentReferralModal from '../components/StudentReferralModal'
 import { useAuth } from '../context/AuthContext'
 import {
   getClass,
   listClassStudents,
-  getClassRiskSummary,
   uploadClassFiles,
   uploadNeedsAssessmentFiles,
   previewClasslist,
-  predictClassRisk,
   updateEnrollment,
   listUsers,
 } from '../api'
-
-const RISK_CLASS = {
-  High: 'bg-red-100 text-red-800',
-  Medium: 'bg-amber-100 text-amber-800',
-  Low: 'bg-slate-100 text-slate-700',
-}
-
-const ROSTER_RISK_ORDER = ['High', 'Medium', 'Low', 'Unassigned']
-
-const ROSTER_GROUP_META = {
-  High: {
-    label: 'High Risk',
-  },
-  Medium: {
-    label: 'Medium Risk',
-  },
-  Low: {
-    label: 'Low Risk',
-  },
-  Unassigned: {
-    label: 'No Risk Result Yet',
-  },
-}
 
 const AI_CHECKBOX_FIELDS = [
   ['difficulty_understanding_lectures', 'Difficulty in understanding lectures'],
@@ -69,7 +45,7 @@ const AI_CHECKBOX_FIELDS = [
 ]
 
 function getRiskReasons(student) {
-  if (!student || !['High', 'Medium'].includes(student.risk)) return []
+  if (!student) return []
 
   const features = student.model_features || {}
   const reasons = []
@@ -80,9 +56,7 @@ function getRiskReasons(student) {
   const finalGrade = features.final_grade ?? student.overall_grade ?? student.gpa
   const probability = student.risk_probability_percent
 
-  if (probability != null) {
-    reasons.push(`Predicted as ${student.risk} risk with ${probability}% confidence.`)
-  }
+  if (probability != null) reasons.push(`Model confidence is ${probability}%.`)
 
   if (attendanceRate != null && Number(attendanceRate) < 75) {
     reasons.push(`Attendance is low at ${Number(attendanceRate).toFixed(2).replace(/\.00$/, '')}%.`)
@@ -122,7 +96,7 @@ function getRiskDesignation(student) {
 }
 
 function hasComputedRisk(student) {
-  return Boolean(String(student?.risk || '').trim())
+  return Boolean(student)
 }
 
 function simplifyReason(reason) {
@@ -155,17 +129,24 @@ function formatModelProfile(profile) {
   return profile || 'Unknown'
 }
 
+function formatRosterMetric(value, suffix = '') {
+  if (value === null || value === undefined || value === '') return '-'
+  const numeric = Number(value)
+  if (Number.isNaN(numeric)) return String(value)
+  const formatted = Number.isInteger(numeric) ? String(numeric) : numeric.toFixed(2).replace(/\.00$/, '')
+  return `${formatted}${suffix}`
+}
+
 function formatStudentInsightSummary(student, designation, reasons) {
-  if (!student?.risk && reasons.length === 0) {
-    return 'No AI risk summary is available for this student yet.'
+  if (!student && reasons.length === 0) {
+    return 'No student summary is available yet.'
   }
 
   const studentLabel = student?.student_name || 'This student'
   const parts = []
 
-  if (student?.risk) {
-    const confidence = student?.risk_probability_percent != null ? ` with ${student.risk_probability_percent}% confidence` : ''
-    parts.push(`${studentLabel} is currently tagged as ${student.risk.toLowerCase()} risk${confidence}.`)
+  if (student?.risk_probability_percent != null) {
+    parts.push(`${studentLabel} has a model confidence reading of ${student.risk_probability_percent}%.`)
   }
 
   if (designation) {
@@ -181,7 +162,7 @@ function formatStudentInsightSummary(student, designation, reasons) {
 
 function getReferralHelperText(student, amuStaffLoading, amuStaffOptions, selectedAmuStaffId) {
   const canReferToAmu = hasComputedRisk(student)
-  if (!canReferToAmu) return 'Run the AI risk prediction first before sending this student to AMU.'
+  if (!canReferToAmu) return 'Select a student first before sending a referral to AMU.'
   if (!amuStaffLoading && amuStaffOptions.length === 0) return 'No active AMU staff accounts are available yet.'
   if (amuStaffOptions.length > 0 && !selectedAmuStaffId && !student?.flagged_for_mentoring) {
     return 'Choose an AMU staff member first before sending the referral.'
@@ -195,17 +176,13 @@ export default function ClassDetails() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const classId = id
-  const instructorSubtitle = user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
+  const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   const [uploadingClasslist, setUploadingClasslist] = useState(false)
   const [classlistError, setClasslistError] = useState('')
   const classlistInputRef = useRef()
 
-  const [uploadingAIInputs, setUploadingAIInputs] = useState(false)
-  const [aiUploadError, setAiUploadError] = useState('')
   const [aiUploadMessage, setAiUploadMessage] = useState('')
-  const aiInputFileRef = useRef()
-  const [predictingClass, setPredictingClass] = useState(false)
 
   const [showPreview, setShowPreview] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -220,9 +197,6 @@ export default function ClassDetails() {
   const [roster, setRoster] = useState([])
   const [rosterLoading, setRosterLoading] = useState(true)
   const [rosterError, setRosterError] = useState('')
-  const [riskSummary, setRiskSummary] = useState(null)
-  const [riskSummaryLoading, setRiskSummaryLoading] = useState(false)
-  const [activeRiskFilter, setActiveRiskFilter] = useState('High')
 
   const [activeAIStudent, setActiveAIStudent] = useState(null)
   const [referringStudentKey, setReferringStudentKey] = useState('')
@@ -233,6 +207,11 @@ export default function ClassDetails() {
   const [amuStaffLoading, setAmuStaffLoading] = useState(false)
   const [selectedAmuStaffId, setSelectedAmuStaffId] = useState('')
 
+  const [showReferralModal, setShowReferralModal] = useState(false)
+  const [studentReferralSubmitting, setStudentReferralSubmitting] = useState(false)
+  const [studentReferralError, setStudentReferralError] = useState('')
+
+  // Define all fetch callbacks first
   const fetchAmuStaffOptions = useCallback(async () => {
     setAmuStaffLoading(true)
     try {
@@ -242,8 +221,8 @@ export default function ClassDetails() {
         .map((entry) => ({
           id: String(entry.id || '').trim(),
           name: String(entry.name || '').trim(),
-          college: String(entry.department || '').trim(),
-          label: [String(entry.name || '').trim(), String(entry.department || '').trim()].filter(Boolean).join(' - '),
+          college: String(entry.college || '').trim(),
+          label: [String(entry.name || '').trim(), String(entry.college || '').trim()].filter(Boolean).join(' - '),
         }))
         .filter((entry) => entry.id && entry.name)
       setAmuStaffOptions(options)
@@ -284,41 +263,6 @@ export default function ClassDetails() {
     }
   }, [classId])
 
-  const fetchRiskSummary = useCallback(async () => {
-    if (!classId) return
-    setRiskSummaryLoading(true)
-    try {
-      const data = await getClassRiskSummary(classId)
-      setRiskSummary(data)
-    } catch {
-      setRiskSummary(null)
-    } finally {
-      setRiskSummaryLoading(false)
-    }
-  }, [classId])
-
-  useEffect(() => {
-    fetchClass()
-  }, [fetchClass])
-
-  useEffect(() => {
-    fetchRoster()
-  }, [fetchRoster])
-
-  useEffect(() => {
-    fetchRiskSummary()
-  }, [fetchRiskSummary])
-
-  useEffect(() => {
-    if (!aiUploadMessage) return undefined
-    const timeoutId = window.setTimeout(() => setAiUploadMessage(''), 3000)
-    return () => window.clearTimeout(timeoutId)
-  }, [aiUploadMessage])
-
-  useEffect(() => {
-    fetchAmuStaffOptions()
-  }, [fetchAmuStaffOptions])
-
   const openAIForm = useCallback((student) => {
     setActiveAIStudent(student)
     setReferralError('')
@@ -327,9 +271,53 @@ export default function ClassDetails() {
     setSelectedAmuStaffId(student?.assigned_amu_staff_id || '')
   }, [])
 
+  const handleStudentReferral = useCallback(async (referralData) => {
+    const { student, reasons, amuStaff } = referralData
+    if (!student) {
+      setStudentReferralError('Student not found')
+      return
+    }
+
+    const studentIdentifier = student.student_email || student.student_id
+    if (!studentIdentifier) {
+      setStudentReferralError('Student identifier not found')
+      return
+    }
+
+    const selectedStaff = amuStaffOptions.find((s) => s.id === amuStaff)
+    if (!selectedStaff) {
+      setStudentReferralError('AMU staff not found')
+      return
+    }
+
+    setStudentReferralSubmitting(true)
+    setStudentReferralError('')
+
+    try {
+      // Store the referral reasons and AMU staff in the enrollment record
+      await updateEnrollment(classId, studentIdentifier, {
+        referral_reasons: reasons,
+        flagged_for_mentoring: true,
+        assigned_amu_staff_id: selectedStaff.id,
+        assigned_amu_staff_name: selectedStaff.name,
+        assigned_amu_staff_college: selectedStaff.college || null,
+      })
+      setShowReferralModal(false)
+      // Directly call fetchRoster instead of including it in dependencies
+      await listClassStudents(classId).then((data) => {
+        setRoster(Array.isArray(data) ? data : [])
+      })
+      setReferralMessage(`Successfully referred ${student.student_name || studentIdentifier} to ${selectedStaff.name}.`)
+    } catch (err) {
+      setStudentReferralError(err.message || 'Failed to submit referral')
+    } finally {
+      setStudentReferralSubmitting(false)
+    }
+  }, [classId, amuStaffOptions])
+
   const referStudentToAmu = useCallback(async (student) => {
     if (!hasComputedRisk(student)) {
-      setReferralError('This student cannot be referred to AMU until a risk result is available.')
+      setReferralError('This student cannot be referred to AMU yet.')
       setReferralMessage('')
       return
     }
@@ -360,7 +348,10 @@ export default function ClassDetails() {
         assigned_amu_staff_college: selectedAmuStaff.college || null,
       })
       setReferralMessage(`Referral sent to ${selectedAmuStaff.label || selectedAmuStaff.name} for ${student.student_name || targetKey}.`)
-      await fetchRoster()
+      // Directly call listClassStudents instead of including fetchRoster in dependencies
+      await listClassStudents(classId).then((data) => {
+        setRoster(Array.isArray(data) ? data : [])
+      })
       if ((activeAIStudent?.student_email || activeAIStudent?.student_id) === targetKey) {
         setActiveAIStudent((prev) => prev ? {
           ...prev,
@@ -376,7 +367,32 @@ export default function ClassDetails() {
     } finally {
       setReferringStudentKey('')
     }
-  }, [activeAIStudent?.student_email, activeAIStudent?.student_id, amuStaffOptions, classId, fetchRoster, referralNote, selectedAmuStaffId])
+  }, [activeAIStudent?.student_email, activeAIStudent?.student_id, amuStaffOptions, classId, referralNote, selectedAmuStaffId])
+
+  // Now define all effects after all callbacks
+  useEffect(() => {
+    fetchClass()
+  }, [fetchClass])
+
+  useEffect(() => {
+    fetchRoster()
+  }, [fetchRoster])
+
+  useEffect(() => {
+    if (!aiUploadMessage) return undefined
+    const timeoutId = window.setTimeout(() => setAiUploadMessage(''), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [aiUploadMessage])
+
+  useEffect(() => {
+    if (!referralMessage) return undefined
+    const timeoutId = window.setTimeout(() => setReferralMessage(''), 3000)
+    return () => window.clearTimeout(timeoutId)
+  }, [referralMessage])
+
+  useEffect(() => {
+    fetchAmuStaffOptions()
+  }, [fetchAmuStaffOptions])
 
   if (classLoading && !classData) {
     return (
@@ -420,15 +436,6 @@ export default function ClassDetails() {
   const subjectCode = course.subject_code ?? ''
   const subjectName = course.subject_name ?? ''
   const studentCount = course.student_count ?? 0
-  const filteredRiskList = Array.isArray(riskSummary?.at_risk_list)
-    ? riskSummary.at_risk_list.filter((student) => student.risk === activeRiskFilter)
-    : []
-  const groupedRoster = ROSTER_RISK_ORDER
-    .map((riskKey) => ({
-      riskKey,
-      students: roster.filter((student) => (student.risk || 'Unassigned') === riskKey),
-    }))
-    .filter((group) => group.students.length > 0)
 
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
@@ -521,145 +528,20 @@ export default function ClassDetails() {
                     Attendance page
                   </button>
 
-                  <input
-                    type="file"
-                    ref={aiInputFileRef}
-                    accept=".csv,.xlsx"
-                    style={{ display: 'none' }}
-                    onChange={async (e) => {
-                      setAiUploadError('')
-                      setAiUploadMessage('')
-                      const files = e.target.files
-                      if (!files || files.length === 0) return
-                      setUploadingAIInputs(true)
-                      try {
-                        const result = await uploadNeedsAssessmentFiles(classId, files)
-                        const updated = result?.updated || 0
-                        const notEnrolled = result?.not_enrolled?.length || 0
-                        const missingIdentifiers = result?.missing_identifiers || 0
-                        const parts = [`Needs Assessment uploaded. Updated ${updated} student record(s).`]
-                        if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
-                        if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
-                        setAiUploadMessage(parts.join(' '))
-                        fetchRoster()
-                        fetchRiskSummary()
-                      } catch (err) {
-                        setAiUploadError(err.message || 'Needs Assessment upload failed')
-                      } finally {
-                        setUploadingAIInputs(false)
-                        if (aiInputFileRef.current) aiInputFileRef.current.value = ''
-                      }
-                    }}
-                  />
-
                   <button
                     type="button"
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
-                    disabled={uploadingAIInputs}
-                    onClick={() => aiInputFileRef.current && aiInputFileRef.current.click()}
+                    disabled={rosterLoading}
+                    onClick={() => setShowReferralModal(true)}
                   >
-                    <Brain className="w-4 h-4" />
-                    {uploadingAIInputs ? 'Uploading...' : 'Upload Needs Assessment'}
+                    <Users className="w-4 h-4" />
+                    Refer a student
                   </button>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
-                    disabled={predictingClass}
-                    onClick={async () => {
-                      setAiUploadError('')
-                      setAiUploadMessage('')
-                      setPredictingClass(true)
-                      try {
-                        const result = await predictClassRisk(classId)
-                        setAiUploadMessage(`Class prediction complete. Predicted ${result.predicted || 0} student record(s).`)
-                        fetchRoster()
-                        fetchRiskSummary()
-                      } catch (err) {
-                        setAiUploadError(err.message || 'Class prediction failed')
-                      } finally {
-                        setPredictingClass(false)
-                      }
-                    }}
-                  >
-                    <Brain className="w-4 h-4" />
-                    {predictingClass ? 'Predicting...' : 'Predict Class Risk'}
-                  </button>
-
                   {classlistError && <div className="mt-2 text-xs font-medium text-red-600">{classlistError}</div>}
-                  {aiUploadError && <div className="mt-2 text-xs font-medium text-red-600">{aiUploadError}</div>}
                 </div>
               </div>
 
               <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-white/10 to-transparent pointer-events-none" aria-hidden />
-            </div>
-
-            <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden p-4">
-              <h2 className="text-sm font-bold text-slate-900 flex items-center gap-1.5 mb-3">
-                <BarChart3 className="w-4 h-4 text-blue-600" />
-                Class risk summary
-              </h2>
-              {riskSummaryLoading ? (
-                <p className="text-xs text-slate-500">Loading...</p>
-              ) : riskSummary ? (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveRiskFilter('High')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${activeRiskFilter === 'High' ? 'bg-red-100 border-red-300 shadow-sm' : 'bg-red-50 border-red-200/80 hover:bg-red-100'}`}
-                  >
-                    <span className="text-xs font-medium text-red-700">High risk</span>
-                    <span className="text-base font-bold text-red-800">{riskSummary.high_risk}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveRiskFilter('Medium')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${activeRiskFilter === 'Medium' ? 'bg-amber-100 border-amber-300 shadow-sm' : 'bg-amber-50 border-amber-200/80 hover:bg-amber-100'}`}
-                  >
-                    <span className="text-xs font-medium text-amber-700">Medium risk</span>
-                    <span className="text-base font-bold text-amber-800">{riskSummary.medium_risk}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveRiskFilter('Low')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-colors ${activeRiskFilter === 'Low' ? 'bg-slate-200 border-slate-300 shadow-sm' : 'bg-slate-100 border-slate-200/80 hover:bg-slate-200'}`}
-                  >
-                    <span className="text-xs font-medium text-slate-600">Low risk</span>
-                    <span className="text-base font-bold text-slate-800">{riskSummary.low_risk}</span>
-                  </button>
-                  {riskSummary.at_risk_list && riskSummary.at_risk_list.length > 0 && (
-                    <div className="w-full mt-1.5 pt-3 border-t border-slate-200">
-                      <p className="text-xs font-semibold text-slate-700 mb-1.5">
-                        Predicted students with risk labels
-                        {` - ${activeRiskFilter} risk`}
-                      </p>
-                      {filteredRiskList.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {filteredRiskList.map((s, index) => {
-                            const studentLabel = s.student_name || s.student_id || 'Unknown student'
-                            const studentNumberText = s.student_id ? ` (${s.student_id})` : ''
-                            return (
-                              <span
-                                key={`${s.student_id || s.student_name || 'student'}-${index}`}
-                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[s.risk] || 'bg-slate-100 text-slate-700'}`}
-                              >
-                                <TrendingUp className="w-3.5 h-3.5" />
-                                {studentLabel}
-                                {studentNumberText}
-                              </span>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <p className="text-xs text-slate-500">
-                          No students found for the selected risk level.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500">Risk is computed in the background; the summary will appear when data is available.</p>
-              )}
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -687,69 +569,39 @@ export default function ClassDetails() {
                   No students enrolled yet. Use "Upload class list" to fetch student names and student numbers.
                 </div>
               ) : (
-                <ScrollTableContainer>
-                  <table className="w-full text-left">
+                <ScrollTableContainer size="regular">
+                  <table className="w-full table-fixed text-left">
                     <thead className="sticky top-0 z-10 bg-slate-50 border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
-                        <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student Number</th>
-                        <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Risk</th>
-                        <th className="px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider"></th>
+                        <th className="w-[40%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
+                        <th className="w-[22%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student Number</th>
+                        <th className="w-[16%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MTG</th>
+                        <th className="w-[16%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Attendance %</th>
+                        <th className="w-[6%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider"></th>
                       </tr>
                     </thead>
-                    {groupedRoster.map((group) => {
-                      const groupMeta = ROSTER_GROUP_META[group.riskKey] || ROSTER_GROUP_META.Unassigned
-                      return (
-                        <tbody key={group.riskKey} className="divide-y divide-slate-100">
-                          <tr className="bg-slate-50/80">
-                            <td colSpan={4} className="px-4 py-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                                  {groupMeta.label}
-                                </span>
-                                <span className="text-xs font-medium text-slate-500">
-                                  {group.students.length} student{group.students.length !== 1 ? 's' : ''}
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                          {group.students.map((row, index) => (
-                            <tr key={`${group.riskKey}-${row.student_id || row.student_name || index}`} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center gap-2 text-sm text-slate-900">
-                                  <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                  <span className="font-medium">{row.student_name || '-'}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <div className="text-sm text-slate-700 font-mono">{row.student_id || '-'}</div>
-                              </td>
-                              <td className="px-4 py-2.5">
-                                {row.risk ? (
-                                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[row.risk] || 'bg-slate-100 text-slate-700'}`}>
-                                    {row.risk}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-slate-400">-</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 text-right">
-                                <div className="flex justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => openAIForm(row)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-cyan-700 hover:bg-cyan-50 transition-colors"
-                                  >
-                                    <Brain className="w-3.5 h-3.5" />
-                                    View details
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      )
-                    })}
+                    <tbody className="divide-y divide-slate-100">
+                      {roster.map((row, index) => (
+                        <tr key={`${row.student_id || row.student_name || index}`} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-2 text-sm text-slate-900">
+                              <Users className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                              <span className="truncate font-medium">{row.student_name || '-'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="text-sm text-slate-700 font-mono">{row.student_id || '-'}</div>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="text-sm font-medium text-slate-900">{formatRosterMetric(row.midterm_grade)}</div>
+                          </td>
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="text-sm text-slate-700">{formatRosterMetric(row.attendance, '%')}</div>
+                          </td>
+                          <td className="px-4 py-2.5 text-right"></td>
+                        </tr>
+                      ))}
+                    </tbody>
                   </table>
                 </ScrollTableContainer>
               )}
@@ -792,7 +644,6 @@ export default function ClassDetails() {
             if (uploadSucceeded) {
               fetchClass()
               fetchRoster()
-              fetchRiskSummary()
             }
           }
         }}
@@ -857,20 +708,8 @@ export default function ClassDetails() {
                         </div>
 
                         <div className="rounded-xl border border-slate-200/80 bg-slate-50/90 p-5 shadow-sm shadow-slate-200/50">
-                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Risk Snapshot</p>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Referral Snapshot</p>
                           <div className="mt-3 space-y-2.5 text-sm text-slate-700">
-                            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
-                              <span>Risk level</span>
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium ${RISK_CLASS[activeAIStudent.risk] || 'bg-slate-100 text-slate-700'}`}>
-                                {activeAIStudent.risk || 'Not available'}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
-                              <span>Confidence</span>
-                              <span className="font-semibold text-slate-900">
-                                {activeAIStudent.risk_probability_percent != null ? `${activeAIStudent.risk_probability_percent}%` : 'Not available'}
-                              </span>
-                            </div>
                             <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
                               <span className="block text-xs font-medium text-slate-500">AMU referral</span>
                               <p className="mt-1 text-sm text-slate-900">
@@ -879,6 +718,12 @@ export default function ClassDetails() {
                                   : activeAIStudent.flagged_for_mentoring
                                     ? 'Already referred'
                                     : 'Not referred yet'}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
+                              <span className="block text-xs font-medium text-slate-500">Student identifier</span>
+                              <p className="mt-1 text-sm text-slate-900">
+                                {activeAIStudent.student_id || activeAIStudent.student_email || 'Not available'}
                               </p>
                             </div>
                           </div>
@@ -1086,10 +931,34 @@ export default function ClassDetails() {
           </div>
         </HeaderAwareOverlay>
       )}
+      <StudentReferralModal
+        isOpen={showReferralModal}
+        students={roster}
+        amuStaffOptions={amuStaffOptions}
+        instructorCollege={user?.college || ''}
+        onClose={() => {
+          setShowReferralModal(false)
+          setStudentReferralError('')
+        }}
+        onSubmit={handleStudentReferral}
+        isSubmitting={studentReferralSubmitting}
+      />
+      {studentReferralError && (
+        <InlineToast
+          message={studentReferralError}
+          tone="error"
+          onClose={() => setStudentReferralError('')}
+        />
+      )}
       <InlineToast
         message={aiUploadMessage}
         tone="success"
         onClose={() => setAiUploadMessage('')}
+      />
+      <InlineToast
+        message={referralMessage}
+        tone="success"
+        onClose={() => setReferralMessage('')}
       />
     </DashboardLayout>
   )

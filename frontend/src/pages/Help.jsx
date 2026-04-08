@@ -64,7 +64,7 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What is the Academic Early Warning System?',
-        a: 'The Academic Early Warning System helps identify students who may need support using grades, attendance, and related academic indicators. It also supports referrals and intervention workflows.',
+        a: 'The Academic Early Warning System helps identify students who may need support using grades, attendance, and related academic indicators. It also supports referrals and AMU follow-up workflows.',
       },
       {
         q: 'How do I sign in?',
@@ -108,7 +108,7 @@ const FAQ_SECTIONS = [
     items: [
       {
         q: 'What can instructors do?',
-        a: 'Instructors can manage classes, review students, monitor risk levels, generate reports, and refer students for additional support.',
+        a: 'Instructors can manage classes, review students, generate reports, upload grades and attendance, and refer students for additional support.',
       },
       {
         q: 'What can admins do?',
@@ -116,7 +116,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: 'What can AMU Staff do?',
-        a: 'AMU Staff handle referrals, monitor intervention cases, and coordinate support work for referred students.',
+        a: 'AMU Staff handle referrals, review student follow-up needs, upload needs assessments, and coordinate support work for referred students.',
       },
     ],
   },
@@ -124,14 +124,6 @@ const FAQ_SECTIONS = [
     title: 'Using the System',
     icon: BookOpen,
     items: [
-      {
-        q: 'What is risk level?',
-        a: 'Risk level is the system prediction for how likely a student is to need academic support. Depending on available data, the system can classify students as Low, Medium, or High risk.',
-      },
-      {
-        q: 'What are interventions?',
-        a: 'Interventions are follow-up support actions tracked in the system after a student is referred or needs attention.',
-      },
       {
         q: 'How do I view archived users or classes?',
         a: 'Use the archived view or archived page available in the relevant dashboard area. Restoring brings the item back to active use.',
@@ -182,19 +174,20 @@ export default function Help() {
       .filter((section) => section.items.length > 0)
   }, [search])
 
-  const [openSectionTitle, setOpenSectionTitle] = useState(FAQ_SECTIONS[0]?.title || '')
+  const [openSectionTitle, setOpenSectionTitle] = useState('')
 
   const visibleOpenSectionTitle = useMemo(() => {
+    if (!openSectionTitle) return ''
     if (filteredSections.some((section) => section.title === openSectionTitle)) {
       return openSectionTitle
     }
-    return filteredSections[0]?.title || ''
+    return ''
   }, [filteredSections, openSectionTitle])
 
   return (
     <DashboardLayout
       title={layoutMeta.title}
-      subtitle={user ? [user.name, user.department].filter(Boolean).join(' - ') || role || 'Help' : 'Help & FAQ'}
+      subtitle={user ? [user.name, user.college].filter(Boolean).join(' - ') || role || 'Help' : 'Help & FAQ'}
       variant={layoutMeta.variant}
       icon={HelpCircle}
       navItems={layoutMeta.navItems.map((item) => ({
@@ -208,31 +201,22 @@ export default function Help() {
         eyebrow="Help Center"
         title="Help & FAQ"
         description="Clear answers for common tasks, account questions, and role-specific workflow guidance."
-        actions={(
-          <button
-            type="button"
-            onClick={() => navigate(backUrl)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 text-sm font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to dashboard
-          </button>
-        )}
+        actions={null}
       >
-        <div className="space-y-6">
+        <div className="-mt-4 space-y-4">
           <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 sm:p-5">
             <label htmlFor="help-search" className="block text-xs font-semibold uppercase tracking-[0.18em] text-slate-400 mb-3">
               Search help topics
             </label>
             <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               <input
                 id="help-search"
                 type="search"
                 placeholder="Search by task, role, page, or question..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 bg-white text-[15px] text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none transition-shadow"
+                className="w-full pl-10 pr-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/25 focus:border-blue-500 outline-none transition-shadow"
               />
             </div>
           </div>
@@ -248,7 +232,7 @@ export default function Help() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredSections.map((section) => {
                 const Icon = section.icon
                 const isOpen = visibleOpenSectionTitle === section.title
@@ -260,7 +244,7 @@ export default function Help() {
                     <button
                       type="button"
                       onClick={() => setOpenSectionTitle(isOpen ? '' : section.title)}
-                      className={`group w-full px-6 py-4 bg-gradient-to-r flex items-center justify-between gap-4 text-left transition-all duration-200 ${
+                      className={`group w-full px-5 py-3.5 bg-gradient-to-r flex items-center justify-between gap-4 text-left transition-all duration-200 ${
                         isOpen
                           ? 'from-blue-50/90 to-white bg-blue-50/40'
                           : 'from-slate-50/80 to-white hover:from-slate-100/80 hover:to-white'
@@ -269,23 +253,23 @@ export default function Help() {
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ring-1 transition-all duration-200 ${
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ring-1 transition-all duration-200 ${
                             isOpen
                               ? 'bg-blue-100 text-blue-700 ring-blue-200 shadow-sm shadow-blue-100/80'
                               : 'bg-blue-50 text-blue-600 ring-blue-100 group-hover:bg-blue-100'
                           }`}
                         >
-                          <Icon className="w-5 h-5" />
+                          <Icon className="w-4.5 h-4.5" />
                         </div>
                         <div className="min-w-0">
-                          <h2 className={`text-lg font-bold tracking-tight transition-colors ${isOpen ? 'text-blue-700' : 'text-slate-900 group-hover:text-slate-950'}`}>
+                          <h2 className={`text-base font-bold tracking-tight transition-colors ${isOpen ? 'text-blue-700' : 'text-slate-900 group-hover:text-slate-950'}`}>
                             {section.title}
                           </h2>
-                          <p className="text-sm text-slate-500 mt-0.5">{section.items.length} topic{section.items.length !== 1 ? 's' : ''}</p>
+                          <p className="text-[13px] text-slate-500 mt-0.5">{section.items.length} topic{section.items.length !== 1 ? 's' : ''}</p>
                         </div>
                       </div>
                       <ChevronDown
-                        className={`w-5 h-5 flex-shrink-0 transition-all duration-300 ease-out ${
+                        className={`w-4.5 h-4.5 flex-shrink-0 transition-all duration-300 ease-out ${
                           isOpen
                             ? 'rotate-180 text-blue-600'
                             : 'text-slate-400 group-hover:text-slate-600 group-hover:translate-y-[1px]'
@@ -301,9 +285,9 @@ export default function Help() {
                       <div className="overflow-hidden">
                         <ul className="divide-y divide-slate-100 border-t border-slate-100">
                           {section.items.map((item) => (
-                            <li key={item.q} className="px-6 py-5 hover:bg-slate-50/50 transition-colors">
-                              <p className="text-[15px] font-semibold text-slate-900">{item.q}</p>
-                              <p className="text-sm text-slate-600 mt-2 leading-7">{item.a}</p>
+                            <li key={item.q} className="px-5 py-4 hover:bg-slate-50/50 transition-colors">
+                              <p className="text-sm font-semibold text-slate-900">{item.q}</p>
+                              <p className="text-[13px] text-slate-600 mt-1.5 leading-6">{item.a}</p>
                             </li>
                           ))}
                         </ul>

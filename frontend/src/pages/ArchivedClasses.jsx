@@ -177,10 +177,9 @@ export default function ArchivedClasses() {
   return (
     <DashboardLayout
       title="Instructor Dashboard"
-      subtitle={user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
+      subtitle={user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
       navItems={[
         { label: 'Classes', icon: BookOpen, active: false, onClick: () => navigate('/instructor') },
-        { label: 'Risk alerts', icon: Bell, active: false, onClick: () => navigate('/instructor', { state: { tab: 'alerts' } }) },
         { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor', { state: { tab: 'students' } }) },
         { label: 'Reports', icon: FileSpreadsheet, active: false, onClick: () => navigate('/instructor/reports') },
       ]}

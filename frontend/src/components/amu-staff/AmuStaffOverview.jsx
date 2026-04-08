@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Users as UsersIcon, AlertTriangle, BookOpen, CheckCircle } from 'lucide-react'
+import { AlertTriangle, BookOpen } from 'lucide-react'
 import { getAmuStaffOverview } from '../../api'
 
 const ringClasses = {
@@ -52,15 +52,11 @@ export default function AmuStaffOverview() {
   }, [])
 
   const referralsCount = data?.referrals_count ?? 0
-  const interventionsCount = data?.interventions_count ?? 0
-  const casesResolved = data?.cases_resolved ?? 0
   const coursesMonitored = data?.courses_monitored ?? 0
 
   const cards = [
-    { label: 'At Risk Referred', value: String(referralsCount), sub: 'Students referred by instructors', icon: AlertTriangle, color: 'amber' },
-    { label: 'Active Interventions', value: String(interventionsCount), sub: 'AMU-managed support cases', icon: UsersIcon, color: 'teal' },
+    { label: 'Referred Students', value: String(referralsCount), sub: 'Awaiting needs assessment', icon: AlertTriangle, color: 'amber' },
     { label: 'Courses Monitored', value: String(coursesMonitored), sub: 'With referrals', icon: BookOpen, color: 'teal' },
-    { label: 'Interventions Closed', value: String(casesResolved), sub: 'Completed support cases', icon: CheckCircle, color: 'green' },
   ]
 
   return (
@@ -71,7 +67,7 @@ export default function AmuStaffOverview() {
         <p className="text-xs text-slate-500 mt-0.5">Monitor student support metrics and referrals</p>
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="p-4 pb-[4.5rem] space-y-3">
         {loading && (
           <div className="flex flex-col items-center justify-center gap-3 py-16">
             <div className="w-10 h-10 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
@@ -93,7 +89,7 @@ export default function AmuStaffOverview() {
                 <AlertTriangle className="w-4 h-4" />
               </div>
               <p className="text-xs font-medium text-teal-800">
-                Welcome to the AMU Staff dashboard. Use this view to monitor student support metrics and referrals.
+                Welcome to the AMU Staff dashboard. Receive referrals from instructors, upload needs assessments, and generate predictions.
               </p>
             </div>
 
@@ -111,5 +107,3 @@ export default function AmuStaffOverview() {
     </div>
   )
 }
-
-

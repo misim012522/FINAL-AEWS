@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 export default function HeaderAwareOverlay({
   children,
   onBackdropClick,
@@ -8,7 +10,12 @@ export default function HeaderAwareOverlay({
   labelledBy,
   modal = true,
 }) {
-  const classes = ['fixed inset-x-0 bottom-0 z-20 px-4 pb-4 pt-3 sm:px-6 sm:pb-6', className]
+  useEffect(() => {
+    if (!modal) return
+    document.body.classList.add('modal-open')
+    return () => document.body.classList.remove('modal-open')
+  }, [modal])
+  const classes = ['fixed inset-x-0 bottom-0 z-20 flex items-center justify-center p-4 sm:p-6', className]
     .filter(Boolean)
     .join(' ')
 

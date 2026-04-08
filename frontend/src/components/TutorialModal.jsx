@@ -1,29 +1,26 @@
-import { X, BookOpen, AlertTriangle, ClipboardList, Users, BarChart3, HelpCircle, FileText, User, Zap, Building2 } from 'lucide-react'
+import { useEffect } from 'react'
+import { X, BookOpen, AlertTriangle, ClipboardList, Users, BarChart3, HelpCircle, FileText, User, Building2 } from 'lucide-react'
 import HeaderAwareOverlay from './HeaderAwareOverlay'
 
 const INSTRUCTOR_ITEMS = [
-  { icon: BookOpen, term: 'My Classes', desc: 'Your courses. Each card shows student count and how many students are at risk.' },
-  { icon: AlertTriangle, term: 'At-risk / Risk level', desc: 'Students may be flagged as High or Low risk based on grades, attendance, and engagement. Focus on High risk students for follow-up.' },
-  { icon: ClipboardList, term: 'Referrals to AMU', desc: 'When a student needs support, send a referral to AMU with a note so they can open and manage the intervention case.' },
-  { icon: AlertTriangle, term: 'Risk Alerts', desc: 'List of students who need attention. Use this tab to see who to reach out to first.' },
-  { icon: Users, term: 'Student List', desc: 'All students across your classes with risk level and status in one place.' },
+  { icon: BookOpen, term: 'My Classes', desc: 'Your courses. Each card shows student count and gives you direct access to grades, attendance, and class details.' },
+  { icon: ClipboardList, term: 'Referrals to AMU', desc: 'When a student needs support, send a referral to AMU with a note so they can review the case and coordinate follow-up support.' },
+  { icon: Users, term: 'Student List', desc: 'All students across your classes in one place with search and course filtering.' },
 ]
 
 const ADMIN_ITEMS = [
-  { icon: BarChart3, term: 'System Overview', desc: 'KPIs, at-risk students, departments, instructors, and system-wide trends. Filter by department.' },
+  { icon: BarChart3, term: 'System Overview', desc: 'KPIs, departments, instructors, and system-wide trends. Filter by department.' },
   { icon: User, term: 'Pending Accounts', desc: 'Review and approve or decline new instructor and AMU Staff registration requests.' },
   { icon: BarChart3, term: 'System Analytics', desc: 'Usage and performance metrics across the institution.' },
-  { icon: FileText, term: 'Institution Reports', desc: 'Download the general report (summary, at-risk list, departments, interventions) as one CSV.' },
+  { icon: FileText, term: 'Institution Reports', desc: 'Download general institutional reports covering summaries and departments.' },
   { icon: Users, term: 'User Accounts', desc: 'Manage all user accounts (instructors, admins, AMU Staff). View, edit roles, archive, or delete.' },
-  { icon: Zap, term: 'Interventions', desc: 'View and manage interventions across the institution.' },
-  { icon: AlertTriangle, term: 'Students at Risk', desc: 'See at-risk students by department. Drill into student details from here.' },
   { icon: Building2, term: 'Departments & Instructors', desc: 'Department stats and instructor lists. Use Overview sub-tabs to switch between them.' },
 ]
 
 const AMUSTAFF_ITEMS = [
-  { icon: BarChart3, term: 'Overview', desc: 'Summary of referrals and AMU-managed interventions. Your home view after login.' },
-  { icon: AlertTriangle, term: 'Referrals', desc: 'Students referred to AMU for support. Review these referrals and use them to guide intervention work.' },
-  { icon: ClipboardList, term: 'Interventions', desc: 'AMU-owned support cases. Track progress, update status, and record outcomes here.' },
+  { icon: BarChart3, term: 'Overview', desc: 'Summary of referrals and monitored classes. Your home view after login.' },
+  { icon: AlertTriangle, term: 'Referrals', desc: 'Students referred to AMU for support. Review these referrals and use them to guide outreach, needs assessment, and prediction work.' },
+  { icon: ClipboardList, term: 'Needs Assessments', desc: 'Upload student needs assessments here so AMU can connect them with attendance and midterm grade data for prediction.' },
   { icon: Users, term: 'Reports', desc: 'Generate or view reports for your work.' },
 ]
 
@@ -34,6 +31,17 @@ const TUTORIAL_CONFIG = {
 }
 
 export default function TutorialModal({ variant = 'instructor', onClose }) {
+  // Disable background scroll when modal is open
+  useEffect(() => {
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    
+    return () => {
+      document.documentElement.style.overflow = 'auto'
+      document.body.style.overflow = 'auto'
+    }
+  }, [])
+
   const config = TUTORIAL_CONFIG[variant] || TUTORIAL_CONFIG.instructor
   const { title, items } = config
 
@@ -97,6 +105,4 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
     </HeaderAwareOverlay>
   )
 }
-
-
 

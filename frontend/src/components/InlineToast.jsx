@@ -11,14 +11,14 @@ const TONE_STYLES = {
   },
 }
 
-export default function InlineToast({ message = '', tone = 'success', onClose }) {
+export default function InlineToast({ message = '', tone = 'success', onClose, className = '' }) {
   if (!message) return null
 
   const styles = TONE_STYLES[tone] || TONE_STYLES.success
   const Icon = tone === 'error' ? AlertCircle : CheckCircle2
 
   return (
-    <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[200] w-full max-w-[calc(100vw-2rem)] px-4 pointer-events-none" role={tone === 'error' ? 'alert' : 'status'} aria-live={tone === 'error' ? 'assertive' : 'polite'}>
+    <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[200] w-full max-w-[calc(100vw-2rem)] px-4 pointer-events-none ${className}`} role={tone === 'error' ? 'alert' : 'status'} aria-live={tone === 'error' ? 'assertive' : 'polite'}>
       <div className={`pointer-events-auto mx-auto flex items-start gap-3 rounded-2xl border px-4 py-3 shadow-lg backdrop-blur-sm w-full min-w-0 max-w-[520px] ${styles.wrapper}`}>
         <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${styles.icon}`} />
         <div className="flex-1 min-w-0">

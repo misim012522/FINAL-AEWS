@@ -1,5 +1,5 @@
-import { Suspense, lazy } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Suspense, lazy, useEffect } from 'react'
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './context/AuthContext'
 import { NotificationsProvider } from './context/NotificationsContext'
@@ -27,11 +27,10 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminSettings = lazy(() => import('./pages/AdminSettings'))
 const AdminStudentDetail = lazy(() => import('./pages/AdminStudentDetail'))
 const AdminUserDetail = lazy(() => import('./pages/AdminUserDetail'))
-const AdminInterventionDetail = lazy(() => import('./pages/AdminInterventionDetail'))
 const AmuStaffDashboard = lazy(() => import('./pages/AmuStaffDashboard'))
 const AmuStaffSettings = lazy(() => import('./pages/AmuStaffSettings'))
 const AmuStaffStudentDetail = lazy(() => import('./pages/AmuStaffStudentDetail'))
-const AmuStaffCaseDetail = lazy(() => import('./pages/AmuStaffCaseDetail'))
+const AmuStaffNeedsAssessments = lazy(() => import('./pages/AmuStaffNeedsAssessments'))
 const ArchivedClasses = lazy(() => import('./pages/ArchivedClasses'))
 
 function RouteFallback() {
@@ -45,10 +44,21 @@ function RouteFallback() {
   )
 }
 
+function ScrollToTop() {
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
+  return null
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
+        <ScrollToTop />
         <AuthProvider>
           <NotificationsProvider>
             <Suspense fallback={<RouteFallback />}>
@@ -74,11 +84,10 @@ export default function App() {
                 <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
                 <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
                 <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
-                <Route path="/admin/intervention/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminInterventionDetail /></ProtectedRoute>} />
                 <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
                 <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
                 <Route path="/amu-staff/student/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffStudentDetail /></ProtectedRoute>} />
-                <Route path="/amu-staff/case/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffCaseDetail /></ProtectedRoute>} />
+                <Route path="/amu-staff/needs-assessments" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffNeedsAssessments /></ProtectedRoute>} />
                 <Route path="/help" element={<ProtectedRoute allowedRoles={['instructor', 'admin', 'amu-staff']}><Help /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
@@ -89,5 +98,3 @@ export default function App() {
     </ErrorBoundary>
   )
 }
-
-

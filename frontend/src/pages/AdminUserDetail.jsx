@@ -14,7 +14,7 @@ const rolePermissions = {
   instructor: [
     'Manage assigned classes',
     'View enrolled students',
-    'Create and track interventions',
+    'Refer students to AMU',
     'Access student performance data',
     'Generate class reports',
   ],
@@ -28,8 +28,8 @@ const rolePermissions = {
   ],
   'amu-staff': [
     'View student referrals',
-    'Manage support cases',
-    'Track intervention outcomes',
+    'Review uploaded needs assessments',
+    'Run AMU-side predictions',
     'Coordinate with instructors',
     'Access student support resources',
   ],
@@ -147,7 +147,7 @@ export default function AdminUserDetail() {
                       <Mail className="w-4 h-4" /> {user.email || '-'}
                     </p>
                     <p className="text-sm text-gray-500 mt-1.5 flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4" /> {user.department || '-'}
+                      <Building2 className="w-4 h-4" /> {user.college || '-'}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 mt-3">
                       <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${config.class}`}>

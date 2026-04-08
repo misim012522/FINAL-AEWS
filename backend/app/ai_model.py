@@ -21,12 +21,74 @@ from app.ai_features import (
 DEFAULT_MODEL_FILENAME = "xgboost_student_risk.pkl"
 DEFAULT_NATIVE_MODEL_FILENAME = "xgboost_student_risk.json"
 DEFAULT_MODEL_METRICS_FILENAME = "xgboost_student_risk_metrics.json"
-FINAL_FEATURE_HINTS = (
-    "final_class_standing",
-    "final_laboratory",
-    "final_major_output",
-    "finalterm_grade",
-)
+
+
+def _format_activity_title(column_name: str) -> str:
+    text = str(column_name or "").strip()
+    if not text:
+        return "Untitled activity"
+
+    lowered = text.lower()
+    for prefix in ("midterm_", "finals_", "final_"):
+        if lowered.startswith(prefix):
+            text = text[len(prefix):]
+            break
+
+    text = text.replace("_", " ").replace("-", " ").strip()
+    return " ".join(word.capitalize() for word in text.split()) or "Untitled activity"
+
+
+def _extract_topic_difficulty(
+    enrollment: dict[str, Any],
+    features: dict[str, float | int] | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    activity_mappings = enrollment.get("activity_title_mappings") or {}
+    if not isinstance(activity_mappings, dict):
+        return {"midterm_topic_difficulties": [], "hardest_midterm_topics": []}
+
+    topic_rows: list[dict[str, Any]] = []
+    for score_key, meta in activity_mappings.items():
+        normalized_key = str(score_key or "").strip()
+        if not normalized_key.startswith("midterm_"):
+            continue
+
+        raw_value = enrollment.get(normalized_key)
+        try:
+            numeric_value = float(raw_value)
+        except (TypeError, ValueError):
+            continue
+
+        title = _format_activity_title(normalized_key)
+        if isinstance(meta, dict):
+            title = str(meta.get("title") or title).strip() or title
+            component = str(meta.get("component") or "").strip()
+        else:
+            component = ""
+
+        # Handle both percentage-like scores and 1.0-5.0 grade-like values.
+        if numeric_value <= 5:
+            severity = max(0.0, numeric_value - 1.0)
+        else:
+            severity = max(0.0, (75.0 - numeric_value) / 10.0)
+
+        if severity <= 0:
+            continue
+
+        topic_rows.append(
+            {
+                "column": normalized_key,
+                "title": title,
+                "component": component,
+                "score": round(numeric_value, 2),
+                "difficulty_score": round(severity, 2),
+            }
+        )
+
+    topic_rows.sort(key=lambda item: (-item["difficulty_score"], item["title"]))
+    return {
+        "midterm_topic_difficulties": topic_rows,
+        "hardest_midterm_topics": topic_rows[:5],
+    }
 
 
 def _candidate_model_paths() -> list[Path]:
@@ -121,26 +183,7 @@ def resolve_model_feature_order_for_profile(profile_name: str | None) -> list[st
 
 
 def _select_prediction_profile(enrollment: dict[str, Any], features: dict[str, float | int]) -> str:
-    grades_breakdown = enrollment.get("grades_breakdown") or {}
-    if isinstance(grades_breakdown, dict):
-        if any(
-            isinstance(key, str) and key.startswith("finals_")
-            for key in grades_breakdown.keys()
-        ):
-            return "midterm_endterm"
-
-    for field_name in FINAL_FEATURE_HINTS:
-        raw_value = enrollment.get(field_name, features.get(field_name))
-        if raw_value is None or raw_value == "":
-            continue
-        try:
-            numeric_value = float(raw_value)
-        except (TypeError, ValueError):
-            return "midterm_endterm"
-        if numeric_value != 0:
-            return "midterm_endterm"
-
-    return "early_warning"
+    return "midterm_attendance_needs"
 
 
 def _resolve_active_model_bundle(model_payload: Any, profile_name: str) -> tuple[Any, list[str], str | None]:
@@ -152,6 +195,58 @@ def _resolve_active_model_bundle(model_payload: Any, profile_name: str) -> tuple
         return model, feature_order, profile_name
 
     return model_payload, resolve_model_feature_order(), None
+
+
+def _compute_weight_scores(features: dict[str, float | int]) -> dict[str, Any]:
+    previous_gpa = float(features.get("previous_gpa", 0.0))
+    failed_subject_count = int(features.get("failed_subject_count", 0))
+    attendance_rate = float(features.get("attendance_rate", 0.0))
+    academic_challenge_score = float(features.get("academic_challenge_score", 0.0))
+    external_factor_score = float(features.get("external_factor_score", 0.0))
+    midterm_grade = features.get("midterm_grade")
+    midterm_grade = float(midterm_grade) if midterm_grade is not None else 0.0
+
+    academic_weight_score = 0.0
+    external_weight_score = 0.0
+
+    if midterm_grade >= 3.0:
+        academic_weight_score += 3.0
+    elif midterm_grade >= 2.5:
+        academic_weight_score += 2.0
+    elif midterm_grade >= 2.0:
+        academic_weight_score += 1.0
+
+    if attendance_rate < 60:
+        academic_weight_score += 3.0
+    elif attendance_rate < 75:
+        academic_weight_score += 2.0
+    elif attendance_rate < 85:
+        academic_weight_score += 1.0
+
+    if previous_gpa >= 3.0:
+        academic_weight_score += 3.0
+    elif previous_gpa >= 2.5:
+        academic_weight_score += 2.0
+    elif previous_gpa >= 2.0:
+        academic_weight_score += 1.0
+
+    academic_weight_score += min(float(failed_subject_count), 3.0)
+    academic_weight_score += min(float(academic_challenge_score), 4.0)
+    external_weight_score += min(float(external_factor_score), 6.0)
+
+    if external_weight_score > academic_weight_score:
+        risk_source = "external_factors"
+        risk_source_label = "External factors"
+    else:
+        risk_source = "academic"
+        risk_source_label = "Academic factors"
+
+    return {
+        "academic_weight_score": round(academic_weight_score, 2),
+        "external_weight_score": round(external_weight_score, 2),
+        "risk_source": risk_source,
+        "risk_source_label": risk_source_label,
+    }
 
 
 def _classify_risk_drivers(features: dict[str, float | int]) -> dict[str, Any]:
@@ -183,92 +278,16 @@ def _classify_risk_drivers(features: dict[str, float | int]) -> dict[str, Any]:
             f"External factor score is elevated at {external_factor_score:.0f}."
         )
 
-    if academic_signals and external_signals:
-        risk_source = "mixed"
-        risk_source_label = "Grades and external factors"
-    elif external_signals:
-        risk_source = "external_factors"
-        risk_source_label = "External factors"
-    else:
-        risk_source = "grades"
-        risk_source_label = "Grades / academic factors"
+    weight_scores = _compute_weight_scores(features)
 
     return {
-        "risk_source": risk_source,
-        "risk_source_label": risk_source_label,
+        "risk_source": weight_scores["risk_source"],
+        "risk_source_label": weight_scores["risk_source_label"],
+        "academic_weight_score": weight_scores["academic_weight_score"],
+        "external_weight_score": weight_scores["external_weight_score"],
         "risk_drivers": academic_signals + external_signals,
         "academic_risk_drivers": academic_signals,
         "external_risk_drivers": external_signals,
-    }
-
-
-def _format_activity_title(feature_name: str) -> str:
-    label = feature_name
-    for prefix in (
-        "midterm_class_standing_",
-        "midterm_laboratory_",
-        "midterm_major_output_",
-        "finals_class_standing_",
-        "finals_laboratory_",
-        "finals_major_output_",
-    ):
-        if label.startswith(prefix):
-            label = label[len(prefix):]
-            break
-    return label.replace("_", " ").title()
-
-
-def _extract_topic_difficulty(
-    enrollment: dict[str, Any],
-    features: dict[str, float | int],
-) -> dict[str, Any]:
-    grades_breakdown = enrollment.get("grades_breakdown") or {}
-    if not isinstance(grades_breakdown, dict):
-        return {
-            "midterm_topic_difficulties": [],
-            "hardest_midterm_topics": [],
-        }
-
-    topic_rows: list[dict[str, Any]] = []
-    for key, raw_value in grades_breakdown.items():
-        if not isinstance(key, str) or not key.startswith("midterm_"):
-            continue
-        if not any(
-            key.startswith(prefix)
-            for prefix in (
-                "midterm_class_standing_",
-                "midterm_laboratory_",
-                "midterm_major_output_",
-            )
-        ):
-            continue
-
-        try:
-            score = float(features.get(key, raw_value))
-        except (TypeError, ValueError):
-            continue
-
-        if key.startswith("midterm_class_standing_"):
-            component = "class standing"
-        elif key.startswith("midterm_laboratory_"):
-            component = "laboratory"
-        else:
-            component = "major output"
-
-        topic_rows.append(
-            {
-                "feature": key,
-                "component": component,
-                "activity_title": _format_activity_title(key),
-                "score": score,
-            }
-        )
-
-    topic_rows.sort(key=lambda item: (item["score"], item["activity_title"]))
-
-    return {
-        "midterm_topic_difficulties": topic_rows,
-        "hardest_midterm_topics": topic_rows[:5],
     }
 
 
@@ -342,57 +361,16 @@ def _extract_contributing_signals(
             f"External factor score is {external_factor_score:.0f}.",
         )
 
-    if model_profile == "early_warning":
-        candidate_specs = [
-            ("midterm_activity_low_count", "Low midterm activity count", "Several midterm activities are below the target score."),
-            ("midterm_activity_very_low_count", "Very low midterm activity count", "Some midterm activities are critically low."),
-            ("midterm_activity_min", "Lowest midterm activity", "One of the midterm activity scores is especially low."),
-            ("midterm_class_standing_low_count", "Low class standing activities", "Multiple class standing activities are underperforming."),
-            ("midterm_laboratory_low_count", "Low laboratory activities", "Multiple laboratory activities are underperforming."),
-            ("midterm_major_output_low_count", "Low major output activities", "Multiple major output activities are underperforming."),
-            ("midterm_component_range", "Midterm component imbalance", "The student's midterm component scores are uneven."),
-            ("midterm_vs_history_gap", "Midterm vs history gap", "Midterm performance is weaker than the student's history."),
-            ("prior_failure_pressure", "Prior failure pressure", "Past and current failures raise the early warning risk."),
-        ]
-        for key, label, detail in candidate_specs:
-            raw_value = features.get(key)
-            if raw_value is None:
-                continue
-            numeric_value = float(raw_value)
-            if key == "midterm_activity_min":
-                score = max(0.0, (75.0 - numeric_value) / 10.0)
-            elif key == "midterm_vs_history_gap":
-                score = max(0.0, numeric_value - 0.15)
-            else:
-                score = max(0.0, numeric_value)
-            add_signal(key, label, round(numeric_value, 2), score, detail)
-
-        grades_breakdown = enrollment.get("grades_breakdown") or {}
-        if isinstance(grades_breakdown, dict):
-            topic_rows = _extract_topic_difficulty(enrollment, features).get("hardest_midterm_topics") or []
-            for topic in topic_rows[:3]:
-                score = max(0.0, (75.0 - float(topic["score"])) / 10.0)
-                add_signal(
-                    topic["feature"],
-                    f"{_format_activity_title(topic['feature'])} ({topic['component'].title()})",
-                    round(float(topic["score"]), 2),
-                    score,
-                    f"{topic['activity_title']} is one of the student's lowest midterm scores.",
-                )
-    else:
-        candidate_specs = [
-            ("finalterm_grade", "Final term grade", "Final term performance strongly affects the full-term model."),
-            ("final_class_standing", "Final class standing", "Final class standing is influencing the overall risk."),
-            ("final_laboratory", "Final laboratory", "Final laboratory performance is influencing the overall risk."),
-            ("final_major_output", "Final major output", "Final major output is influencing the overall risk."),
-        ]
-        for key, label, detail in candidate_specs:
-            raw_value = features.get(key)
-            if raw_value is None:
-                continue
-            numeric_value = float(raw_value)
-            score = max(0.0, (75.0 - numeric_value) / 10.0)
-            add_signal(key, label, round(numeric_value, 2), score, detail)
+    midterm_grade = features.get("midterm_grade")
+    if midterm_grade is not None:
+        numeric_value = float(midterm_grade)
+        add_signal(
+            "midterm_grade",
+            "Midterm grade",
+            round(numeric_value, 2),
+            max(0.0, numeric_value - 2.0) if numeric_value <= 5 else max(0.0, (75.0 - numeric_value) / 10.0),
+            f"Midterm grade is concerning at {numeric_value:.2f}.",
+        )
 
     signal_rows.sort(key=lambda item: (-item["importance_score"], item["label"]))
 
@@ -414,11 +392,11 @@ def _predict_with_fallback(features: dict[str, float | int]) -> dict[str, float 
     midterm_grade = features.get("midterm_grade")
     midterm_grade = float(midterm_grade) if midterm_grade is not None else None
 
-    if previous_gpa <= 1.75:
+    if previous_gpa >= 3.0:
         risk_score += 3
-    elif previous_gpa <= 2.25:
+    elif previous_gpa >= 2.5:
         risk_score += 2
-    elif previous_gpa <= 2.75:
+    elif previous_gpa >= 2.0:
         risk_score += 1
 
     risk_score += min(failed_subject_count, 3)
@@ -433,8 +411,13 @@ def _predict_with_fallback(features: dict[str, float | int]) -> dict[str, float 
     risk_score += min(int(academic_challenge_score), 3)
     risk_score += min(int(external_factor_score), 2)
 
-    if midterm_grade is not None and midterm_grade >= 3:
-        risk_score += 1
+    if midterm_grade is not None:
+        if midterm_grade >= 3.0:
+            risk_score += 3
+        elif midterm_grade >= 2.5:
+            risk_score += 2
+        elif midterm_grade >= 2.0:
+            risk_score += 1
 
     if risk_score >= 7:
         prediction = 2
@@ -464,7 +447,6 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
     model_payload = get_student_risk_model()
     model, feature_order, resolved_profile = _resolve_active_model_bundle(model_payload, requested_profile)
     feature_row = build_model_feature_row_for_order(enrollment, feature_order)
-    topic_difficulty = _extract_topic_difficulty(enrollment, feature_dict)
     contributing_signals = _extract_contributing_signals(
         enrollment,
         feature_dict,
@@ -475,7 +457,6 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
         fallback_result = _predict_with_fallback(feature_dict)
         return {
             **fallback_result,
-            **topic_difficulty,
             **contributing_signals,
             "features": feature_dict,
             "feature_order": feature_order,
@@ -508,7 +489,6 @@ def predict_student_risk(enrollment: dict[str, Any]) -> dict[str, Any]:
         "probability_percent": probability_percent,
         "class_probabilities": class_probabilities,
         **_classify_risk_drivers(feature_dict),
-        **topic_difficulty,
         **contributing_signals,
         "features": feature_dict,
         "feature_order": feature_order,

@@ -96,10 +96,10 @@ function openPdfPrintView(reportData) {
 
   const summaryCards = [
     ['Students', totals.students ?? 0],
-    ['High Risk', totals.high ?? 0],
-    ['Medium Risk', totals.medium ?? 0],
-    ['Low Risk', totals.low ?? 0],
+    ['Rows Exported', rows.length],
     ['Referred to AMU', totals.referred ?? 0],
+    ['Needs Assessment', rows.filter((row) => String(row.needs_assessment_yes || '').trim()).length],
+    ['With Attendance', rows.filter((row) => row.attendance_rate != null || row.instructor_attendance != null).length],
   ]
 
   const tableRows = rows.map((row) => `
@@ -107,7 +107,6 @@ function openPdfPrintView(reportData) {
       <td>${row.student_name || '-'}</td>
       <td>${row.student_id || '-'}</td>
       <td>${row.student_email || 'No email'}</td>
-      <td>${row.risk || '-'}</td>
       <td>${formatNumber(row.attendance_rate || row.instructor_attendance)}</td>
       <td>${formatNumber(row.midterm_grade)}</td>
       <td>${formatNumber(row.final_grade || row.finalterm_grade)}</td>
@@ -227,7 +226,6 @@ function openPdfPrintView(reportData) {
             <th>Student</th>
             <th>Student ID</th>
             <th>Email</th>
-            <th>Risk</th>
             <th>Attendance</th>
             <th>Midterm</th>
             <th>Final</th>
@@ -236,7 +234,7 @@ function openPdfPrintView(reportData) {
           </tr>
         </thead>
         <tbody>
-          ${tableRows || '<tr><td colspan="9">No rows available.</td></tr>'}
+          ${tableRows || '<tr><td colspan="8">No rows available.</td></tr>'}
         </tbody>
       </table>
     </body>
@@ -253,7 +251,7 @@ function openPdfPrintView(reportData) {
 export default function InstructorReports() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const instructorSubtitle = user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
+  const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   const [classesList, setClassesList] = useState([])
   const [classesLoading, setClassesLoading] = useState(true)
@@ -464,7 +462,6 @@ export default function InstructorReports() {
       subtitle={instructorSubtitle}
       navItems={[
         { label: 'Classes', icon: BookOpen, active: false, onClick: () => navigate('/instructor') },
-        { label: 'Risk alerts', icon: TriangleAlert, active: false, onClick: () => navigate('/instructor', { state: { tab: 'alerts' } }) },
         { label: 'Students', icon: Users, active: false, onClick: () => navigate('/instructor', { state: { tab: 'students' } }) },
         { label: 'Reports', icon: FileSpreadsheet, active: true, onClick: () => navigate('/instructor/reports') },
       ]}
@@ -479,7 +476,7 @@ export default function InstructorReports() {
                   <h2 className="text-lg font-bold text-slate-900 tracking-tight">Section Reports</h2>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Export the complete student information for one section, including risk, grades, attendance, referrals, and needs assessment indicators.
+                  Export the complete student information for one section, including grades, attendance, and referrals.
                 </p>
               </div>
               <div className="w-full sm:w-auto sm:min-w-[18rem] flex flex-col gap-2.5">
@@ -555,7 +552,7 @@ export default function InstructorReports() {
 
             {reportData && !reportLoading ? (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Section</p>
                     <p className="mt-1.5 text-xs font-semibold text-slate-900">
@@ -566,14 +563,6 @@ export default function InstructorReports() {
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Students</p>
                     <p className="mt-1.5 text-lg font-bold text-slate-900">{reportData.totals.students}</p>
-                  </div>
-                  <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Medium risk</p>
-                    <p className="mt-1.5 text-lg font-bold text-amber-900">{reportData.totals.medium}</p>
-                  </div>
-                  <div className="rounded-lg border border-red-200 bg-red-50/70 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-red-700">High risk</p>
-                    <p className="mt-1.5 text-lg font-bold text-red-900">{reportData.totals.high}</p>
                   </div>
                   <div className="rounded-lg border border-teal-200 bg-teal-50/70 p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Referred to AMU</p>
@@ -593,10 +582,10 @@ export default function InstructorReports() {
                     </span>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left min-w-[1000px]">
+                    <table className="w-full text-left min-w-[760px]">
                       <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                          {['Student', 'Student ID', 'Risk', 'Attendance', 'Midterm', 'Final', 'Referred', 'Needs Assessment Yes'].map((header) => (
+                          {['Student', 'Student ID', 'Attendance', 'Midterm', 'Referred'].map((header) => (
                             <th key={header} className="px-4 py-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                               {header}
                             </th>
@@ -611,14 +600,9 @@ export default function InstructorReports() {
                               <div className="text-xs text-slate-500">{row.student_email || 'No email'}</div>
                             </td>
                             <td className="px-4 py-3 text-sm text-slate-700">{row.student_id || '-'}</td>
-                            <td className="px-4 py-3 text-sm text-slate-700">{row.risk || '-'}</td>
                             <td className="px-4 py-3 text-sm text-slate-700">{formatNumber(row.attendance_rate || row.instructor_attendance)}</td>
                             <td className="px-4 py-3 text-sm text-slate-700">{formatNumber(row.midterm_grade)}</td>
-                            <td className="px-4 py-3 text-sm text-slate-700">{formatNumber(row.final_grade || row.finalterm_grade)}</td>
                             <td className="px-4 py-3 text-sm text-slate-700">{row.flagged_for_mentoring}</td>
-                            <td className="px-4 py-3 text-sm text-slate-700 max-w-xs">
-                              <span className="line-clamp-2">{row.needs_assessment_yes || '-'}</span>
-                            </td>
                           </tr>
                         ))}
                       </tbody>

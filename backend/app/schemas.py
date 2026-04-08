@@ -7,7 +7,7 @@ class UserBase(BaseModel):
     name: str
     email: EmailStr
     role: Literal["instructor", "admin", "amu-staff"]
-    department: str
+    college: str
     contact_number: str = ""
     status: Literal["active", "inactive", "pending"] = "active"
     profile_image: Optional[str] = None
@@ -21,7 +21,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     role: Optional[Literal["instructor", "admin", "amu-staff"]] = None
-    department: Optional[str] = None
+    college: Optional[str] = None
     contact_number: Optional[str] = None
     status: Optional[Literal["active", "inactive", "pending"]] = None
     profile_image: Optional[str] = None  # data URL (base64) for avatar
@@ -41,7 +41,7 @@ class UserResponse(UserBase):
 class StudentBase(BaseModel):
     name: str
     email: EmailStr
-    department: str
+    college: str
     course: str
     risk: Literal["High", "Medium", "Low"]
     instructor: str
@@ -54,53 +54,13 @@ class StudentCreate(StudentBase):
 class StudentUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
-    department: Optional[str] = None
+    college: Optional[str] = None
     course: Optional[str] = None
     risk: Optional[Literal["High", "Medium", "Low"]] = None
     instructor: Optional[str] = None
 
 
 class StudentResponse(StudentBase):
-    id: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-# ----- Intervention -----
-class InterventionBase(BaseModel):
-    student: str
-    department: str
-    course: str
-    type: str
-    status: Literal["pending", "in-progress", "completed"]
-    instructor: str
-    due: Optional[str] = None
-    completed: Optional[str] = None
-    notes: Optional[str] = None
-    referral_id: Optional[str] = None
-
-
-class InterventionCreate(InterventionBase):
-    student_id: Optional[str] = None
-    student_email: Optional[str] = None
-    notification_subject: Optional[str] = None
-    notification_message: Optional[str] = None
-
-
-class InterventionUpdate(BaseModel):
-    student: Optional[str] = None
-    department: Optional[str] = None
-    course: Optional[str] = None
-    type: Optional[str] = None
-    status: Optional[Literal["pending", "in-progress", "completed"]] = None
-    instructor: Optional[str] = None
-    due: Optional[str] = None
-    completed: Optional[str] = None
-    notes: Optional[str] = None
-    referral_id: Optional[str] = None
-
-
-class InterventionResponse(InterventionBase):
     id: str
 
     model_config = ConfigDict(from_attributes=True)
@@ -136,23 +96,23 @@ class SignUpRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=1, description="Password")
     contact_number: str = Field("", description="Contact/phone number")
-    department: str = Field("", description="Department (e.g. Information Technology)")
+    college: str = Field("", description="College (e.g. College of Information Technology)")
     role: Literal["instructor", "admin", "amu-staff"]
 
     @model_validator(mode="after")
     def validate_organization_field(self):
         self.name = self.name.strip()
         self.contact_number = self.contact_number.strip()
-        self.department = self.department.strip()
+        self.college = self.college.strip()
 
         if not self.name:
             raise ValueError("Full name is required")
 
-        if self.role == "amu-staff" and not self.department:
+        if self.role == "amu-staff" and not self.college:
             raise ValueError("College is required for AMU Staff accounts")
 
-        if self.role == "instructor" and not self.department:
-            raise ValueError("Department is required for Instructor accounts")
+        if self.role == "instructor" and not self.college:
+            raise ValueError("College is required for Instructor accounts")
 
         return self
 
@@ -211,6 +171,11 @@ class UpdateEnrollmentRequest(BaseModel):
     academic_challenge_score: Optional[float] = Field(None, ge=0, le=5)
     external_factor_score: Optional[float] = Field(None, ge=0, le=5)
     received_academic_support: Optional[bool] = None
+    on_probation_status: Optional[bool] = None
+    has_subject_grade_2_5: Optional[bool] = None
+    gwa_2_5_or_below: Optional[bool] = None
+    low_midterm_academic_performance: Optional[bool] = None
+    difficulty_catching_up_instructions: Optional[bool] = None
     difficulty_understanding_lectures: Optional[bool] = None
     struggles_specific_subjects: Optional[bool] = None
     weak_study_habits_time_management: Optional[bool] = None
@@ -224,6 +189,7 @@ class UpdateEnrollmentRequest(BaseModel):
     risk: Optional[Literal["High", "Medium", "Low"]] = None
     flagged_for_mentoring: Optional[bool] = None
     referral_note: Optional[str] = Field(None, max_length=2000)
+    referral_reasons: Optional[dict] = None
     assigned_amu_staff_id: Optional[str] = Field(None, max_length=100)
     assigned_amu_staff_name: Optional[str] = Field(None, max_length=200)
     assigned_amu_staff_college: Optional[str] = Field(None, max_length=200)

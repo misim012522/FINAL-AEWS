@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, Settings, LogOut, HelpCircle, ChevronRight } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationsContext'
@@ -13,6 +14,7 @@ export default function DashboardLayout({
   children,
   notificationCount: notificationCountProp = 0,
   navItems = [],
+  overrideNavItems = null,
 }) {
   const navigate = useNavigate()
   const { logout } = useAuth()
@@ -32,6 +34,81 @@ export default function DashboardLayout({
   const roleLabel = isAdmin ? 'Admin' : isAmuStaff ? 'AMU Staff' : 'Instructor'
 
   const basePath = variant === 'admin' ? '/admin' : variant === 'amu-staff' ? '/amu-staff' : '/instructor'
+  const location = useLocation()
+  const onSettingsPage = location.pathname.endsWith('/settings')
+  const onHelpPage = location.pathname.endsWith('/help') || location.pathname.endsWith('/help/')
+
+  const getDefaultNavItems = () => {
+    if (variant === 'amu-staff') {
+      return [
+        // AMU Staff: show Overview as primary, then role actions
+        { label: 'Overview', icon: BookOpen, onClick: () => navigate(`${basePath}`), active: location.pathname === `${basePath}` || location.pathname === `${basePath}/` },
+        { label: 'Referrals', icon: Clipboard, onClick: () => navigate(`${basePath}?tab=referrals`), active: location.pathname === `${basePath}` && new URLSearchParams(location.search).get('tab') === 'referrals' },
+        { label: 'Needs assessments', icon: Users, onClick: () => navigate(`${basePath}/needs-assessments`), active: location.pathname.startsWith(`${basePath}/needs-assessments`) },
+        { label: 'Reports', icon: BarChart2, onClick: () => navigate(`${basePath}?tab=reports`), active: location.pathname === `${basePath}` && new URLSearchParams(location.search).get('tab') === 'reports' },
+      ]
+    }
+
+    if (variant === 'admin') {
+      const activeAdminTab = new URLSearchParams(location.search).get('tab') || 'overview'
+      return [
+        { label: 'System Overview', icon: BookOpen, onClick: () => navigate(`${basePath}?tab=overview`), active: location.pathname === `${basePath}` && activeAdminTab === 'overview' },
+        { label: 'Pending Accounts', icon: Users, onClick: () => navigate(`${basePath}?tab=pending`), active: location.pathname === `${basePath}` && activeAdminTab === 'pending' },
+        { label: 'System Analytics', icon: BarChart2, onClick: () => navigate(`${basePath}?tab=analytics`), active: location.pathname === `${basePath}` && activeAdminTab === 'analytics' },
+        { label: 'Institution Reports', icon: Clipboard, onClick: () => navigate(`${basePath}?tab=reports`), active: location.pathname === `${basePath}` && activeAdminTab === 'reports' },
+        { label: 'User Accounts', icon: Users, onClick: () => navigate(`${basePath}?tab=users`), active: location.pathname === `${basePath}` && activeAdminTab === 'users' },
+      ]
+    }
+
+    // default to instructor (dedicated instructor items) — no Overview
+    return [
+      { label: 'Classes', icon: BookOpen, onClick: () => navigate(`${basePath}?tab=classes`), active: (location.pathname === `${basePath}` && (new URLSearchParams(location.search).get('tab') || 'classes') === 'classes') || location.pathname.startsWith(`${basePath}/class`) },
+      { label: 'Students', icon: Users, onClick: () => navigate(`${basePath}?tab=students`), active: (location.pathname === `${basePath}` && new URLSearchParams(location.search).get('tab') === 'students') || location.pathname.startsWith(`${basePath}/student`) },
+      { label: 'Reports', icon: BarChart2, onClick: () => navigate(`${basePath}/reports`), active: location.pathname === `${basePath}/reports` || location.pathname.startsWith(`${basePath}/reports`) },
+    ]
+  }
+
+  // Determine effective nav items.
+  // If on settings/help pages, always use role defaults unless `overrideNavItems` explicitly provided.
+  let effectiveNavItems
+  if (overrideNavItems && overrideNavItems.length) {
+    effectiveNavItems = overrideNavItems
+  } else if ((onSettingsPage || onHelpPage)) {
+    effectiveNavItems = getDefaultNavItems()
+  } else if (navItems && navItems.length) {
+    effectiveNavItems = navItems
+  } else {
+    effectiveNavItems = getDefaultNavItems()
+  }
+
+  // Normalize icons for role-specific items to avoid pages accidentally supplying
+  // Explicit role → label → icon map to ensure pages cannot override role icons
+  const ROLE_ICON_MAP = {
+    'admin': {
+      'System Overview': BookOpen,
+      'Pending Accounts': Users,
+      'System Analytics': BarChart2,
+      'Institution Reports': Clipboard,
+      'User Accounts': Users,
+    },
+    'amu-staff': {
+      Overview: BookOpen,
+      Referrals: Clipboard,
+      Reports: BarChart2,
+      'Needs assessments': Users,
+    },
+    'instructor': {
+      Classes: BookOpen,
+      Students: Users,
+      Reports: BarChart2,
+    },
+  }
+
+  const roleIcons = ROLE_ICON_MAP[variant] || {}
+  const normalizedNavItems = effectiveNavItems.map((it) => ({
+    ...it,
+    icon: (it.label && roleIcons[it.label]) || it.icon,
+  }))
 
   useEffect(() => {
     if (!notificationsOpen) return
@@ -71,7 +148,10 @@ export default function DashboardLayout({
 
   const handleLogout = () => {
     logout()
-    navigate('/')
+    navigate('/', {
+      replace: true,
+      state: { logoutReason: 'You signed out of this tab.' },
+    })
   }
   const handleNotificationsClick = (e) => {
     e.stopPropagation()
@@ -79,16 +159,37 @@ export default function DashboardLayout({
   }
   const handleSettings = () => navigate(`${basePath}/settings`)
 
+  // Previously attempted to disable body scroll — removed to avoid 'stuck' behavior.
+
   const textMuted = isInstructor ? 'text-slate-500' : 'text-gray-500'
   const textPrimary = isInstructor ? 'text-slate-900' : 'text-gray-900'
   const btnMuted = isInstructor ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100' : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
   const btnActive = isInstructor ? 'bg-slate-100 text-slate-800' : 'bg-gray-100 text-gray-800'
   const divider = isInstructor ? 'bg-slate-200' : 'bg-gray-200'
   const roleHomeLabel = isAdmin ? 'System workspace' : isAmuStaff ? 'Support workspace' : 'Teaching workspace'
+  const notifBtnClass = isAdmin
+    ? 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2'
+    : isAmuStaff
+      ? 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-teal-200 bg-teal-50/60 text-teal-800 hover:bg-teal-100/70 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2'
+      : 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50/70 text-blue-800 hover:bg-blue-100/70 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+  const navBtnClassFor = (active = false) => {
+    if (active) {
+      return isAdmin
+        ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-gray-700 bg-gray-700 text-white shadow-md shadow-gray-700/20'
+        : isAmuStaff
+          ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-600/20'
+          : 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'
+    }
+    return isAdmin
+      ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-transparent bg-white/50 text-gray-700 hover:bg-white hover:border-gray-200'
+      : isAmuStaff
+        ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-teal-100'
+        : 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-slate-200'
+  }
 
   return (
     <div
-      className="min-h-screen relative"
+      className="min-h-screen relative dashboard-no-page-scroll"
       style={{ '--dashboard-header-height': `${headerHeight}px` }}
     >
       {/* Same background as login: soft blue gradient + orbs */}
@@ -128,22 +229,21 @@ export default function DashboardLayout({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-0.5 flex-shrink-0">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="relative" ref={notificationsRef}>
               <button
                 type="button"
                 onClick={handleNotificationsClick}
                 title="Notifications"
-                className={`relative p-1.5 rounded-lg ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                  notificationsOpen ? btnActive : ''
-                }`}
+                className={`${notifBtnClass} ${notificationsOpen ? btnActive : ''}`}
                 aria-label={`Notifications${notificationCount > 0 ? `, ${notificationCount} unread` : ''}`}
                 aria-expanded={notificationsOpen}
                 aria-haspopup="true"
               >
                 <Bell className="w-4 h-4" />
+                <span className="hidden sm:inline text-xs font-semibold">Notifications</span>
                 {notificationCount > 0 && (
-                  <span className="absolute top-0.5 right-0.5 min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+                  <span className="absolute -top-1.5 -right-1.5 min-w-[17px] h-[17px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
                     {notificationCount > 9 ? '9+' : notificationCount}
                   </span>
                 )}
@@ -159,87 +259,77 @@ export default function DashboardLayout({
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              onClick={handleSettings}
-              title="Settings"
-              className={`p-1.5 rounded-md ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
-              aria-label="Settings"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/help')}
-              title="Help & FAQ"
-              className={`p-1.5 rounded-md ${btnMuted} transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
-              aria-label="Help"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-            <div className={`w-px h-4 ${divider} mx-0.5`} aria-hidden />
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex items-center gap-1 px-2 py-1 rounded-md border border-gray-200 text-gray-600 text-[11px] font-medium hover:bg-gray-50 hover:border-gray-300 hover:text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              aria-label="Log out"
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Log out</span>
-            </button>
           </div>
         </div>
-        {navItems.length > 0 && (
-          <div className={`border-t ${isInstructor ? 'border-slate-200/80' : 'border-gray-200/80'} bg-white/70 backdrop-blur-sm`}>
-              <div className="max-w-[1680px] mx-auto px-4 sm:px-5 py-2">
-                <nav
-                className={`inline-flex max-w-full flex-wrap items-center gap-1 rounded-xl border px-1.5 py-1 shadow-sm ${
-                  isInstructor
-                    ? 'border-slate-200/90 bg-slate-50/90 shadow-slate-200/60'
-                    : isAmuStaff
-                      ? 'border-teal-100 bg-white/90 shadow-teal-100/40'
-                      : 'border-gray-200/90 bg-gray-50/90 shadow-gray-200/60'
-                }`}
-                aria-label="Page navigation"
-              >
-                {navItems.map((item) => {
-                  const isActive = item.active
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={item.onClick}
-                      className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[10px] font-semibold transition-all ${
-                        isActive
-                          ? isInstructor
-                            ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'
-                            : isAmuStaff
-                              ? 'border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-600/20'
-                              : 'border-slate-700 bg-slate-700 text-white shadow-md shadow-slate-700/20'
-                          : isInstructor
-                            ? 'border-transparent bg-white/80 text-slate-600 hover:border-slate-200 hover:bg-white hover:text-slate-900'
-                            : isAmuStaff
-                              ? 'border-transparent bg-white/80 text-gray-600 hover:border-teal-100 hover:bg-white hover:text-gray-900'
-                              : 'border-transparent bg-white/80 text-gray-600 hover:border-gray-200 hover:bg-white hover:text-gray-900'
-                      }`}
-                      aria-current={isActive ? 'page' : undefined}
-                    >
-                      {item.icon ? <item.icon className={`h-4 w-4 ${isActive ? '' : 'opacity-75'}`} /> : null}
-                      {item.label}
-                      {item.trailing ? <ChevronRight className="h-4 w-4 opacity-70" /> : null}
-                    </button>
-                  )
-                })}
-              </nav>
+      </header>
+      <div className="flex relative h-[calc(100vh-var(--dashboard-header-height))]">
+        {/* Sidebar Navigation */}
+        {(normalizedNavItems.length > 0 || onSettingsPage || onHelpPage) && (
+          <aside className={`w-48 border-r ${
+            isAdmin
+              ? 'border-gray-200 bg-gradient-to-b from-gray-50/50 to-white'
+              : isAmuStaff
+                ? 'border-teal-100 bg-gradient-to-b from-teal-50/50 to-white'
+                : 'border-slate-200 bg-gradient-to-b from-slate-50/50 to-white'
+          } py-4 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden`}>
+            <nav className="space-y-1" aria-label="Page navigation">
+              {normalizedNavItems.map((item) => {
+                const isActive = !!item.active
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    onClick={item.onClick}
+                    className={navBtnClassFor(isActive)}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    {item.icon ? <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive ? '' : 'opacity-70'}`} /> : null}
+                    <span className="flex-grow text-left">{item.label}</span>
+                    {item.trailing ? <ChevronRight className="h-4 w-4 opacity-70 flex-shrink-0" /> : null}
+                  </button>
+                )
+              })}
+              {/* Sidebar contents remain constant; footer actions shown below */}
+              <div className="mt-6 pt-4 border-t px-1">
+                <button
+                  type="button"
+                  onClick={handleSettings}
+                  className={navBtnClassFor(onSettingsPage)}
+                  aria-current={onSettingsPage ? 'page' : undefined}
+                >
+                  <Settings className="w-4 h-4" />
+                  Settings
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate('/help')}
+                  className={navBtnClassFor(onHelpPage) + ' mt-2'}
+                  aria-current={onHelpPage ? 'page' : undefined}
+                >
+                  <HelpCircle className="w-4 h-4" />
+                  Help Center
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className={navBtnClassFor(false) + ' mt-2'}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Log out
+                </button>
+              </div>
+            </nav>
+          </aside>
+        )}
+        {/* Main Content */}
+        <main className="flex-1 min-h-[calc(100vh-var(--dashboard-header-height))] overflow-y-auto overflow-x-hidden">
+          <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
+            <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-slate-200/80 bg-white/45 p-4 shadow-sm sm:p-5 lg:p-6">
+              {children}
             </div>
           </div>
-        )}
-      </header>
-      <main className="relative z-10 min-h-[50vh]">
-        <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
-          {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

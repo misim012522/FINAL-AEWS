@@ -8,17 +8,12 @@ import {
   Building2,
   AlertTriangle,
   CheckCircle,
-  Calendar,
-  ClipboardList,
-  Users,
-  Send,
+  Upload,
+  Zap,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
-import ScrollTableContainer from '../components/ScrollTableContainer'
-import { getAmuStaffReferral, sendAmuStaffReferralEmail, listInterventions } from '../api'
+import { getAmuStaffReferral } from '../api'
 
-const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
-const statusClass = { 'in-progress': 'bg-teal-100 text-teal-700', completed: 'bg-emerald-100 text-emerald-700', pending: 'bg-amber-100 text-amber-700' }
 const sourceClass = {
   grades: 'bg-blue-100 text-blue-700 border-blue-200',
   external_factors: 'bg-violet-100 text-violet-700 border-violet-200',
@@ -29,15 +24,8 @@ export default function AmuStaffStudentDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [student, setStudent] = useState(null)
-  const [supportHistory, setSupportHistory] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [emailSubject, setEmailSubject] = useState('Academic support follow-up')
-  const [emailMessage, setEmailMessage] = useState('')
-  const [sendingEmail, setSendingEmail] = useState(false)
-  const [emailStatus, setEmailStatus] = useState('')
-  const [emailError, setEmailError] = useState('')
-  const hasStudentEmail = Boolean(student?.student_email)
 
   useEffect(() => {
     if (!id) {
@@ -47,30 +35,16 @@ export default function AmuStaffStudentDetail() {
     let isMounted = true
     getAmuStaffReferral(id)
       .then((data) => {
-        if (!isMounted) return
-        setStudent(data)
-        setEmailSubject('Academic support follow-up')
-        setEmailMessage(
-          `We are reaching out because your current academic status may need additional support.\n\n` +
-          `Our office received a referral so we can better understand your situation and help you with possible next steps.\n\n` +
-          `Please reply to this email or coordinate with the AMU office at your earliest convenience.`
-        )
-        return listInterventions().then((list) => {
-          if (!isMounted) return
-          const byStudent = (list || []).filter(
-            (i) => (i.student && data.student_email && i.student.toLowerCase().includes(data.student_email.split('@')[0]))
-              || (i.student && data.student_name && i.student === data.student_name)
-          )
-          setSupportHistory(byStudent)
+        if (isMounted) {
+          setStudent(data)
           setError(null)
           setLoading(false)
-        })
+        }
       })
       .catch((e) => {
         if (isMounted) {
           setError(e?.message || 'Failed to load student')
           setStudent(null)
-          setSupportHistory([])
           setLoading(false)
         }
       })
@@ -81,7 +55,7 @@ export default function AmuStaffStudentDetail() {
 
   if (loading) {
     return (
-      <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" icon={Users} variant="amu-staff">
+      <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" variant="amu-staff">
         <div className="space-y-2">
           <button type="button" onClick={() => navigate('/amu-staff')} className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-2.5 h-2.5" /> Back to dashboard
@@ -94,7 +68,7 @@ export default function AmuStaffStudentDetail() {
 
   if (error || !student) {
     return (
-      <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" icon={Users} variant="amu-staff">
+      <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" variant="amu-staff">
         <div className="space-y-2">
           <button type="button" onClick={() => navigate('/amu-staff')} className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
             <ArrowLeft className="w-2.5 h-2.5" /> Back to dashboard
@@ -106,7 +80,7 @@ export default function AmuStaffStudentDetail() {
   }
 
   return (
-    <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" icon={Users} variant="amu-staff">
+    <DashboardLayout title="AMU Staff Dashboard" subtitle="Academic support overview" variant="amu-staff">
       <div className="space-y-2">
         <div className="bg-white rounded-md border border-gray-200/80 shadow-sm hover:shadow-md transition-all overflow-hidden border-l-4 border-l-teal-500">
           <div className="px-2 pt-2">
@@ -134,20 +108,9 @@ export default function AmuStaffStudentDetail() {
                   <p className="text-[10px] text-gray-500 mt-0.5">Student ID: {student.student_id || '-'}</p>
                 )}
                 <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5">
-                  <Building2 className="w-2 h-2" /> {student.department || '-'} • <BookOpen className="w-2 h-2" /> {student.course || student.subject_code || '-'}
+                  <Building2 className="w-2 h-2" /> {student.college || '-'} • <BookOpen className="w-2 h-2" /> {student.course || student.subject_code || '-'}
                 </p>
-                <span className={`inline-flex items-center gap-0.5 mt-1 px-1 py-0.5 rounded text-[10px] font-medium ${riskClass[student.risk] || 'bg-gray-100 text-gray-700'}`}>
-                  <AlertTriangle className="w-2 h-2" /> Risk: {student.risk || '-'}
-                </span>
               </div>
-              <button
-                type="button"
-                onClick={() => navigate('/amu-staff?tab=cases')}
-                className="flex items-center gap-0.5 px-1.5 py-1 rounded bg-teal-600 text-white text-[10px] font-semibold hover:bg-teal-700 shadow-sm transition-all"
-              >
-                <ClipboardList className="w-2.5 h-2.5" />
-                Open interventions
-              </button>
             </div>
 
             <div className="mt-2 p-2 rounded-md bg-teal-50/80 border border-teal-200/80">
@@ -155,47 +118,21 @@ export default function AmuStaffStudentDetail() {
               <p className="text-[10px] text-gray-700 mt-0.5">
                 Referred by <strong>{student.referred_by || '-'}</strong> on {student.referred_at || '-'}
               </p>
-              {student.referral_note && (
-                <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2">
-                  <p className="text-[9px] font-semibold text-amber-700 uppercase tracking-wider">Instructor note</p>
-                  <p className="mt-1 text-[10px] leading-relaxed text-amber-900 whitespace-pre-line">{student.referral_note}</p>
-                </div>
-              )}
-              {student.risk_source_label && (
-                <div className={`mt-2 rounded-md border px-2 py-2 ${sourceClass[student.risk_source] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                  <p className="text-[9px] font-semibold uppercase tracking-wider">AI designation</p>
-                  <p className="mt-1 text-[10px] font-medium">{student.risk_source_label}</p>
-                </div>
-              )}
-              {Array.isArray(student.risk_drivers) && student.risk_drivers.length > 0 && (
+              {student.referral_reasons && student.referral_reasons.length > 0 && (
                 <div className="mt-2">
-                  <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Primary drivers</p>
+                  <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Referral reasons</p>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {student.risk_drivers.map((reason) => (
-                      <span key={reason} className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
+                    {student.referral_reasons.map((reason) => (
+                      <span key={reason} className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-teal-700 border border-teal-200">
                         {reason}
                       </span>
                     ))}
                   </div>
                 </div>
               )}
-              {student.referral_reasons && student.referral_reasons.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Supporting indicators</p>
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {student.referral_reasons
-                      .filter((reason) => !String(reason).startsWith('Instructor note:'))
-                      .map((reason) => (
-                      <span key={reason} className="inline-flex items-center rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-teal-700 border border-teal-200">
-                        {reason}
-                      </span>
-                      ))}
-                  </div>
-                </div>
-              )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-1.5 mt-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 mt-2">
               <div className="p-1.5 rounded-md border border-gray-200/80 bg-gray-50/80">
                 <p className="text-[8px] text-gray-500 font-semibold uppercase tracking-wider">GPA</p>
                 <p className="text-base font-bold text-gray-900">{student.gpa != null ? student.gpa : '-'}</p>
@@ -204,6 +141,10 @@ export default function AmuStaffStudentDetail() {
                     <div className="h-full bg-teal-600 rounded-full transition-all" style={{ width: `${Math.min(100, (student.gpa / 4) * 100)}%` }} />
                   </div>
                 )}
+              </div>
+              <div className="p-1.5 rounded-md border border-gray-200/80 bg-gray-50/80">
+                <p className="text-[8px] text-gray-500 font-semibold uppercase tracking-wider">Midterm Grade</p>
+                <p className="text-base font-bold text-gray-900">{student.midterm_grade != null ? student.midterm_grade : '-'}</p>
               </div>
               <div className="p-1.5 rounded-md border border-gray-200/80 bg-gray-50/80">
                 <p className="text-[8px] text-gray-500 font-semibold uppercase tracking-wider">Attendance</p>
@@ -221,124 +162,41 @@ export default function AmuStaffStudentDetail() {
             </div>
           </div>
 
-          <div className="p-2 border-t border-gray-200">
-            <h2 className="text-xs font-bold text-gray-900 mb-1.5 flex items-center gap-0.5">
-              <span className="w-0.5 h-2.5 rounded-full bg-teal-500" />
-              <Mail className="w-3 h-3 text-teal-600" />
-              Contact student
-            </h2>
-            <div className="mb-3 rounded-md border border-gray-200 bg-gray-50/70 p-2 space-y-2">
-              {!hasStudentEmail && (
-                <div className="rounded-md bg-amber-50 border border-amber-200 px-2 py-1.5 text-[10px] text-amber-800">
-                  This student has no email on file yet. You can still review the referral and open a case, but email sending is unavailable.
-                </div>
-              )}
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Email subject</label>
-                <input
-                  type="text"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  disabled={!hasStudentEmail}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-[11px] text-gray-900"
-                />
+          <div className="p-3 border-t border-gray-200 space-y-3">
+            <div className="rounded-md border border-teal-200 bg-teal-50 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Upload className="w-4 h-4 text-teal-600" />
+                <h2 className="text-xs font-bold text-gray-900">Upload Needs Assessment</h2>
               </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-gray-600 uppercase tracking-wider mb-1">Message</label>
-                <textarea
-                  rows={6}
-                  value={emailMessage}
-                  onChange={(e) => setEmailMessage(e.target.value)}
-                  disabled={!hasStudentEmail}
-                  className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-[11px] text-gray-900"
-                />
-              </div>
-              {emailError && <div className="rounded-md bg-red-50 border border-red-200 px-2 py-1.5 text-[10px] text-red-700">{emailError}</div>}
-              {emailStatus && <div className="rounded-md bg-emerald-50 border border-emerald-200 px-2 py-1.5 text-[10px] text-emerald-700">{emailStatus}</div>}
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  disabled={sendingEmail || !hasStudentEmail}
-                  onClick={async () => {
-                    setEmailError('')
-                    setEmailStatus('')
-                    if (!hasStudentEmail) {
-                      setEmailError('This student has no email address on file.')
-                      return
-                    }
-                    if (!emailSubject.trim() || !emailMessage.trim()) {
-                      setEmailError('Subject and message are required.')
-                      return
-                    }
-                    try {
-                      setSendingEmail(true)
-                      const result = await sendAmuStaffReferralEmail(id, {
-                        subject: emailSubject,
-                        message: emailMessage,
-                      })
-                      setEmailStatus(result.message || 'Email sent successfully.')
-                    } catch (e) {
-                      setEmailError(e?.message || 'Failed to send email.')
-                    } finally {
-                      setSendingEmail(false)
-                    }
-                  }}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-teal-600 text-white text-[10px] font-semibold hover:bg-teal-700 disabled:opacity-60"
-                >
-                  <Send className="w-3 h-3" />
-                  {sendingEmail ? 'Sending...' : 'Send email'}
-                </button>
-              </div>
+              <p className="text-[10px] text-gray-600 mb-2.5">
+                Upload the needs assessment for this student to generate academic support predictions.
+              </p>
+              <input
+                type="file"
+                accept=".csv,.xlsx,.json"
+                className="w-full block text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:text-xs file:font-semibold file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200"
+              />
             </div>
 
-            <h2 className="text-xs font-bold text-gray-900 mb-1.5 flex items-center gap-0.5">
-              <span className="w-0.5 h-2.5 rounded-full bg-teal-500" />
-              <ClipboardList className="w-3 h-3 text-teal-600" />
-              Support history
-            </h2>
-            <ScrollTableContainer>
-              <table className="w-full text-left">
-                <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase text-left">Type</th>
-                    <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase text-left">Status</th>
-                    <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase text-left">Due / Done</th>
-                    <th className="px-2 py-1.5 text-[10px] font-semibold text-gray-500 uppercase text-left"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {supportHistory.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-1.5 py-2 text-[10px] text-gray-500">
-                        No support history yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    supportHistory.map((h) => (
-                      <tr key={h.id} className="hover:bg-teal-50/50 transition-colors">
-                        <td className="px-1.5 py-1 font-medium text-gray-900 text-[10px]">{h.type || '-'}</td>
-                        <td className="px-1.5 py-1">
-                          <span className={`inline-flex px-1 py-0.5 rounded-full text-[9px] font-medium ${statusClass[h.status] || ''}`}>{h.status}</span>
-                        </td>
-                        <td className="px-1.5 py-1 text-[10px] text-gray-600 flex items-center gap-0.5">
-                          <Calendar className="w-2 h-2" /> {h.status === 'completed' ? h.completed : h.due}
-                        </td>
-                        <td className="px-1.5 py-1">
-                          <button type="button" onClick={() => navigate(`/amu-staff/case/${h.id}`)} className="text-[10px] font-medium text-teal-600 hover:text-teal-700">
-                            View case
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </ScrollTableContainer>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-4 h-4 text-amber-600" />
+                <h2 className="text-xs font-bold text-gray-900">Generate Prediction</h2>
+              </div>
+              <p className="text-[10px] text-gray-600 mb-2.5">
+                Based on grade, attendance, and needs assessment data, generate a prediction for this student's academic performance.
+              </p>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                Generate prediction
+              </button>
+            </div>
           </div>
         </div>
       </div>
     </DashboardLayout>
   )
 }
-
-

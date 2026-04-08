@@ -1,3 +1,5 @@
+import { getAuthHeaders, getCurrentAuthRole, readStoredAuth } from './lib/authStorage'
+
 /** Upload gradesheet/attendance files for a class (CSV/XLSX). */
 /** Upload classlist and create class automatically. */
 export async function uploadAndCreateClasslist(files) {
@@ -5,7 +7,7 @@ export async function uploadAndCreateClasslist(files) {
   for (const file of files) {
     formData.append('files', file)
   }
-  const user = JSON.parse(localStorage.getItem('auth') || '{}')
+  const user = readStoredAuth() || {}
   const instructorId = user?.user?.id
   if (!instructorId) {
     throw new Error('Instructor ID not found')
@@ -58,12 +60,12 @@ export async function uploadNeedsAssessmentFiles(classId, files) {
   return data
 }
 
-export async function uploadPreviousGradesFiles(classId, files) {
+export async function uploadActivityTitleMappings(classId, files) {
   const formData = new FormData()
   for (const file of files) {
     formData.append('files', file)
   }
-  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/upload-previous-grades`, {
+  const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/upload-activity-titles`, {
     method: 'POST',
     headers: { ...getAuthHeaders() },
     body: formData,
@@ -105,45 +107,6 @@ export async function previewClasslist(file) {
 
 export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-function normalizeRole(role) {
-  const value = String(role ?? '').trim().toLowerCase()
-  if (!value) return null
-  if (value === 'amustaff') return 'amu-staff'
-  return value
-}
-
-function readStoredAuth() {
-  try {
-    const raw = localStorage.getItem('auth')
-    if (!raw) return null
-    const data = JSON.parse(raw)
-    const user = data?.user && typeof data.user === 'object' ? data.user : data
-    const id = user?.id || user?._id || data?.id || data?._id || null
-    const role = normalizeRole(data?.role || user?.role)
-    const accessToken = data?.accessToken || data?.access_token || data?.token || null
-
-    if (!id && !role) return null
-
-    return {
-      user: user && typeof user === 'object'
-        ? {
-            ...user,
-            ...(id ? { id } : {}),
-            ...(role ? { role } : {}),
-          }
-        : {
-            ...(id ? { id } : {}),
-            ...(role ? { role } : {}),
-          },
-      role,
-      accessToken,
-    }
-  } catch (e) {
-    console.error('Failed to parse auth token:', e)
-    return null
-  }
-}
-
 function formatErrorDetail(detail) {
   if (Array.isArray(detail)) {
     return detail.map((d) => d.msg || `${d.loc?.join('.')}: invalid`).join('. ')
@@ -151,31 +114,13 @@ function formatErrorDetail(detail) {
   return typeof detail === 'string' ? detail : (detail?.message || 'Request failed')
 }
 
-/**
- * Get auth headers for RBAC (X-User-Id, X-User-Role).
- * Reads from localStorage 'auth' key.
- * For production, use proper JWT tokens instead.
- */
-function getAuthHeaders() {
-  const headers = {}
-  const auth = readStoredAuth()
-  if (auth?.accessToken) headers.Authorization = `Bearer ${auth.accessToken}`
-  if (auth?.user?.id) headers['X-User-Id'] = auth.user.id
-  if (auth?.role) headers['X-User-Role'] = auth.role
-  return headers
-}
-
-function getCurrentAuthRole() {
-  return readStoredAuth()?.role || null
-}
-
-export async function signup({ name, email, password, contact_number, department, role }) {
+export async function signup({ name, email, password, contact_number, college, role }) {
   const body = {
     name: String(name ?? '').trim(),
     email: String(email ?? '').trim(),
     password: String(password ?? ''),
     contact_number: String(contact_number ?? '').trim(),
-    department: String(department ?? '').trim(),
+    college: String(college ?? '').trim(),
     role: role || 'instructor',
   }
   const res = await fetch(`${API_BASE}/api/auth/signup`, {
@@ -320,60 +265,6 @@ export async function getInstructorStudentList(instructorId) {
     throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load student list')
   }
   return Array.isArray(data) ? data : []
-}
-
-/** List all interventions (admin). Optional status: 'all' | 'pending' | 'in-progress' | 'completed'. */
-export async function listInterventions(status = 'all') {
-  const params = new URLSearchParams()
-  if (status && status !== 'all') params.set('status', status)
-  const qs = params.toString()
-  const url = `${API_BASE}/api/interventions${qs ? `?${qs}` : ''}`
-  const res = await fetch(url, { headers: getAuthHeaders() })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load interventions')
-  }
-  return Array.isArray(data) ? data : []
-}
-
-
-/** Create a new intervention case from an AMU referral. */
-export async function createIntervention(payload) {
-  const res = await fetch(`${API_BASE}/api/interventions`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    body: JSON.stringify(payload || {}),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to create intervention')
-  }
-  return data
-}
-/** Get a single intervention by id. */
-export async function getIntervention(interventionId) {
-  const res = await fetch(`${API_BASE}/api/interventions/${encodeURIComponent(interventionId)}`, {
-    headers: getAuthHeaders(),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Intervention not found')
-  }
-  return data
-}
-
-/** Update an intervention (status, notes, etc.). */
-export async function updateIntervention(interventionId, payload) {
-  const res = await fetch(`${API_BASE}/api/interventions/${encodeURIComponent(interventionId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-    body: JSON.stringify(payload || {}),
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to update intervention')
-  }
-  return data
 }
 
 export async function getClass(classId) {
@@ -647,7 +538,14 @@ export async function getAmuStaffReports() {
   const res = await fetch(`${API_BASE}/api/amu-staff/reports`, { headers: getAuthHeaders() })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load reports')
-  return Array.isArray(data) ? data : []
+  return data && typeof data === 'object'
+    ? {
+        history: Array.isArray(data.history) ? data.history : [],
+        support_routing_summary: data.support_routing_summary && typeof data.support_routing_summary === 'object'
+          ? data.support_routing_summary
+          : {},
+      }
+    : { history: [], support_routing_summary: {} }
 }
 
 // ----- Admin system overview (real data from DB) -----

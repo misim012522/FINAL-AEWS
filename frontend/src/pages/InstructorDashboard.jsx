@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   BookOpen,
-  Bell,
   Users,
   Users as UsersIcon,
   AlertTriangle,
@@ -17,7 +16,6 @@ import DashboardLayout from '../components/DashboardLayout'
 import DashboardPageHeader from '../components/DashboardPageHeader'
 import TutorialModal from '../components/TutorialModal'
 import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
-import InstructorRiskAlerts from '../components/instructor/InstructorRiskAlerts'
 import {
   hasSeenTutorial,
   setTutorialSeen,
@@ -31,11 +29,9 @@ import { listClasses, createClass, archiveClass } from '../api'
 
 const colorClasses = {
   gray: 'bg-gray-100 text-gray-700',
-  amber: 'bg-amber-100 text-amber-800',
 }
 
 function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
-  const atRisk = course.at_risk_count ?? 0
   const isArchiving = archisingId === course.id
   return (
     <div className="group flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 transition-colors hover:bg-slate-50/80">
@@ -59,16 +55,19 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
                   <UsersIcon className="w-3 h-3 text-slate-500" />
                   {course.student_count} student{course.student_count !== 1 ? 's' : ''}
                 </span>
-                {atRisk > 0 && (
-                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[11px] font-semibold ring-1 ring-amber-100">
-                    <AlertTriangle className="w-3 h-3" />
-                    {atRisk} at risk
-                  </span>
-                )}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => onViewDetails(course)}
+              disabled={isArchiving}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
+            >
+              View class
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
             <button
               type="button"
               onClick={() => onArchive(course)}
@@ -87,15 +86,6 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
                 </>
               )}
             </button>
-            <button
-              type="button"
-              onClick={() => onViewDetails(course)}
-              disabled={isArchiving}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
-            >
-              View class
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </div>
         </div>
       </div>
@@ -109,9 +99,13 @@ export default function InstructorDashboard() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
+  const getTabFromSearch = (search) => {
+    const tab = new URLSearchParams(search).get('tab')
+    return tab === 'students' ? 'students' : 'classes'
+  }
   const [showTutorial, setShowTutorial] = useState(false)
   // Landing page is My Classes (overview page was removed)
-  const [activeTab, setActiveTab] = useState('classes')
+  const [activeTab, setActiveTab] = useState(() => getTabFromSearch(location.search))
   const [classesList, setClassesList] = useState([])
   const [classesLoading, setClassesLoading] = useState(false)
   const [classesError, setClassesError] = useState('')
@@ -157,8 +151,12 @@ export default function InstructorDashboard() {
   // Sync active tab from navigation state (e.g. deep link)
   useEffect(() => {
     const t = location.state?.tab
-    if (t && ['classes', 'alerts', 'students'].includes(t)) setActiveTab(t)
+    if (t && ['classes', 'students'].includes(t)) setActiveTab(t)
   }, [location.state?.tab])
+
+  useEffect(() => {
+    setActiveTab(getTabFromSearch(location.search))
+  }, [location.search])
 
   useEffect(() => {
     if (!user?.id) return
@@ -221,7 +219,6 @@ export default function InstructorDashboard() {
   }
 
   const totalStudents = classesList.reduce((sum, c) => sum + (c.student_count || 0), 0)
-  const totalAtRisk = classesList.reduce((sum, c) => sum + (c.at_risk_count || 0), 0)
   const searchLower = classSearch.trim().toLowerCase()
   const filteredClasses = searchLower
     ? classesList.filter(
@@ -234,12 +231,11 @@ export default function InstructorDashboard() {
   return (
     <DashboardLayout
       title="Instructor Dashboard"
-      subtitle={user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
+      subtitle={user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'}
       navItems={[
-        { label: 'Classes', icon: BookOpen, active: activeTab === 'classes', onClick: () => setActiveTab('classes') },
-        { label: 'Risk alerts', icon: Bell, active: activeTab === 'alerts', onClick: () => setActiveTab('alerts') },
-        { label: 'Students', icon: Users, active: activeTab === 'students', onClick: () => setActiveTab('students') },
-        { label: 'Reports', icon: FileSpreadsheet, active: false, onClick: () => navigate('/instructor/reports'), trailing: true },
+        { label: 'Classes', icon: BookOpen, active: activeTab === 'classes', onClick: () => navigate('/instructor?tab=classes') },
+        { label: 'Students', icon: Users, active: activeTab === 'students', onClick: () => navigate('/instructor?tab=students') },
+        { label: 'Reports', icon: FileSpreadsheet, active: false, onClick: () => navigate('/instructor/reports') },
       ]}
     >
       {showTutorial && <TutorialModal variant="instructor" onClose={handleTutorialClose} />}
@@ -255,19 +251,19 @@ export default function InstructorDashboard() {
                 <>
                   <button
                     type="button"
-                    onClick={() => navigate('/instructor/archived')}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
-                  >
-                      <Archive className="w-4 h-4" />
-                    Archived
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setShowAddClassModal(true)}
                     className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.98]"
                   >
                     <Plus className="w-4 h-4" />
                     Add class
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/instructor/archived')}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-300 shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+                  >
+                      <Archive className="w-4 h-4" />
+                    Archived
                   </button>
                 </>
               }
@@ -286,49 +282,36 @@ export default function InstructorDashboard() {
                   </div>
                 )}
 
-                {/* Overview stats */}
+                {/* Overview + search controls */}
                 {!classesLoading && !classesError && classesList.length > 0 && (
-                  <section className="max-w-5xl space-y-2" aria-label="Overview">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                      <div className={`max-w-[17rem] rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
-                        <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100">
-                          <BookOpen className="w-4 h-4" />
+                  <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-3 items-start" aria-label="Overview and class controls">
+                    <div className="space-y-2">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        <div className={`rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
+                          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 ring-1 ring-blue-100">
+                            <BookOpen className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-base font-bold text-slate-900 tabular-nums">{classesList.length}</p>
+                            <p className="text-[11px] font-medium text-slate-600">Total Classes</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-base font-bold text-slate-900 tabular-nums">{classesList.length}</p>
-                          <p className="text-[11px] font-medium text-slate-600">Total Classes</p>
-                        </div>
-                      </div>
-                      <div className={`max-w-[17rem] rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
-                        <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 ring-1 ring-slate-200/80">
-                          <UsersIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-base font-bold text-slate-900 tabular-nums">{totalStudents}</p>
-                          <p className="text-[11px] font-medium text-slate-600">Total Students</p>
-                        </div>
-                      </div>
-                      <div className={`max-w-[17rem] rounded-lg p-3 flex items-center gap-2.5 transition-colors ${totalAtRisk > 0 ? colorClasses.amber : colorClasses.gray}`}>
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ring-1 ${totalAtRisk > 0 ? 'bg-amber-50 text-amber-600 ring-amber-100' : 'bg-slate-100 text-slate-600 ring-slate-200/80'}`}>
-                          <AlertTriangle className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-base font-bold text-slate-900 tabular-nums">{totalAtRisk}</p>
-                          <p className="text-[11px] font-medium text-slate-600">At-Risk Students</p>
+                        <div className={`rounded-lg p-3 flex items-center gap-2.5 transition-colors ${colorClasses.gray}`}>
+                          <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 ring-1 ring-slate-200/80">
+                            <UsersIcon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-base font-bold text-slate-900 tabular-nums">{totalStudents}</p>
+                            <p className="text-[11px] font-medium text-slate-600">Total Students</p>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </section>
-                )}
-
-                {/* Search and class list section */}
-                {!classesLoading && !classesError && classesList.length > 0 && (
-                  <section className="space-y-2.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="space-y-2">
                       <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your classes</h3>
                       <label className="sr-only" htmlFor="class-search">Search classes</label>
-                      <div className="relative w-full sm:max-w-[16rem]">
+                      <div className="relative w-full">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                         <input
                           id="class-search"
@@ -381,7 +364,7 @@ export default function InstructorDashboard() {
                     </div>
                     <h3 className="text-base font-bold text-slate-800">No classes yet</h3>
                     <p className="text-xs text-slate-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
-                      Create your first class to start managing students and tracking at-risk alerts.
+                      Create your first class to start managing students, grades, and attendance.
                     </p>
                     <button
                       type="button"
@@ -402,7 +385,7 @@ export default function InstructorDashboard() {
                 role="dialog"
                 labelledBy="add-class-title"
                 onBackdropClick={() => !addClassSubmitting && setShowAddClassModal(false)}
-                className="flex items-center justify-center bg-slate-900/50 backdrop-blur-sm"
+                className="flex items-center justify-center bg-slate-900/50"
                 panelClassName="max-w-md"
                 contentClassName="rounded-xl border border-slate-200/80 bg-white shadow-2xl"
               >
@@ -443,7 +426,6 @@ export default function InstructorDashboard() {
           </>
         )}
 
-        {activeTab === 'alerts' && <InstructorRiskAlerts />}
         {activeTab === 'students' && <InstructorStudentList />}
       </div>
     </DashboardLayout>

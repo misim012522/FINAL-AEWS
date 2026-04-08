@@ -1,4 +1,5 @@
 // import { useState } from 'react'
+import { useEffect } from 'react'
 import { X, AlertCircle, CheckCircle } from 'lucide-react'
 import HeaderAwareOverlay from './HeaderAwareOverlay'
 
@@ -11,6 +12,19 @@ export default function StudentPreviewModal({
   onCancel,
   error
 }) {
+  // Disable background scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+    }
+    
+    return () => {
+      document.documentElement.style.overflow = 'auto'
+      document.body.style.overflow = 'auto'
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (

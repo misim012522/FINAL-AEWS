@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.base import clone
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import ExtraTreesClassifier, RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.model_selection import StratifiedKFold, train_test_split
 from xgboost import XGBClassifier
@@ -23,17 +23,6 @@ DOWNLOADS_DIR = Path.home() / "Downloads"
 ATTENDANCE_PATH = DATA_DIR / "Attendance_XGBoost_Dataset_1000.xlsx"
 GRADES_PATH = DATA_DIR / "Gradesheet_XGBoost_Dataset_1000.xlsx"
 NEEDS_PATH = DATA_DIR / "Needs_Assessment_XGBoost_Dataset_1000.xlsx"
-HISTORY_PATH_CANDIDATES = [
-    DATA_DIR / "buksu_1000_previous_only.xlsx",
-    DOWNLOADS_DIR / "buksu_1000_previous_only.xlsx",
-]
-CLASS_RECORD_PATH_CANDIDATES = [
-    DATA_DIR / "BukSU_AI_Class_Record_1000_realistic_names (1).xlsx",
-    DATA_DIR / "BukSU_AI_Class_Record_1000_realistic_names.xlsx",
-    DOWNLOADS_DIR / "BukSU_AI_Class_Record_1000_realistic_names (1).xlsx",
-    DOWNLOADS_DIR / "BukSU_AI_Class_Record_1000_realistic_names.xlsx",
-]
-
 MODEL_JSON_PATH = BASE_DIR / "backend" / "xgboost_student_risk.json"
 MODEL_PKL_PATH = BASE_DIR / "backend" / "xgboost_student_risk.pkl"
 MODEL_METRICS_PATH = BASE_DIR / "backend" / "xgboost_student_risk_metrics.json"
@@ -44,39 +33,13 @@ SHEET_NAME = "XGBoost_Ready"
 CLASS_NAMES = ["Low", "Medium", "High"]
 
 FEATURE_PROFILES: dict[str, list[str]] = {
-    "midterm_endterm": [
+    "midterm_attendance_needs": [
         "previous_gpa",
         "failed_subject_count",
         "attendance_rate",
-        "previous_final_grade",
-        "previous_midterm_grade",
-        "previous_failed_flag",
-        "previous_passed_flag",
-        "historical_grade_average",
-        "historical_failure_count",
         "academic_challenge_score",
         "external_factor_score",
-        "class_standing",
-        "laboratory",
-        "major_output",
         "midterm_grade",
-        "final_class_standing",
-        "final_laboratory",
-        "final_major_output",
-        "finalterm_grade",
-    ],
-    "early_warning": [
-        "previous_gpa",
-        "failed_subject_count",
-        "attendance_rate",
-        "previous_final_grade",
-        "previous_midterm_grade",
-        "previous_failed_flag",
-        "previous_passed_flag",
-        "historical_grade_average",
-        "historical_failure_count",
-        "academic_challenge_score",
-        "external_factor_score",
     ],
 }
 
@@ -189,97 +152,6 @@ def _normalize_training_columns(df: pd.DataFrame) -> pd.DataFrame:
     return normalized
 
 
-def resolve_history_path(explicit_path: Path | None = None) -> Path | None:
-    candidates = [explicit_path] if explicit_path else []
-    candidates.extend(HISTORY_PATH_CANDIDATES)
-    for candidate in candidates:
-        if candidate and candidate.is_file():
-            return candidate
-    return None
-
-
-def load_history_frame(path: Path | None) -> pd.DataFrame:
-    if path is None or not path.is_file():
-        return pd.DataFrame()
-
-    history = pd.read_excel(path, sheet_name="Previous_Only")
-    history.columns = [str(col).strip() for col in history.columns]
-    if "student_id" not in history.columns:
-        return pd.DataFrame()
-
-    history["student_id"] = history["student_id"].astype(str).str.strip()
-    numeric_columns = [
-        "previous_final_grade",
-        "previous_midterm_grade",
-        "previous_failed_flag",
-        "previous_passed_flag",
-        "previous_midterm_class_standing",
-        "previous_midterm_laboratory",
-        "previous_midterm_major_output",
-        "previous_final_class_standing",
-        "previous_final_laboratory",
-        "previous_final_major_output",
-        "historical_grade_average",
-        "historical_failure_count",
-    ]
-    for column in numeric_columns:
-        if column in history.columns:
-            history[column] = pd.to_numeric(history[column], errors="coerce")
-
-    keep_columns = [
-        "student_id",
-        "previous_final_grade",
-        "previous_midterm_grade",
-        "previous_failed_flag",
-        "previous_passed_flag",
-        "previous_midterm_class_standing",
-        "previous_midterm_laboratory",
-        "previous_midterm_major_output",
-        "previous_final_class_standing",
-        "previous_final_laboratory",
-        "previous_final_major_output",
-        "historical_grade_average",
-        "historical_failure_count",
-    ]
-    available_columns = [column for column in keep_columns if column in history.columns]
-    history = history[available_columns].copy()
-    return history.drop_duplicates(subset=["student_id"], keep="last")
-
-
-def resolve_class_record_path(explicit_path: Path | None = None) -> Path | None:
-    candidates = [explicit_path] if explicit_path else []
-    candidates.extend(CLASS_RECORD_PATH_CANDIDATES)
-    for candidate in candidates:
-        if candidate and candidate.is_file():
-            return candidate
-    return None
-
-
-def load_class_record_frame(path: Path | None) -> pd.DataFrame:
-    if path is None or not path.is_file():
-        return pd.DataFrame()
-
-    class_record = pd.read_excel(path)
-    class_record.columns = [str(col).strip() for col in class_record.columns]
-    if "student_id" not in class_record.columns:
-        return pd.DataFrame()
-
-    class_record["student_id"] = class_record["student_id"].astype(str).str.strip()
-    activity_columns = [
-        column
-        for column in class_record.columns
-        if column.startswith(MIDTERM_ACTIVITY_PREFIXES) or column.startswith(FINAL_ACTIVITY_PREFIXES)
-    ]
-    if not activity_columns:
-        return pd.DataFrame()
-
-    keep_columns = ["student_id", *activity_columns]
-    class_record = class_record[keep_columns].copy()
-    for column in activity_columns:
-        class_record[column] = pd.to_numeric(class_record[column], errors="coerce").fillna(0.0)
-    return class_record.drop_duplicates(subset=["student_id"], keep="last")
-
-
 def map_risk_label(final_grade: float) -> int:
     grade = float(final_grade)
     if 1.00 <= grade <= 2.00:
@@ -295,14 +167,10 @@ def load_training_frame(
     attendance_path: Path,
     grades_path: Path,
     needs_path: Path,
-    history_path: Path | None = None,
-    class_record_path: Path | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     attendance = _normalize_training_columns(_read_ready_sheet(attendance_path))
     grades = _normalize_training_columns(_read_ready_sheet(grades_path))
     needs = _normalize_training_columns(_read_ready_sheet(needs_path))
-    history = load_history_frame(resolve_history_path(history_path))
-    class_record = load_class_record_frame(resolve_class_record_path(class_record_path))
 
     attendance["Student_ID"] = attendance["Student_ID"].astype(str)
     grades["Student_ID"] = grades["Student_ID"].astype(str)
@@ -320,30 +188,14 @@ def load_training_frame(
                 "Midterm_LAB_Equivalent",
                 "Midterm_MO_Equivalent",
                 "Midterm_Grade",
-                "Finalterm_CS_Equivalent",
-                "Finalterm_LAB_Equivalent",
-                "Finalterm_MO_Equivalent",
-                "Finalterm_Grade",
                 "Final_Grade",
             ]
         ],
         on="Student_ID",
         how="inner",
     )
-    if not history.empty:
-        merged = merged.merge(
-            history,
-            left_on="Student_ID",
-            right_on="student_id",
-            how="left",
-        )
-    if not class_record.empty:
-        merged = merged.merge(
-            class_record,
-            left_on="Student_ID",
-            right_on="student_id",
-            how="left",
-        )
+
+    merged = merged.drop_duplicates(subset=["Student_ID"], keep="last").reset_index(drop=True)
 
     merged["academic_challenge_score"] = (
         merged["Difficulty in Understanding Lectures"]
@@ -362,119 +214,46 @@ def load_training_frame(
     merged["attendance_rate"] = merged["Attendance_Rate"] * 100.0
     merged["risk_label"] = merged["Final_Grade"].apply(map_risk_label)
 
-    history_defaults = {
-        "previous_final_grade": merged["GPA"],
-        "previous_midterm_grade": merged["GPA"],
-        "previous_failed_flag": (merged["Failed Subjects"] > 0).astype(int),
-        "previous_passed_flag": (merged["Failed Subjects"] <= 0).astype(int),
-        "previous_midterm_class_standing": merged["GPA"],
-        "previous_midterm_laboratory": merged["GPA"],
-        "previous_midterm_major_output": merged["GPA"],
-        "previous_final_class_standing": merged["GPA"],
-        "previous_final_laboratory": merged["GPA"],
-        "previous_final_major_output": merged["GPA"],
-        "historical_grade_average": merged["GPA"],
-        "historical_failure_count": merged["Failed Subjects"],
-    }
-    for column, default_series in history_defaults.items():
-        if column not in merged.columns:
-            merged[column] = default_series
-        merged[column] = merged[column].fillna(default_series)
-
     feature_columns = [
         "GPA",
         "Failed Subjects",
         "attendance_rate",
-        "previous_final_grade",
-        "previous_midterm_grade",
-        "previous_failed_flag",
-        "previous_passed_flag",
-        "previous_midterm_class_standing",
-        "previous_midterm_laboratory",
-        "previous_midterm_major_output",
-        "previous_final_class_standing",
-        "previous_final_laboratory",
-        "previous_final_major_output",
-        "historical_grade_average",
-        "historical_failure_count",
         "academic_challenge_score",
         "external_factor_score",
-        "Midterm_CS_Equivalent",
-        "Midterm_LAB_Equivalent",
-        "Midterm_MO_Equivalent",
         "Midterm_Grade",
-        "Finalterm_CS_Equivalent",
-        "Finalterm_LAB_Equivalent",
-        "Finalterm_MO_Equivalent",
-        "Finalterm_Grade",
     ]
 
     renamed = merged[feature_columns + ["risk_label"]].rename(
         columns={
             "GPA": "previous_gpa",
             "Failed Subjects": "failed_subject_count",
-            "Midterm_CS_Equivalent": "class_standing",
-            "Midterm_LAB_Equivalent": "laboratory",
-            "Midterm_MO_Equivalent": "major_output",
             "Midterm_Grade": "midterm_grade",
-            "Finalterm_CS_Equivalent": "final_class_standing",
-            "Finalterm_LAB_Equivalent": "final_laboratory",
-            "Finalterm_MO_Equivalent": "final_major_output",
-            "Finalterm_Grade": "finalterm_grade",
         }
     )
+    return renamed, FEATURE_PROFILES["midterm_attendance_needs"]
 
-    core_engineered_feature_columns = _add_core_engineered_features(renamed)
 
-    activity_columns = [
-        column
-        for column in merged.columns
-        if column.startswith(MIDTERM_ACTIVITY_PREFIXES) or column.startswith(FINAL_ACTIVITY_PREFIXES)
-    ]
-    if activity_columns:
-        activity_frame = merged[activity_columns].apply(pd.to_numeric, errors="coerce").fillna(0.0)
-        renamed = pd.concat([renamed, activity_frame], axis=1)
+def _clean_feature_matrix(
+    df: pd.DataFrame,
+    feature_columns: list[str],
+) -> tuple[pd.DataFrame, list[str]]:
+    cleaned = df[feature_columns].copy()
+    cleaned = cleaned.apply(pd.to_numeric, errors="coerce")
+    cleaned = cleaned.replace([np.inf, -np.inf], np.nan).fillna(0.0)
 
-    midterm_activity_columns = [
-        column for column in activity_columns if column.startswith(MIDTERM_ACTIVITY_PREFIXES)
-    ]
-    final_activity_columns = [
-        column for column in activity_columns if column.startswith(FINAL_ACTIVITY_PREFIXES)
-    ]
+    usable_columns: list[str] = []
+    seen_signatures: dict[tuple[float, ...], str] = {}
+    for column in cleaned.columns:
+        series = cleaned[column]
+        if series.nunique(dropna=False) <= 1:
+            continue
+        signature = tuple(series.round(8).tolist())
+        if signature in seen_signatures:
+            continue
+        seen_signatures[signature] = column
+        usable_columns.append(column)
 
-    midterm_engineered_feature_columns = _add_activity_summary_features(
-        renamed,
-        merged,
-        MIDTERM_ACTIVITY_PREFIXES,
-        "midterm",
-    )
-    finals_engineered_feature_columns = _add_activity_summary_features(
-        renamed,
-        merged,
-        FINAL_ACTIVITY_PREFIXES,
-        "finals",
-    )
-
-    FEATURE_PROFILES["early_warning"] = list(
-        dict.fromkeys(
-            FEATURE_PROFILES["early_warning"]
-            + core_engineered_feature_columns
-            + midterm_engineered_feature_columns
-            + midterm_activity_columns
-        )
-    )
-    FEATURE_PROFILES["midterm_endterm"] = list(
-        dict.fromkeys(
-            FEATURE_PROFILES["midterm_endterm"]
-            + core_engineered_feature_columns
-            + midterm_engineered_feature_columns
-            + finals_engineered_feature_columns
-            + midterm_activity_columns
-            + final_activity_columns
-        )
-    )
-
-    return renamed, FEATURE_PROFILES["midterm_endterm"]
+    return cleaned[usable_columns], usable_columns
 
 
 def build_xgboost_model() -> XGBClassifier:
@@ -491,6 +270,23 @@ def build_xgboost_model() -> XGBClassifier:
     )
 
 
+def build_xgboost_tuned_model() -> XGBClassifier:
+    return XGBClassifier(
+        objective="multi:softprob",
+        num_class=3,
+        n_estimators=500,
+        max_depth=4,
+        learning_rate=0.04,
+        min_child_weight=2,
+        subsample=0.95,
+        colsample_bytree=0.85,
+        gamma=0.05,
+        reg_lambda=1.5,
+        eval_metric="mlogloss",
+        random_state=42,
+    )
+
+
 def build_random_forest_model() -> RandomForestClassifier:
     return RandomForestClassifier(
         n_estimators=400,
@@ -502,10 +298,23 @@ def build_random_forest_model() -> RandomForestClassifier:
     )
 
 
+def build_extra_trees_model() -> ExtraTreesClassifier:
+    return ExtraTreesClassifier(
+        n_estimators=600,
+        max_depth=None,
+        min_samples_split=2,
+        min_samples_leaf=1,
+        random_state=42,
+        n_jobs=1,
+    )
+
+
 def build_model_registry() -> dict[str, Any]:
     return {
         "xgboost": build_xgboost_model(),
+        "xgboost_tuned": build_xgboost_tuned_model(),
         "random_forest": build_random_forest_model(),
+        "extra_trees": build_extra_trees_model(),
     }
 
 
@@ -575,7 +384,7 @@ def evaluate_profile(
     training_df: pd.DataFrame,
     feature_columns: list[str],
 ) -> dict[str, Any]:
-    x = training_df[feature_columns]
+    x, usable_columns = _clean_feature_matrix(training_df, feature_columns)
     y = training_df["risk_label"]
 
     x_train, x_test, y_train, y_test = train_test_split(
@@ -627,6 +436,7 @@ def evaluate_profile(
         "models": model_results,
         "best_model_name": best_model_name,
         "selected_model": fitted_models.get(best_model_name, fitted_models["xgboost"]),
+        "feature_columns": usable_columns,
     }
 
 
@@ -636,21 +446,9 @@ def main() -> None:
     parser.add_argument("--grades", type=Path, default=GRADES_PATH)
     parser.add_argument("--needs", type=Path, default=NEEDS_PATH)
     parser.add_argument(
-        "--history",
-        type=Path,
-        default=None,
-        help="Optional previous-semester performance dataset.",
-    )
-    parser.add_argument(
-        "--class-record",
-        type=Path,
-        default=None,
-        help="Optional class-record dataset with per-activity scores.",
-    )
-    parser.add_argument(
         "--profile",
         choices=sorted(FEATURE_PROFILES.keys()),
-        default="early_warning",
+        default="midterm_attendance_needs",
         help="Feature profile to train and save.",
     )
     args = parser.parse_args()
@@ -659,8 +457,6 @@ def main() -> None:
         attendance_path=args.attendance,
         grades_path=args.grades,
         needs_path=args.needs,
-        history_path=args.history,
-        class_record_path=args.class_record,
     )
 
     evaluations: dict[str, dict[str, Any]] = {}
@@ -670,15 +466,13 @@ def main() -> None:
     selected_profile_result = evaluations[args.profile]
     selected_model_name = selected_profile_result["best_model_name"]
     selected_model = selected_profile_result["selected_model"]
-    feature_columns = FEATURE_PROFILES[args.profile]
+    feature_columns = selected_profile_result["feature_columns"]
     selected_model_metrics = selected_profile_result["models"][selected_model_name]["metrics"]
     selected_model_report = selected_profile_result["models"][selected_model_name]["report"]
 
     print("Attendance source:", args.attendance)
     print("Grades source:", args.grades)
     print("Needs source:", args.needs)
-    print("History source:", resolve_history_path(args.history) or "not provided")
-    print("Class record source:", resolve_class_record_path(args.class_record) or "not provided")
     print("Training rows:", len(training_df))
     for profile_name, result in evaluations.items():
         print(f"Profile {profile_name}:")
@@ -702,7 +496,7 @@ def main() -> None:
 
     for profile_name, result in evaluations.items():
         bundled_models[profile_name] = result["selected_model"]
-        bundled_feature_columns[profile_name] = list(FEATURE_PROFILES[profile_name])
+        bundled_feature_columns[profile_name] = list(result["feature_columns"])
         bundled_model_names[profile_name] = result["best_model_name"]
 
         profile_model = result["selected_model"]

@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, FileSpreadsheet, Upload } from 'lucide-react'
+import { ArrowLeft, FileSpreadsheet } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import ScrollTableContainer from '../components/ScrollTableContainer'
-import InlineToast from '../components/InlineToast'
 import { useAuth } from '../context/AuthContext'
-import { getClass, listClassStudents, uploadPreviousGradesFiles } from '../api'
+import { getClass, listClassStudents } from '../api'
 
 const GRADE_SECTIONS = [
   { key: 'current', label: 'Current Term Grades' },
@@ -29,17 +28,12 @@ export default function PreviousFinalGrades() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const instructorSubtitle = user ? [user.name, user.department].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
+  const instructorSubtitle = user ? [user.name, user.college].filter(Boolean).join(' - ') || 'Instructor' : 'Instructor'
 
   const [classData, setClassData] = useState(null)
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const previousGradesInputRef = useRef()
-  const [uploadingPreviousGrades, setUploadingPreviousGrades] = useState(false)
-  const [previousGradesError, setPreviousGradesError] = useState('')
-  const [previousGradesSuccess, setPreviousGradesSuccess] = useState('')
-
   const loadData = useCallback(async () => {
     if (!id) return
     setLoading(true)
@@ -60,39 +54,6 @@ export default function PreviousFinalGrades() {
   useEffect(() => {
     loadData()
   }, [loadData])
-
-  useEffect(() => {
-    if (!previousGradesSuccess) return undefined
-    const timeoutId = window.setTimeout(() => setPreviousGradesSuccess(''), 3000)
-    return () => window.clearTimeout(timeoutId)
-  }, [previousGradesSuccess])
-
-  const handlePreviousGradesUpload = async (e) => {
-    setPreviousGradesError('')
-    setPreviousGradesSuccess('')
-    const files = e.target.files
-    if (!files || files.length === 0) {
-      setPreviousGradesError('Please select a previous grades file (CSV or XLSX).')
-      return
-    }
-    setUploadingPreviousGrades(true)
-    try {
-      const result = await uploadPreviousGradesFiles(id, files)
-      const updated = result?.updated ?? 0
-      const notEnrolled = result?.not_enrolled?.length ?? 0
-      const missingIdentifiers = result?.missing_identifiers ?? 0
-      const parts = [`Previous grades uploaded. Updated ${updated} student record(s).`]
-      if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
-      if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
-      setPreviousGradesSuccess(parts.join(' '))
-      await loadData()
-    } catch (err) {
-      setPreviousGradesError(err.message || 'Upload failed')
-    } finally {
-      setUploadingPreviousGrades(false)
-      if (previousGradesInputRef.current) previousGradesInputRef.current.value = ''
-    }
-  }
 
   const rows = useMemo(
     () =>
@@ -144,15 +105,7 @@ export default function PreviousFinalGrades() {
   return (
     <DashboardLayout title="Instructor Dashboard" subtitle={instructorSubtitle}>
       <div className="space-y-3">
-        {previousGradesError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700">{previousGradesError}</div>}
         <div className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm">
-          <input
-            type="file"
-            ref={previousGradesInputRef}
-            accept=".csv,.xlsx"
-            style={{ display: 'none' }}
-            onChange={handlePreviousGradesUpload}
-          />
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <button
@@ -197,15 +150,9 @@ export default function PreviousFinalGrades() {
                 )
               })}
             </div>
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-[11px] font-semibold hover:bg-slate-50 transition-colors disabled:opacity-60"
-              disabled={uploadingPreviousGrades}
-              onClick={() => previousGradesInputRef.current && previousGradesInputRef.current.click()}
-            >
-              <Upload className="w-4 h-4" />
-              {uploadingPreviousGrades ? 'Uploading previous...' : 'Upload previous grades'}
-            </button>
+            <div className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-700">
+              Upload Removed
+            </div>
           </div>
           <div className="pt-3 flex flex-wrap items-center gap-2">
             {TERM_FILTERS.map((filterItem) => {
@@ -289,11 +236,6 @@ export default function PreviousFinalGrades() {
           )}
         </div>
       </div>
-      <InlineToast
-        message={previousGradesSuccess}
-        tone="success"
-        onClose={() => setPreviousGradesSuccess('')}
-      />
     </DashboardLayout>
   )
 }

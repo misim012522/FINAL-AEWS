@@ -34,7 +34,7 @@ export default function AdminInstitutionReports() {
             <div>
               <h2 className="text-lg font-bold text-slate-900 tracking-tight">Institution General Report</h2>
               <p className="text-sm text-slate-500 mt-0.5 max-w-xl">
-                A single report summarizing the institution: enrollment and at-risk counts, department performance, and interventions. Download as one CSV with all sections.
+                A single report summarizing the institution: enrollment and department performance. Download as one CSV with all sections.
               </p>
             </div>
           </div>
@@ -53,19 +53,11 @@ export default function AdminInstitutionReports() {
           <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-600">
             <li className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              Summary metrics (total enrollments, at-risk count, departments, interventions)
+              Summary metrics (total enrollments and departments)
             </li>
             <li className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              At-risk students list (High/Medium) with department and course
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              Department performance (student counts and at-risk by department)
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
-              Interventions list with status and dates
+              Department performance (student counts and instructor coverage)
             </li>
           </ul>
         </div>

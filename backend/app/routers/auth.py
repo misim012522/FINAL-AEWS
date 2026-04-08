@@ -110,7 +110,7 @@ def _signup_admin_flow(db, coll, body, existing, doc_base):
         "name": doc["name"],
         "email": doc["email"],
         "role": doc["role"],
-        "department": doc["department"],
+        "college": doc.get("college") or doc.get("department"),
         "status": doc["status"],
         "contact_number": doc.get("contact_number", ""),
         "email_verified": False,
@@ -146,7 +146,7 @@ def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
         "name": doc["name"],
         "email": doc["email"],
         "role": doc["role"],
-        "department": doc["department"],
+        "college": doc.get("college") or doc.get("department"),
         "status": doc["status"],
         "contact_number": doc.get("contact_number", ""),
         "email_verified": False,
@@ -162,7 +162,7 @@ def signup(body: SignUpRequest):
         db = get_db()
         coll_name = get_collection_for_role(body.role)
         coll = db[coll_name]
-        organization_value = (body.department or "").strip()
+        organization_value = (body.college or "").strip()
         existing = coll.find_one({"email": body.email})
         if existing and existing.get("email_verified") is True:
             raise HTTPException(status_code=400, detail="Email already registered")
@@ -170,7 +170,7 @@ def signup(body: SignUpRequest):
             "name": body.name.strip(),
             "email": body.email,
             "role": body.role,
-            "department": organization_value,
+            "college": organization_value,
             "contact_number": (body.contact_number or "").strip(),
             "password_hash": _hash_password(body.password),
         }
@@ -319,7 +319,8 @@ def login(body: LoginRequest):
         user = None
         for coll_name in ROLE_COLLECTIONS:
             coll = db[coll_name]
-            user = coll.find_one({"email": body.email})
+            # Case-insensitive email search
+            user = coll.find_one({"email": {"$regex": f"^{re.escape(body.email)}$", "$options": "i"}})
             if user:
                 break
     except ServerSelectionTimeoutError:
@@ -345,7 +346,7 @@ def login(body: LoginRequest):
             "name": user["name"],
             "email": user["email"],
             "role": user["role"],
-            "department": user.get("department", ""),
+            "college": user.get("college") or user.get("department", ""),
             "contact_number": user.get("contact_number", ""),
             "status": user.get("status", "active"),
             "profile_image": user.get("profile_image"),

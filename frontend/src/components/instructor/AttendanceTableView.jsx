@@ -1,21 +1,10 @@
-import { useState } from 'react'
-import { Search } from 'lucide-react'
 import ScrollTableContainer from '../ScrollTableContainer'
 
 export default function AttendanceTableView({ students, format = 'monthly' }) {
-  const [searchTerm, setSearchTerm] = useState('')
-
   const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december']
   const monthAbbrev = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  const filteredStudents = students.filter((student) => {
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      (student.id_number && student.id_number.toLowerCase().includes(searchLower)) ||
-      (student.name && student.name.toLowerCase().includes(searchLower)) ||
-      (student.email && student.email.toLowerCase().includes(searchLower))
-    )
-  })
+  const filteredStudents = Array.isArray(students) ? students : []
 
   const getAttendanceTone = (value) => {
     if (value === null || value === undefined) return 'text-slate-400'
@@ -46,7 +35,7 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
       ))}
       <tr>
         <td colSpan={columnCount} className="px-4 py-8 text-center text-sm text-slate-500">
-          {searchTerm ? 'No students found matching your search' : 'No students with attendance data yet.'}
+          No students with attendance data yet.
         </td>
       </tr>
     </>
@@ -55,17 +44,6 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
   if (format === 'daily') {
     return (
       <div className="space-y-4">
-        <div className="relative">
-          <Search className="absolute left-4 top-3 w-5 h-5 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by ID, name, or email..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-
         <ScrollTableContainer>
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10">
@@ -120,17 +98,6 @@ export default function AttendanceTableView({ students, format = 'monthly' }) {
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-4 top-3 w-5 h-5 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Search by ID, name, or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-12 pr-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </div>
-
       <ScrollTableContainer>
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10">

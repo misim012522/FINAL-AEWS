@@ -34,21 +34,16 @@ export default function SignUp() {
   const [retypePassword, setRetypePassword] = useState('')
   const [countryCode, setCountryCode] = useState('+63')
   const [contactNumber, setContactNumber] = useState('')
-  const [department, setDepartment] = useState('')
+  const [college, setCollege] = useState('')
   const [role, setRole] = useState('instructor')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const isAmuStaff = role === 'amu-staff'
-  const organizationLabel = isAmuStaff ? 'College' : 'Department'
-  const organizationPlaceholder = isAmuStaff
+  const collegePlaceholder = role === 'amu-staff'
     ? 'e.g. College of Technology'
-    : 'e.g. Information Technology'
-  const organizationHelp = isAmuStaff
-    ? 'AMU Staff accounts are assigned by college.'
-    : 'Instructor accounts are assigned by department.'
+    : 'e.g. College of Information Technology'
 
   useEffect(() => {
-    setDepartment('')
+    setCollege('')
   }, [role])
 
   const fullContactNumber = contactNumber.trim()
@@ -64,7 +59,7 @@ export default function SignUp() {
     }
     setLoading(true)
     try {
-      const data = await signup({ name, email, password, contact_number: fullContactNumber, department, role })
+      const data = await signup({ name, email, password, contact_number: fullContactNumber, college, role })
       if (data.pending_approval) {
         navigate('/pending-approval', { state: { email } })
       } else {
@@ -181,18 +176,18 @@ export default function SignUp() {
               </div>
             </div>
             <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">{organizationLabel}</label>
+              <label className="block text-base font-medium text-gray-700 mb-2">College</label>
               <div className="relative">
                 <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
-                  value={department}
-                  onChange={(e) => setDepartment(e.target.value)}
-                  placeholder={organizationPlaceholder}
+                  value={college}
+                  onChange={(e) => setCollege(e.target.value)}
+                  placeholder={collegePlaceholder}
                   className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 placeholder:text-gray-400"
                 />
               </div>
-              <p className="mt-2 text-sm text-gray-500">{organizationHelp}</p>
+              <p className="mt-2 text-sm text-gray-500">Select the college or department where you are assigned.</p>
             </div>
             <div>
               <label className="block text-base font-medium text-gray-700 mb-2">Password</label>
