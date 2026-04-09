@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, User, Mail, Building2, BookOpen, AlertTriangle, Shield } from 'lucide-react'
+import { ArrowLeft, User, Mail, Building2, BookOpen, Shield } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import { getAdminStudentByEmail } from '../api'
-
-const riskClass = { High: 'bg-red-100 text-red-700', Medium: 'bg-amber-100 text-amber-700', Low: 'bg-blue-100 text-blue-700' }
 
 export default function AdminStudentDetail() {
   const { id } = useParams()
@@ -65,7 +63,7 @@ export default function AdminStudentDetail() {
 
   const enrollments = data.enrollments || []
   const first = enrollments[0]
-  const risk = first?.risk
+  const predictionLabel = first?.prediction_label
   const gpa = first?.gpa
   const attendance = first?.attendance
   const department = first?.department || '-'
@@ -106,9 +104,9 @@ export default function AdminStudentDetail() {
                     <p className="text-[10px] text-gray-500 mt-0.5 flex items-center gap-0.5">
                       <Building2 className="w-2 h-2" /> {department}
                     </p>
-                    {risk && (
-                      <span className={`inline-flex items-center gap-0.5 mt-1 px-1 py-0.5 rounded text-[10px] font-medium ${riskClass[risk] || 'bg-gray-100 text-gray-700'}`}>
-                        <AlertTriangle className="w-2 h-2" /> Risk: {risk}
+                    {predictionLabel && (
+                      <span className="inline-flex items-center gap-0.5 mt-1 px-1 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700">
+                        Outcome: {predictionLabel}
                       </span>
                     )}
                   </div>
@@ -139,9 +137,9 @@ export default function AdminStudentDetail() {
                       <li key={e.class_id} className="text-[10px] text-gray-700 flex items-center gap-1">
                         <BookOpen className="w-2.5 h-2.5 text-gray-400" />
                         {e.course || `${e.subject_code} ${e.subject_name}`.trim() || e.class_id}
-                        {e.risk && (
-                          <span className={`px-1 py-0.5 rounded text-[9px] font-semibold ${riskClass[e.risk] || ''}`}>
-                            {e.risk}
+                        {e.prediction_label && (
+                          <span className="px-1 py-0.5 rounded text-[9px] font-semibold bg-slate-100 text-slate-700">
+                            {e.prediction_label}
                           </span>
                         )}
                       </li>

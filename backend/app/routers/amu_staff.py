@@ -7,6 +7,7 @@ import json
 import csv
 from io import StringIO
 
+from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
 from app.database import get_db
 from app.email_sender import send_student_support_email
@@ -107,7 +108,7 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     if isinstance(referral_reasons_dict, dict):
         support_map = {
             "on_probation_status": "On probation status",
-            "grade_2_5_or_below": "At least one subject has a grade of 2.5 or below",
+            "grade_2_5_or_below": "Midterm grade is 2.50 or above",
             "gwa_2_5_or_below": "GWA is 2.5 or below",
             "low_midterm_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
@@ -120,7 +121,7 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     if not reasons:
         individual_map = {
             "on_probation_status": "On probation status",
-            "has_subject_grade_2_5": "At least one subject has a grade of 2.5 or below",
+            "has_subject_grade_2_5": "Midterm grade is 2.50 or above",
             "gwa_2_5_or_below": "GWA is 2.5 or below",
             "low_midterm_academic_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
@@ -223,6 +224,50 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
+@router.delete("/referrals", status_code=200)
+def delete_all_referrals(actor: dict = Depends(get_current_actor)):
+    """Delete all referrals assigned to the current AMU staff member."""
+    try:
+        db = get_db()
+        match_filter = {"flagged_for_mentoring": True, "assigned_amu_staff_id": actor["id"]}
+        update_result = db.enrollments.update_many(
+            match_filter,
+            {
+                "$set": {
+                    "flagged_for_mentoring": False,
+                },
+                "$unset": {
+                    "referral_note": "",
+                    "referral_reasons": "",
+                    "assigned_amu_staff_id": "",
+                    "assigned_amu_staff_name": "",
+                    "assigned_amu_staff_college": "",
+                    "referred_at": "",
+                    "needs_assessment": "",
+                    "needs_assessment_uploaded_at": "",
+                    "amu_prediction": "",
+                    "amu_prediction_generated_at": "",
+                    "support_routing": "",
+                },
+            },
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="delete_all_referrals",
+            description=f"Deleted all referrals assigned to {actor.get('name', 'AMU staff')}.",
+            target_type="referral",
+            metadata={"deleted_count": update_result.modified_count},
+        )
+        return {"message": "All referrals deleted.", "deleted_count": update_result.modified_count}
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
 @router.get("/referrals/{ref_id:path}")
 def get_referral(ref_id: str):
     """Get one referral by id (class_id::student_email or class_id::student_id)."""
@@ -292,7 +337,7 @@ def get_referral(ref_id: str):
 
 
 @router.post("/referrals/{ref_id:path}/notify")
-def notify_referred_student(ref_id: str, body: ReferralEmailRequest):
+def notify_referred_student(ref_id: str, body: ReferralEmailRequest, actor: dict = Depends(get_current_actor)):
     """Send a support email to a referred student."""
     try:
         class_id, identifier = _parse_ref_id(ref_id)
@@ -323,6 +368,16 @@ def notify_referred_student(ref_id: str, body: ReferralEmailRequest):
             title="AMU reached out to a referred student",
             body=f"AMU staff sent a support email to {student_email}.",
             type="case",
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="notify_referred_student",
+            description=f"Sent a support email to {student_email}.",
+            target_type="referral",
+            target_id=ref_id,
         )
         return {"message": f"Support email sent to {student_email}."}
     except HTTPException:
@@ -411,6 +466,17 @@ async def upload_needs_assessment(ref_id: str, file: UploadFile = File(...), act
                     "needs_assessment_uploaded_at": datetime.now(timezone.utc),
                 }
             },
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="upload_needs_assessment",
+            description=f"Uploaded a needs assessment for referral {ref_id}.",
+            target_type="referral",
+            target_id=ref_id,
+            metadata={"filename": filename, "field_count": len(needs_assessment_data)},
         )
 
         return {
@@ -820,7 +886,7 @@ def _predict_with_model(model, features: Dict[str, Any]):
 def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
     """Generate a risk prediction for a referred student using needs assessment and enrollment metrics.
 
-    Returns a risk_level (Low/Medium/High), probability (0-1), and contributing_factors list.
+    Returns the AMU outcome label, explanation factors, and probability metadata.
     """
     try:
         class_id, identifier = _parse_ref_id(ref_id)
@@ -831,9 +897,9 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
         if not doc.get("needs_assessment"):
             return {
                 "prediction_status": "awaiting_needs_assessment",
-                "risk_level": None,
                 "probability": None,
                 "prediction_label": "Awaiting needs assessment",
+                "prediction_basis": "awaiting_needs_assessment",
                 "message": "Upload a needs assessment first before AMU can run the prediction.",
                 "contributing_factors": [],
                 "academic_weight_reasons": [],
@@ -851,7 +917,6 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
         probability = result.get("probability")
         if probability is None:
             probability = (result.get("probability_percent") or 0) / 100
-        level = result.get("risk") or "Low"
         factors = _build_prediction_explanations(doc, result)
         academic_weight_reasons, external_weight_reasons = _build_weight_explanations(doc, result)
         risk_source = result.get("risk_source")
@@ -864,9 +929,9 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
             {"_id": doc["_id"]},
             {"$set": {"amu_prediction": {
                 "prediction_status": "ready",
-                "level": level,
                 "probability": probability,
                 "prediction_label": prediction_label,
+                "prediction_basis": "weight_score_comparison",
                 "factors": factors,
                 "academic_weight_reasons": academic_weight_reasons,
                 "external_weight_reasons": external_weight_reasons,
@@ -883,13 +948,24 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
                 "model_source": result.get("model_source"),
             }, "amu_prediction_generated_at": datetime.now(timezone.utc)}}
         )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="predict_referral",
+            description=f"Generated AMU prediction for referral {ref_id}.",
+            target_type="referral",
+            target_id=ref_id,
+            metadata={"prediction_label": prediction_label, "risk_source": result.get("risk_source")},
+        )
 
         # Return whether we used the model or heuristic for easier debugging
         return {
             "prediction_status": "ready",
-            "risk_level": level,
             "probability": probability,
             "prediction_label": prediction_label,
+            "prediction_basis": "weight_score_comparison",
             "contributing_factors": factors,
             "academic_weight_reasons": academic_weight_reasons,
             "external_weight_reasons": external_weight_reasons,
@@ -945,6 +1021,17 @@ def save_support_routing(ref_id: str, payload: dict, actor: dict = Depends(get_c
         db.enrollments.update_one(
             {"_id": doc["_id"]},
             {"$set": {"amu_final_verdict": verdict}},
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="save_support_routing",
+            description=f"Saved support routing '{action}' for referral {ref_id}.",
+            target_type="referral",
+            target_id=ref_id,
+            metadata={"action": action},
         )
 
         return {

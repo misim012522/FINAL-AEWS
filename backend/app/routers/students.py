@@ -16,13 +16,11 @@ def _doc_to_response(doc) -> dict:
 
 
 @router.get("", response_model=list[StudentResponse])
-def list_students(risk: str | None = None, search: str | None = None, actor: dict = Depends(get_current_actor)):
+def list_students(search: str | None = None, actor: dict = Depends(get_current_actor)):
     if actor["role"] != "admin":
         raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
     q = {}
-    if risk:
-        q["risk"] = risk
     if search:
         q["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},

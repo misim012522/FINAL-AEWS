@@ -81,7 +81,7 @@ export default function AdminSystemAnalytics() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {error && (
         <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700">
           {error}
@@ -89,7 +89,7 @@ export default function AdminSystemAnalytics() {
       )}
 
       {latestXgboostMetrics && (
-        <div className="rounded-2xl border border-cyan-200/80 bg-gradient-to-r from-cyan-50 via-sky-50 to-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-cyan-200/80 bg-gradient-to-r from-cyan-50 via-sky-50 to-white p-4 shadow-sm">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-700">XGBoost Analytics</p>
             <h3 className="text-lg font-semibold text-slate-900">Current production model performance</h3>
@@ -99,25 +99,25 @@ export default function AdminSystemAnalytics() {
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-4">
+            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
                 <p className="text-[11px] uppercase tracking-wide text-slate-500">Holdout</p>
                 <p className="mt-1 text-lg font-bold text-cyan-600">
                   {(latestXgboostMetrics.holdout_accuracy * 100).toFixed(2)}%
                 </p>
             </div>
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-4">
+            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
                 <p className="text-[11px] uppercase tracking-wide text-slate-500">Precision</p>
                 <p className="mt-1 text-lg font-bold text-emerald-600">
                   {(latestXgboostMetrics.precision_weighted * 100).toFixed(2)}%
                 </p>
             </div>
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-4">
+            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
                 <p className="text-[11px] uppercase tracking-wide text-slate-500">Recall</p>
                 <p className="mt-1 text-lg font-bold text-blue-600">
                   {(latestXgboostMetrics.recall_weighted * 100).toFixed(2)}%
                 </p>
             </div>
-            <div className="rounded-xl border border-cyan-100 bg-white/85 p-4">
+            <div className="rounded-xl border border-cyan-100 bg-white/85 p-3.5">
                 <p className="text-[11px] uppercase tracking-wide text-slate-500">F1 Score</p>
                 <p className="mt-1 text-lg font-bold text-violet-600">
                   {(latestXgboostMetrics.f1_weighted * 100).toFixed(2)}%
@@ -126,19 +126,19 @@ export default function AdminSystemAnalytics() {
           </div>
 
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="rounded-xl border border-slate-200/80 bg-white/85 p-4">
+            <div className="rounded-xl border border-slate-200/80 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Cross-validation mean</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
                 {(latestXgboostMetrics.cv_mean_accuracy * 100).toFixed(2)}%
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200/80 bg-white/85 p-4">
+            <div className="rounded-xl border border-slate-200/80 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Cross-validation std</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
                 {(latestXgboostMetrics.cv_std_accuracy * 100).toFixed(2)}%
               </p>
             </div>
-            <div className="rounded-xl border border-slate-200/80 bg-white/85 p-4">
+            <div className="rounded-xl border border-slate-200/80 bg-white/85 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Best model selected</p>
               <p className="mt-1 text-sm font-semibold text-slate-900">
                 {latestAccuracy?.bestModel || 'xgboost'}
@@ -146,7 +146,7 @@ export default function AdminSystemAnalytics() {
             </div>
           </div>
 
-          <div className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3">
+          <div className="mt-3 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-2.5">
             <p className="text-xs font-medium text-amber-900">
               Both XGBoost and Random Forest currently score 100% on the prepared dataset, which is why the comparison looks identical right now.
             </p>
@@ -154,8 +154,8 @@ export default function AdminSystemAnalytics() {
         </div>
       )}
 
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
-        <div className="mb-4">
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
+        <div className="mb-3">
           <h2 className="text-sm font-semibold text-slate-900">XGBoost vs Random Forest</h2>
           <p className="mt-1 text-xs text-slate-500">
             Direct comparison of the two tested models using the same saved training run and dataset.
@@ -166,7 +166,7 @@ export default function AdminSystemAnalytics() {
         {comparisonCards.map((model) => {
           const metrics = latestModels[model.key]
           return (
-            <div key={model.key} className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4">
+            <div key={model.key} className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-3.5">
               <p className="text-[11px] uppercase tracking-wide text-gray-500">{model.label}</p>
               <p className={`mt-1 text-base font-bold ${model.color}`}>
                 {metrics ? `${(metrics.holdout_accuracy * 100).toFixed(2)}%` : 'No data'}

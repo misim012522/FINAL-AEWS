@@ -23,6 +23,7 @@ from typing import Any, List
 import uuid
 from fastapi.responses import JSONResponse
 
+from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
 from app.database import get_db
 from app.ai_features import build_model_feature_dict
@@ -56,6 +57,161 @@ def _get_class_for_actor(db, class_id: str, actor: dict):
         raise HTTPException(status_code=404, detail="Class not found")
     _ensure_instructor_scope(actor, doc.get("instructor_id", ""))
     return doc
+
+
+def _to_reason_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    normalized = _normalize_cell(value).strip().lower()
+    return normalized in {"1", "true", "yes", "y", "checked"}
+
+
+def _matches_numeric_referral_threshold(value, *, max_value: float) -> bool:
+    if not isinstance(value, (int, float)):
+        return False
+    numeric = float(value)
+    if numeric <= 0:
+        return False
+    return numeric <= max_value
+
+
+def _matches_midterm_referral_threshold(value) -> bool:
+    if not isinstance(value, (int, float)):
+        return False
+    numeric = float(value)
+    if numeric <= 0:
+        return False
+    # Grade-scale midterms use 1.00-5.00 where higher values are worse,
+    # so 2.50 or above is the trigger.
+    if numeric <= 5:
+        return numeric >= 2.5
+    # Percentage-style midterms use 0-100 where 75 or below is the trigger.
+    return numeric <= 75
+
+
+def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
+    midterm_grade = enrollment.get("midterm_grade")
+
+    reasons = {
+        "on_probation_status": False,
+        "grade_2_5_or_below": _matches_midterm_referral_threshold(midterm_grade),
+        "gwa_2_5_or_below": False,
+        "low_midterm_performance": _to_reason_bool(enrollment.get("low_midterm_academic_performance")),
+        "difficulty_catching_up": False,
+    }
+    return reasons
+
+
+def _find_amu_staff_for_college(db, college: str) -> dict | None:
+    college_name = _normalize_cell(college).strip()
+    if not college_name:
+        return None
+    return db.amustaff.find_one(
+        {
+            "archived": {"$ne": True},
+            "status": {"$in": ["active", None, ""]},
+            "college": {"$regex": f"^{re.escape(college_name)}$", "$options": "i"},
+        },
+        sort=[("name", 1), ("_id", 1)],
+    )
+
+
+def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool:
+    reasons = _build_auto_referral_reasons(enrollment_doc)
+    existing_reasons = enrollment_doc.get("referral_reasons") or {}
+    already_referred = enrollment_doc.get("flagged_for_mentoring") is True
+
+    if not any(reasons.values()):
+        if already_referred and any(existing_reasons.values()):
+            db.enrollments.update_one(
+                {"_id": enrollment_doc["_id"]},
+                {
+                    "$set": {"flagged_for_mentoring": False},
+                    "$unset": {
+                        "referral_reasons": "",
+                        "assigned_amu_staff_id": "",
+                        "assigned_amu_staff_name": "",
+                        "assigned_amu_staff_college": "",
+                        "referred_at": "",
+                    },
+                },
+            )
+            return True
+        return False
+
+    instructor_doc = None
+    instructor_id = class_doc.get("instructor_id")
+    if instructor_id and ObjectId.is_valid(instructor_id):
+        instructor_doc = db.instructor.find_one({"_id": ObjectId(instructor_id)})
+    instructor_college = _normalize_cell((instructor_doc or {}).get("college"))
+
+    assigned_staff = _find_amu_staff_for_college(db, instructor_college)
+    if not assigned_staff:
+        return False
+
+    assigned_staff_id = str(assigned_staff["_id"])
+    assigned_staff_name = _normalize_cell(assigned_staff.get("name"))
+    assigned_staff_college = _normalize_cell(assigned_staff.get("college")) or None
+    already_assigned = (
+        _normalize_cell(enrollment_doc.get("assigned_amu_staff_id")) == assigned_staff_id
+        and _normalize_cell(enrollment_doc.get("assigned_amu_staff_name")) == assigned_staff_name
+        and _normalize_cell(enrollment_doc.get("assigned_amu_staff_college")) == (assigned_staff_college or "")
+    )
+    same_reasons = existing_reasons == reasons
+    if already_referred and already_assigned and same_reasons:
+        return False
+
+    update_data = {
+        "flagged_for_mentoring": True,
+        "referral_reasons": reasons,
+        "assigned_amu_staff_id": assigned_staff_id,
+        "assigned_amu_staff_name": assigned_staff_name,
+        "assigned_amu_staff_college": assigned_staff_college,
+    }
+    if not enrollment_doc.get("referred_at"):
+        update_data["referred_at"] = datetime.now(timezone.utc)
+
+    db.enrollments.update_one({"_id": enrollment_doc["_id"]}, {"$set": update_data})
+
+    subject_code = class_doc.get("subject_code") or "Class"
+    subject_name = class_doc.get("subject_name") or ""
+    class_label = f"{subject_code}" + (f": {subject_name}" if subject_name else "")
+    student_label = (
+        _normalize_cell(enrollment_doc.get("student_email"))
+        or _normalize_cell(enrollment_doc.get("student_id"))
+        or _normalize_cell(enrollment_doc.get("student_name"))
+        or "Student"
+    )
+    instructor_name = _normalize_cell((instructor_doc or {}).get("name")) or "Instructor"
+
+    if not already_referred:
+        create_notification(
+            db,
+            role="amu-staff",
+            title="Student auto-referred by system",
+            body=(
+                f"Student {student_label} met the automatic referral criteria in "
+                f"{class_label} and was assigned to {assigned_staff_name}"
+                f"{f' - {assigned_staff_college}' if assigned_staff_college else ''}. "
+                f"Please review the case."
+            ),
+            type="alert",
+        )
+        create_notification(
+            db,
+            role="instructor",
+            title="Student auto-referred to AMU",
+            body=(
+                f"{student_label} from {class_label} was automatically referred to "
+                f"{assigned_staff_name}{f' - {assigned_staff_college}' if assigned_staff_college else ''} "
+                f"based on the recorded referral reasons."
+            ),
+            type="info",
+        )
+
+    return True
 
 
 def _set_related_enrollment_archive_state(db, class_id: str, archived: bool) -> None:
@@ -1438,6 +1594,24 @@ def _normalize_subject_code_candidate(value: str) -> str | None:
     return None
 
 
+def _normalize_section_code_candidate(value: str) -> str | None:
+    candidate = _normalize_cell(value).strip().rstrip(".,;:")
+    candidate = re.sub(r"\s+", " ", candidate)
+    if not candidate:
+        return None
+    if not re.search(r"[A-Za-z0-9]", candidate):
+        return None
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_./\- ]{0,30}", candidate):
+        return candidate
+    return None
+
+
+def _normalize_subject_name_candidate(value: str) -> str | None:
+    candidate = _normalize_cell(value).strip().rstrip(".,;:")
+    candidate = re.sub(r"\s+", " ", candidate)
+    return candidate or None
+
+
 def _extract_subject_code_from_text(text: str) -> str | None:
     if not text:
         return None
@@ -1464,6 +1638,186 @@ def _extract_subject_code_from_values(values: list[str]) -> str | None:
                     return extracted
 
     return None
+
+
+def _extract_labeled_value_from_values(values: list[str], labels: tuple[str, ...], normalizer) -> str | None:
+    normalized_labels = {label.lower().strip().rstrip(":") for label in labels}
+
+    for value in values:
+        text = _normalize_cell(value).strip()
+        if not text or ":" not in text:
+            continue
+        label_part, candidate_part = text.split(":", 1)
+        normalized_label = label_part.lower().strip().rstrip(":")
+        if normalized_label in normalized_labels:
+            normalized_candidate = normalizer(candidate_part)
+            if normalized_candidate:
+                return normalized_candidate
+
+    for idx, value in enumerate(values):
+        normalized = _normalize_cell(value).lower().strip().rstrip(":")
+        if normalized in normalized_labels:
+            for candidate in values[idx + 1: idx + 4]:
+                normalized_candidate = normalizer(candidate)
+                if normalized_candidate:
+                    return normalized_candidate
+
+    return None
+
+
+def _extract_section_code_from_file(file_path: Path) -> str | None:
+    return _extract_labeled_metadata_from_file(
+        file_path,
+        labels=("section", "section code", "sec"),
+        normalizer=_normalize_section_code_candidate,
+    )
+
+
+def _extract_subject_name_from_file(file_path: Path) -> str | None:
+    return _extract_labeled_metadata_from_file(
+        file_path,
+        labels=("subject name", "course name", "descriptive title", "course description"),
+        normalizer=_normalize_subject_name_candidate,
+    )
+
+
+def _extract_labeled_metadata_from_file(file_path: Path, labels: tuple[str, ...], normalizer) -> str | None:
+    ext = file_path.suffix.lower()
+
+    if ext == ".xlsx" and _HAS_OPENPYXL:
+        wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+        try:
+            for sheet_name in wb.sheetnames:
+                ws = wb[sheet_name]
+                for row in ws.iter_rows(min_row=1, max_row=50, values_only=True):
+                    values = [_normalize_cell(cell) for cell in row]
+                    extracted = _extract_labeled_value_from_values(values, labels, normalizer)
+                    if extracted:
+                        return extracted
+        finally:
+            wb.close()
+
+    if ext == ".docx" and _HAS_PYTHON_DOCX:
+        doc = Document(file_path)
+
+        for paragraph in doc.paragraphs:
+            extracted = _extract_labeled_value_from_values([paragraph.text], labels, normalizer)
+            if extracted:
+                return extracted
+
+        for table in doc.tables:
+            for row in table.rows:
+                values = [_normalize_cell(cell.text) for cell in row.cells]
+                extracted = _extract_labeled_value_from_values(values, labels, normalizer)
+                if extracted:
+                    return extracted
+
+    if ext == ".csv":
+        with open(file_path, newline='', encoding='utf-8') as fh:
+            reader = csv.reader(fh)
+            for index, row in enumerate(reader):
+                if index >= 50:
+                    break
+                values = [_normalize_cell(cell) for cell in row]
+                extracted = _extract_labeled_value_from_values(values, labels, normalizer)
+                if extracted:
+                    return extracted
+
+    return None
+
+
+def _normalize_metadata_compare(value: str | None) -> str:
+    normalized = _normalize_cell(value).strip().lower()
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized
+
+
+def _validate_upload_file_matches_class(db, file_path: Path, class_doc: dict, *, upload_type: str = "") -> None:
+    expected_section_raw = class_doc.get("section_code")
+    if not expected_section_raw and class_doc.get("_id"):
+        enrollment = db.enrollments.find_one(
+            {"class_id": str(class_doc["_id"]), "section_code": {"$exists": True, "$ne": None}}
+        )
+        expected_section_raw = (enrollment or {}).get("section_code")
+
+    expected_section = _normalize_metadata_compare(expected_section_raw)
+    expected_subject_code = _normalize_metadata_compare(class_doc.get("subject_code"))
+    expected_subject_name = _normalize_metadata_compare(class_doc.get("subject_name"))
+
+    extracted_section = _normalize_metadata_compare(_extract_section_code_from_file(file_path))
+    extracted_subject_code = _normalize_metadata_compare(_extract_subject_code_from_file(file_path))
+    extracted_subject_name = _normalize_metadata_compare(_extract_subject_name_from_file(file_path))
+
+    # Class lists are matched using ordered fallback priority:
+    # 1) section code, 2) subject code, 3) subject name.
+    # Allow the upload when any available metadata field matches; otherwise fail using
+    # the highest-priority comparable field for the error message.
+    if upload_type == "classlist":
+        comparisons = []
+        if extracted_section and expected_section:
+            comparisons.append(("section", extracted_section == expected_section))
+        if extracted_subject_code and expected_subject_code:
+            comparisons.append(("subject_code", extracted_subject_code == expected_subject_code))
+        if extracted_subject_name and expected_subject_name:
+            comparisons.append(("subject_name", extracted_subject_name == expected_subject_name))
+
+        if any(matches for _, matches in comparisons):
+            return
+
+        if extracted_section and expected_section:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"File section code does not match this class. Expected '{expected_section_raw}', "
+                    f"but found '{_extract_section_code_from_file(file_path)}'."
+                ),
+            )
+
+        if extracted_subject_code and expected_subject_code:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"File subject code does not match this class. Expected '{class_doc.get('subject_code')}', "
+                    f"but found '{_extract_subject_code_from_file(file_path)}'."
+                ),
+            )
+
+        if extracted_subject_name and expected_subject_name and extracted_subject_name != expected_subject_name:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"File subject name does not match this class. Expected '{class_doc.get('subject_name')}', "
+                    f"but found '{_extract_subject_name_from_file(file_path)}'."
+                ),
+            )
+        return
+
+    if extracted_section and expected_section and extracted_section != expected_section:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File section code does not match this class. Expected '{expected_section_raw}', "
+                f"but found '{_extract_section_code_from_file(file_path)}'."
+            ),
+        )
+
+    if extracted_subject_code and expected_subject_code and extracted_subject_code != expected_subject_code:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File subject code does not match this class. Expected '{class_doc.get('subject_code')}', "
+                f"but found '{_extract_subject_code_from_file(file_path)}'."
+            ),
+        )
+
+    if extracted_subject_name and expected_subject_name and extracted_subject_name != expected_subject_name:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File subject name does not match this class. Expected '{class_doc.get('subject_name')}', "
+                f"but found '{_extract_subject_name_from_file(file_path)}'."
+            ),
+        )
 
 
 def _extract_subject_code_from_file(file_path: Path) -> str | None:
@@ -1804,6 +2158,7 @@ def _parse_daily_attendance(row, keys, id_col, name_col):
 @router.post("/preview-classlist", status_code=200)
 async def preview_classlist(
     actor: dict = Depends(get_current_actor),
+    class_id: str | None = Form(None),
     file: UploadFile = File(..., description="CSV or XLSX file"),
 ):
     """Parse a classlist file and return extracted students (name and ID) without saving."""
@@ -1827,6 +2182,13 @@ async def preview_classlist(
             tmp_path = Path(tmp.name)
 
         try:
+            if class_id:
+                if not ObjectId.is_valid(class_id):
+                    raise HTTPException(status_code=404, detail="Class not found")
+                db = get_db()
+                class_doc = _get_class_for_actor(db, class_id, actor)
+                _validate_upload_file_matches_class(db, tmp_path, class_doc, upload_type="classlist")
+
             # Parse the file
             rows = _parse_file_to_rows(tmp_path, preferred_type="classlist")
             if not rows:
@@ -1902,6 +2264,7 @@ async def upload_class_files(
     updated_count = 0
     not_enrolled = []
     missing_identifiers = 0
+    auto_referred_students = []
     auto_activity_title_mappings: dict[str, dict[str, str]] = {}
 
     try:
@@ -1909,7 +2272,8 @@ async def upload_class_files(
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
-    if not db.classes.find_one({"_id": ObjectId(class_id)}):
+    class_doc = db.classes.find_one({"_id": ObjectId(class_id)})
+    if not class_doc:
         raise HTTPException(status_code=404, detail="Class not found")
 
     for upload in files:
@@ -1921,6 +2285,9 @@ async def upload_class_files(
         with dest.open("wb") as buffer:
             shutil.copyfileobj(upload.file, buffer)
         saved_files.append(str(dest.name))
+
+        if type in ("gradesheet", "attendance", "classlist"):
+            _validate_upload_file_matches_class(db, dest, class_doc, upload_type=type)
 
         try:
             rows = _parse_file_to_rows(dest, preferred_type=type)
@@ -2072,6 +2439,18 @@ async def upload_class_files(
                         {"_id": enrollment["_id"]},
                         update_ops
                     )
+                    refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+                    if refreshed:
+                        was_referred = bool(enrollment.get("flagged_for_mentoring"))
+                        _apply_automatic_referral(db, class_doc, refreshed)
+                        refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+                        if refreshed and not was_referred and refreshed.get("flagged_for_mentoring"):
+                            auto_referred_students.append({
+                                "student_name": refreshed.get("student_name"),
+                                "student_id": refreshed.get("student_id") or refreshed.get("id_number"),
+                                "student_email": refreshed.get("student_email"),
+                                "referral_reasons": _build_auto_referral_reasons(refreshed),
+                            })
                     updated_count += 1
 
         elif type == "attendance":
@@ -2140,6 +2519,18 @@ async def upload_class_files(
                         {"_id": enrollment["_id"]},
                         {"$set": update_data}
                     )
+                    refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+                    if refreshed:
+                        was_referred = bool(enrollment.get("flagged_for_mentoring"))
+                        _apply_automatic_referral(db, class_doc, refreshed)
+                        refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+                        if refreshed and not was_referred and refreshed.get("flagged_for_mentoring"):
+                            auto_referred_students.append({
+                                "student_name": refreshed.get("student_name"),
+                                "student_id": refreshed.get("student_id") or refreshed.get("id_number"),
+                                "student_email": refreshed.get("student_email"),
+                                "referral_reasons": _build_auto_referral_reasons(refreshed),
+                            })
                     updated_count += 1
 
     if type == "gradesheet" and auto_activity_title_mappings:
@@ -2172,7 +2563,29 @@ async def upload_class_files(
                 },
             )
 
-    result = {"message": f"{type.capitalize()} file(s) uploaded and saved successfully.", "files": saved_files}
+    result = {
+        "message": f"{type.capitalize()} file(s) uploaded and saved successfully.",
+        "files": saved_files,
+        "auto_referred_students": auto_referred_students,
+    }
+    create_activity_log(
+        db,
+        actor_id=actor["id"],
+        actor_name=actor.get("name", "User"),
+        role=actor["role"],
+        action=f"upload_{type}",
+        description=f"Uploaded {type} file(s) for {(class_doc.get('section_code') or '').strip()} {(class_doc.get('subject_code') or '').strip()} {(class_doc.get('subject_name') or '').strip()}".strip(),
+        target_type="class",
+        target_id=class_id,
+        metadata={
+            "files": saved_files,
+            "updated": updated_count,
+            "added": add_summary.get("added", 0),
+            "skipped": add_summary.get("skipped", 0),
+            "invalid": add_summary.get("invalid", 0),
+            "auto_referred_count": len(auto_referred_students),
+        },
+    )
     if type == "classlist":
         result.update(add_summary)
         result["added_students"] = added_students
@@ -2513,6 +2926,9 @@ async def upload_and_create_classlist(
                         {"_id": enrollment["_id"]},
                         update_ops
                     )
+                    refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+                    if refreshed:
+                        _apply_automatic_referral(db, class_doc, refreshed)
                     updated_count_gs += 1
 
             gradesheet_summary = {"updated": updated_count_gs, "not_enrolled": len(not_enrolled_gs)}
@@ -2558,6 +2974,9 @@ async def upload_and_create_classlist(
                         {"_id": enrollment["_id"]},
                         {"$set": update_data}
                     )
+                    refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+                    if refreshed:
+                        _apply_automatic_referral(db, class_doc, refreshed)
                     updated_count_att += 1
 
             attendance_summary = {"updated": updated_count_att, "not_enrolled": len(not_enrolled_att)}
@@ -2596,7 +3015,7 @@ def _doc_to_class_response(doc, student_count: int = 0, at_risk_count: int = 0, 
 
 @router.get("/risk-alerts")
 def list_instructor_risk_alerts(instructor_id: str, actor: dict = Depends(get_current_actor)):
-    """List all high-risk students across the instructor's classes (for Risk Alerts page)."""
+    """List all referred students across the instructor's classes (for alerts page)."""
     try:
         db = get_db()
         classes_cursor = db.classes.find({"instructor_id": instructor_id}).sort("subject_code", 1)
@@ -2606,7 +3025,7 @@ def list_instructor_risk_alerts(instructor_id: str, actor: dict = Depends(get_cu
             subject_code = c.get("subject_code", "")
             subject_name = c.get("subject_name", "")
             cursor = db.enrollments.find(
-                {"class_id": class_id, "risk": "High"}
+                {"class_id": class_id, "flagged_for_mentoring": True}
             ).sort("student_email", 1)
             for doc in cursor:
                 student_email, student_name, student_id, student_key = _get_enrollment_identity(doc)
@@ -2615,7 +3034,7 @@ def list_instructor_risk_alerts(instructor_id: str, actor: dict = Depends(get_cu
                     "student_email": student_email or student_key,
                     "student_name": resolved_name or None,
                     "student_id": student_id or None,
-                    "risk": doc.get("risk"),
+                    "prediction_label": "External Factor" if doc.get("risk_source") == "external_factors" else ("Academic Problem" if doc.get("risk_source") else None),
                     "class_id": class_id,
                     "subject_code": subject_code,
                     "subject_name": subject_name,
@@ -2649,8 +3068,8 @@ def list_instructor_students(instructor_id: str, actor: dict = Depends(get_curre
                     "subject_code": subject_code,
                     "subject_name": subject_name,
                 }
-                if doc.get("risk") is not None:
-                    row["risk"] = doc["risk"]
+                if doc.get("risk_source") is not None:
+                    row["prediction_label"] = "External Factor" if doc.get("risk_source") == "external_factors" else "Academic Problem"
                 if doc.get("gpa") is not None:
                     row["gpa"] = doc["gpa"]
                 if doc.get("attendance") is not None:
@@ -2677,7 +3096,7 @@ def list_classes(instructor_id: str, actor: dict = Depends(get_current_actor)):
             class_id = str(doc["_id"])
             count = db.enrollments.count_documents({"class_id": class_id})
             at_risk = db.enrollments.count_documents(
-                {"class_id": class_id, "risk": "High"}
+                {"class_id": class_id, "flagged_for_mentoring": True}
             )
             # Get section_code from first enrollment that has it
             enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2696,7 +3115,7 @@ def get_class(class_id: str, actor: dict = Depends(get_current_actor)):
         doc = _get_class_for_actor(db, class_id, actor)
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
-            {"class_id": class_id, "risk": "High"}
+            {"class_id": class_id, "flagged_for_mentoring": True}
         )
         # Get section_code from first enrollment that has it
         enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2711,15 +3130,41 @@ def create_class(body: ClassCreate, actor: dict = Depends(get_current_actor)):
     """Create a new class (subject)."""
     try:
         db = get_db()
+        section_code = re.sub(r"\s+", " ", body.section_code.strip())
+        subject_code = re.sub(r"\s+", " ", body.subject_code.strip())
+        subject_name = re.sub(r"\s+", " ", body.subject_name.strip())
+
+        existing = db.classes.find_one({
+            "instructor_id": body.instructor_id.strip(),
+            "status": {"$ne": "archived"},
+            "section_code": {"$regex": f"^{re.escape(section_code)}$", "$options": "i"},
+            "subject_code": {"$regex": f"^{re.escape(subject_code)}$", "$options": "i"},
+            "subject_name": {"$regex": f"^{re.escape(subject_name)}$", "$options": "i"},
+        })
+        if existing:
+            raise HTTPException(status_code=400, detail="This class already exists.")
+
         doc = {
-            "subject_code": body.subject_code.strip(),
-            "subject_name": body.subject_name.strip(),
+            "section_code": section_code,
+            "subject_code": subject_code,
+            "subject_name": subject_name,
             "instructor_id": body.instructor_id.strip(),
             "status": "active",
         }
         result = db.classes.insert_one(doc)
         doc["_id"] = result.inserted_id
-        return _doc_to_class_response(doc, 0)
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="create_class",
+            description=f"Created class {section_code} - {subject_code}: {subject_name}.",
+            target_type="class",
+            target_id=str(doc["_id"]),
+            metadata={"section_code": section_code, "subject_code": subject_code, "subject_name": subject_name},
+        )
+        return _doc_to_class_response(doc, 0, 0, doc.get("section_code"))
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
@@ -2738,7 +3183,7 @@ def list_archived_classes(instructor_id: str, actor: dict = Depends(get_current_
             class_id = str(doc["_id"])
             count = db.enrollments.count_documents({"class_id": class_id})
             at_risk = db.enrollments.count_documents(
-                {"class_id": class_id, "risk": "High"}
+                {"class_id": class_id, "flagged_for_mentoring": True}
             )
             # Get section_code from first enrollment that has it
             enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2753,14 +3198,11 @@ def list_archived_classes(instructor_id: str, actor: dict = Depends(get_current_
 def archive_class(class_id: str, actor: dict = Depends(get_current_actor)):
     """Archive a class and mark its linked enrollment data as archived."""
     try:
-        _ensure_instructor_scope(actor, instructor_id)
-        _ensure_instructor_scope(actor, instructor_id)
-        _ensure_instructor_scope(actor, instructor_id)
-        _ensure_instructor_scope(actor, body.instructor_id.strip())
-        _ensure_instructor_scope(actor, instructor_id)
         db = get_db()
-        _get_class_for_actor(db, class_id, actor)
-        
+        doc = _get_class_for_actor(db, class_id, actor)
+        if doc.get("status") == "archived":
+            raise HTTPException(status_code=400, detail="Class is already archived")
+
         result = db.classes.update_one(
             {"_id": ObjectId(class_id)},
             {"$set": {"status": "archived"}}
@@ -2770,11 +3212,21 @@ def archive_class(class_id: str, actor: dict = Depends(get_current_actor)):
             raise HTTPException(status_code=404, detail="Class not found")
 
         _set_related_enrollment_archive_state(db, class_id, archived=True)
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="archive_class",
+            description=f"Archived class {(doc.get('section_code') or '').strip()} {(doc.get('subject_code') or '').strip()} {(doc.get('subject_name') or '').strip()}".strip(),
+            target_type="class",
+            target_id=class_id,
+        )
         
         doc = db.classes.find_one({"_id": ObjectId(class_id)})
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
-            {"class_id": class_id, "risk": "High"}
+            {"class_id": class_id, "flagged_for_mentoring": True}
         )
         # Get section_code from first enrollment that has it
         enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2789,8 +3241,10 @@ def restore_class(class_id: str, actor: dict = Depends(get_current_actor)):
     """Restore an archived class together with its linked enrollment data."""
     try:
         db = get_db()
-        _get_class_for_actor(db, class_id, actor)
-        
+        doc = _get_class_for_actor(db, class_id, actor)
+        if doc.get("status") != "archived":
+            raise HTTPException(status_code=400, detail="Only archived classes can be restored")
+
         result = db.classes.update_one(
             {"_id": ObjectId(class_id)},
             {"$set": {"status": "active"}}
@@ -2800,11 +3254,21 @@ def restore_class(class_id: str, actor: dict = Depends(get_current_actor)):
             raise HTTPException(status_code=404, detail="Class not found")
 
         _set_related_enrollment_archive_state(db, class_id, archived=False)
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="restore_class",
+            description=f"Restored class {(doc.get('section_code') or '').strip()} {(doc.get('subject_code') or '').strip()} {(doc.get('subject_name') or '').strip()}".strip(),
+            target_type="class",
+            target_id=class_id,
+        )
         
         doc = db.classes.find_one({"_id": ObjectId(class_id)})
         count = db.enrollments.count_documents({"class_id": class_id})
         at_risk = db.enrollments.count_documents(
-            {"class_id": class_id, "risk": "High"}
+            {"class_id": class_id, "flagged_for_mentoring": True}
         )
         # Get section_code from first enrollment that has it
         enrollment = db.enrollments.find_one({"class_id": class_id, "section_code": {"$exists": True, "$ne": None}})
@@ -2824,11 +3288,21 @@ def permanent_delete_class(class_id: str, actor: dict = Depends(get_current_acto
         if class_doc.get("status") != "archived":
             raise HTTPException(status_code=400, detail="Can only delete archived classes")
         
-        # Delete the class
-        db.classes.delete_one({"_id": class_obj_id})
-        
         # Delete all enrollments for this class
         db.enrollments.delete_many({"class_id": class_id})
+
+        # Delete the class after related records are removed.
+        db.classes.delete_one({"_id": class_obj_id})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="delete_class",
+            description=f"Permanently deleted class {(class_doc.get('section_code') or '').strip()} {(class_doc.get('subject_code') or '').strip()} {(class_doc.get('subject_name') or '').strip()}".strip(),
+            target_type="class",
+            target_id=class_id,
+        )
         
         return None
     except ServerSelectionTimeoutError:
@@ -2909,8 +3383,8 @@ def list_class_students(class_id: str, actor: dict = Depends(get_current_actor))
                 "student_name": resolved_name or student_name or None,
                 "student_id": student_id or None,
             }
-            if doc.get("risk") is not None:
-                row["risk"] = doc["risk"]
+            if doc.get("risk_source") is not None:
+                row["prediction_label"] = "External Factor" if doc.get("risk_source") == "external_factors" else "Academic Problem"
             if doc.get("gpa") is not None:
                 row["gpa"] = doc["gpa"]
             if doc.get("attendance") is not None:
@@ -2927,8 +3401,6 @@ def list_class_students(class_id: str, actor: dict = Depends(get_current_actor))
                 row["assigned_amu_staff_name"] = doc["assigned_amu_staff_name"]
             if doc.get("assigned_amu_staff_college") is not None:
                 row["assigned_amu_staff_college"] = doc["assigned_amu_staff_college"]
-            if doc.get("risk_probability_percent") is not None:
-                row["risk_probability_percent"] = doc["risk_probability_percent"]
             for field in ai_fields:
                 if doc.get(field) is not None:
                     row[field] = doc[field]
@@ -2940,7 +3412,7 @@ def list_class_students(class_id: str, actor: dict = Depends(get_current_actor))
 
 @router.get("/{class_id}/risk-summary")
 def get_class_risk_summary(class_id: str, actor: dict = Depends(get_current_actor)):
-    """Class-level risk summary for the binary High/Low prediction model."""
+    """Class-level outcome summary for academic vs external prediction labels."""
     try:
         db = get_db()
         if not ObjectId.is_valid(class_id):
@@ -2949,27 +3421,27 @@ def get_class_risk_summary(class_id: str, actor: dict = Depends(get_current_acto
             raise HTTPException(status_code=404, detail="Class not found")
         cursor = list(db.enrollments.find({"class_id": class_id}))
         total = len(cursor)
-        high_risk = sum(1 for d in cursor if d.get("risk") == "High")
-        medium_risk = sum(1 for d in cursor if d.get("risk") == "Medium")
-        low_risk = sum(1 for d in cursor if d.get("risk") == "Low")
-        at_risk_list = []
+        academic_count = sum(1 for d in cursor if d.get("risk_source") == "academic")
+        external_count = sum(1 for d in cursor if d.get("risk_source") == "external_factors")
+        referred_count = sum(1 for d in cursor if d.get("flagged_for_mentoring"))
+        outcome_list = []
         for d in cursor:
-            if d.get("risk") not in ("High", "Medium", "Low"):
+            if d.get("risk_source") not in ("academic", "external_factors"):
                 continue
             student_email, student_name, student_id, student_key = _get_enrollment_identity(d)
             resolved_name = _enrich_student_name(db, student_email, student_id, student_name)
-            at_risk_list.append({
+            outcome_list.append({
                 "student_email": student_email or student_key,
                 "student_name": resolved_name or None,
                 "student_id": student_id or None,
-                "risk": d.get("risk"),
+                "prediction_label": "External Factor" if d.get("risk_source") == "external_factors" else "Academic Problem",
             })
         return {
             "total": total,
-            "high_risk": high_risk,
-            "medium_risk": medium_risk,
-            "low_risk": low_risk,
-            "at_risk_list": at_risk_list,
+            "academic_count": academic_count,
+            "external_count": external_count,
+            "referred_count": referred_count,
+            "outcome_list": outcome_list,
         }
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
@@ -3342,8 +3814,7 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
     """Update academic indicators, risk, or flagged_for_mentoring for a student in the class."""
     try:
         db = get_db()
-        _get_class_for_actor(db, class_id, actor)
-        _get_class_for_actor(db, class_id, actor)
+        class_doc = _get_class_for_actor(db, class_id, actor)
 
         identifier = _normalize_cell(student_identifier).strip()
         identifier_lower = identifier.lower()
@@ -3372,6 +3843,20 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
             assigned_amu_staff_name = str(payload.get("assigned_amu_staff_name") or "").strip()
             assigned_amu_staff_college = str(payload.get("assigned_amu_staff_college") or "").strip()
             if not assigned_amu_staff_id or not assigned_amu_staff_name:
+                inferred_doc = {**doc, **payload}
+                auto_reasons = _build_auto_referral_reasons(inferred_doc)
+                if any(auto_reasons.values()):
+                    instructor_doc = None
+                    instructor_id = class_doc.get("instructor_id")
+                    if instructor_id and ObjectId.is_valid(instructor_id):
+                        instructor_doc = db.instructor.find_one({"_id": ObjectId(instructor_id)})
+                    auto_staff = _find_amu_staff_for_college(db, (instructor_doc or {}).get("college"))
+                    if auto_staff:
+                        assigned_amu_staff_id = str(auto_staff["_id"])
+                        assigned_amu_staff_name = _normalize_cell(auto_staff.get("name"))
+                        assigned_amu_staff_college = _normalize_cell(auto_staff.get("college"))
+                        payload.setdefault("referral_reasons", auto_reasons)
+            if not assigned_amu_staff_id or not assigned_amu_staff_name:
                 raise HTTPException(
                     status_code=400,
                     detail="Please choose an AMU staff member before sending the referral.",
@@ -3383,6 +3868,9 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
             {"_id": doc["_id"]},
             {"$set": payload},
         )
+        refreshed_doc = db.enrollments.find_one({"_id": doc["_id"]})
+        if refreshed_doc:
+            _apply_automatic_referral(db, class_doc, refreshed_doc)
         # When instructor flags a student for mentoring, set referred_at and notify AMU staff
         if payload.get("flagged_for_mentoring") is True:
             now = datetime.now(timezone.utc)
@@ -3390,7 +3878,6 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
                 {"_id": doc["_id"]},
                 {"$set": {"referred_at": now}},
             )
-            class_doc = db.classes.find_one({"_id": ObjectId(class_id)})
             instructor_name = "Instructor"
             if class_doc and class_doc.get("instructor_id"):
                 inst_doc = db.instructor.find_one({"_id": ObjectId(class_doc["instructor_id"])})
@@ -3420,7 +3907,7 @@ def predict_enrollment_risk(class_id: str, student_email: str, actor: dict = Dep
     """Run the XGBoost student-risk model for one enrolled student."""
     try:
         db = get_db()
-        _get_class_for_actor(db, class_id, actor)
+        class_doc = _get_class_for_actor(db, class_id, actor)
 
         email = student_email.strip().lower()
         doc = db.enrollments.find_one({"class_id": class_id, "student_email": email})
@@ -3438,10 +3925,6 @@ def predict_enrollment_risk(class_id: str, student_email: str, actor: dict = Dep
             {"class_id": class_id, "student_email": email},
             {
                 "$set": {
-                    "risk": result["risk"],
-                    "risk_prediction": result["prediction"],
-                    "risk_probability": result["probability"],
-                    "risk_probability_percent": result["probability_percent"],
                     "model_features": result["features"],
                     "risk_source": result.get("risk_source"),
                     "risk_source_label": result.get("risk_source_label"),
@@ -3453,8 +3936,18 @@ def predict_enrollment_risk(class_id: str, student_email: str, actor: dict = Dep
                     "hardest_midterm_topics": result.get("hardest_midterm_topics"),
                     "top_contributing_signals": result.get("top_contributing_signals"),
                 }
+            ,
+                "$unset": {
+                    "risk": "",
+                    "risk_prediction": "",
+                    "risk_probability": "",
+                    "risk_probability_percent": "",
+                }
             },
         )
+        refreshed = db.enrollments.find_one({"class_id": class_id, "student_email": email})
+        if refreshed:
+            _apply_automatic_referral(db, class_doc, refreshed)
 
         return {
             "class_id": class_id,
@@ -3480,7 +3973,7 @@ async def upload_needs_assessment_file(
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
-    _get_class_for_actor(db, class_id, actor)
+    class_doc = _get_class_for_actor(db, class_id, actor)
 
     saved_files = []
     updated = 0
@@ -3521,6 +4014,9 @@ async def upload_needs_assessment_file(
                 continue
 
             db.enrollments.update_one({"_id": enrollment["_id"]}, {"$set": update_data})
+            refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
+            if refreshed:
+                _apply_automatic_referral(db, class_doc, refreshed)
             updated += 1
 
     return {
@@ -3645,7 +4141,7 @@ def predict_class_risk(class_id: str, actor: dict = Depends(get_current_actor)):
     """Run risk prediction for all students enrolled in a class."""
     try:
         db = get_db()
-        _get_class_for_actor(db, class_id, actor)
+        class_doc = _get_class_for_actor(db, class_id, actor)
 
         cursor = list(db.enrollments.find({"class_id": class_id}).sort("_id", 1))
         predicted = 0
@@ -3668,10 +4164,6 @@ def predict_class_risk(class_id: str, actor: dict = Depends(get_current_actor)):
                 {"_id": doc["_id"]},
                 {
                     "$set": {
-                        "risk": result["risk"],
-                        "risk_prediction": result["prediction"],
-                        "risk_probability": result["probability"],
-                        "risk_probability_percent": result["probability_percent"],
                         "model_features": result["features"],
                         "risk_source": result.get("risk_source"),
                         "risk_source_label": result.get("risk_source_label"),
@@ -3683,13 +4175,23 @@ def predict_class_risk(class_id: str, actor: dict = Depends(get_current_actor)):
                         "hardest_midterm_topics": result.get("hardest_midterm_topics"),
                         "top_contributing_signals": result.get("top_contributing_signals"),
                     }
+                ,
+                    "$unset": {
+                        "risk": "",
+                        "risk_prediction": "",
+                        "risk_probability": "",
+                        "risk_probability_percent": "",
+                    }
                 },
             )
+            refreshed = db.enrollments.find_one({"_id": doc["_id"]})
+            if refreshed:
+                _apply_automatic_referral(db, class_doc, refreshed)
             predicted += 1
             results.append({
                 "student_email": email or None,
                 "student_key": student_key,
-                "risk": result["risk"],
+                "prediction_label": "External Factor" if result.get("risk_source") == "external_factors" else "Academic Problem",
                 "probability_percent": result["probability_percent"],
             })
 

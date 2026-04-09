@@ -18,11 +18,13 @@ def _doc_to_response(doc) -> dict:
 
 @router.get("", response_model=list[NotificationResponse])
 def list_notifications(role: str | None = None, actor: dict = Depends(get_current_actor)):
-    role = normalize_role(role or actor["role"])
-    if role not in ("instructor", "admin", "amu-staff"):
+    actor_role = normalize_role(actor["role"])
+    requested_role = normalize_role(role) if role else actor_role
+    if actor_role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
-    if actor["role"] != role:
+    if requested_role != actor_role:
         raise HTTPException(status_code=403, detail="Forbidden")
+    role = actor_role
     db = get_db()
     if role == "admin":
         pending_count = db.instructor.count_documents({"status": "pending"}) + db.amustaff.count_documents({"status": "pending"})
@@ -62,14 +64,13 @@ def mark_notification_read(notification_id: str, body: NotificationUpdate, actor
     db = get_db()
     if not ObjectId.is_valid(notification_id):
         raise HTTPException(status_code=404, detail="Notification not found")
-    existing = db.notifications.find_one({"_id": ObjectId(notification_id)})
+    actor_role = normalize_role(actor["role"])
+    existing = db.notifications.find_one({"_id": ObjectId(notification_id), "role": actor_role})
     if not existing:
         raise HTTPException(status_code=404, detail="Notification not found")
-    if normalize_role(existing.get("role")) != actor["role"]:
-        raise HTTPException(status_code=403, detail="Forbidden")
     payload = body.model_dump(exclude_unset=True)
     result = db.notifications.find_one_and_update(
-        {"_id": ObjectId(notification_id)},
+        {"_id": ObjectId(notification_id), "role": actor_role},
         {"$set": payload},
         return_document=ReturnDocument.AFTER,
     )
@@ -80,11 +81,12 @@ def mark_notification_read(notification_id: str, body: NotificationUpdate, actor
 
 @router.post("/{role}/mark-all-read")
 def mark_all_read(role: str, actor: dict = Depends(get_current_actor)):
-    role = normalize_role(role)
-    if role not in ("instructor", "admin", "amu-staff"):
+    actor_role = normalize_role(actor["role"])
+    requested_role = normalize_role(role)
+    if actor_role not in ("instructor", "admin", "amu-staff"):
         raise HTTPException(status_code=400, detail="Invalid role")
-    if actor["role"] != role:
+    if requested_role != actor_role:
         raise HTTPException(status_code=403, detail="Forbidden")
     db = get_db()
-    db.notifications.update_many({"role": role}, {"$set": {"read": True}})
+    db.notifications.update_many({"role": actor_role}, {"$set": {"read": True}})
     return {"ok": True}

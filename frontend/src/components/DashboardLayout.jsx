@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard } from 'lucide-react'
+import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard, Activity } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationsContext'
@@ -36,6 +36,7 @@ export default function DashboardLayout({
   const basePath = variant === 'admin' ? '/admin' : variant === 'amu-staff' ? '/amu-staff' : '/instructor'
   const location = useLocation()
   const onSettingsPage = location.pathname.endsWith('/settings')
+  const onActivityLogsPage = location.pathname.endsWith('/activity-logs')
   const onHelpPage = location.pathname.endsWith('/help') || location.pathname.endsWith('/help/')
 
   const getDefaultNavItems = () => {
@@ -73,7 +74,7 @@ export default function DashboardLayout({
   let effectiveNavItems
   if (overrideNavItems && overrideNavItems.length) {
     effectiveNavItems = overrideNavItems
-  } else if ((onSettingsPage || onHelpPage)) {
+  } else if ((onSettingsPage || onActivityLogsPage || onHelpPage)) {
     effectiveNavItems = getDefaultNavItems()
   } else if (navItems && navItems.length) {
     effectiveNavItems = navItems
@@ -90,17 +91,20 @@ export default function DashboardLayout({
       'System Analytics': BarChart2,
       'Institution Reports': Clipboard,
       'User Accounts': Users,
+      'Activity logs': Activity,
     },
     'amu-staff': {
       Overview: BookOpen,
       Referrals: Clipboard,
       Reports: BarChart2,
       'Needs assessments': Users,
+      'Activity logs': Activity,
     },
     'instructor': {
       Classes: BookOpen,
       Students: Users,
       Reports: BarChart2,
+      'Activity logs': Activity,
     },
   }
 
@@ -158,6 +162,7 @@ export default function DashboardLayout({
     setNotificationsOpen((open) => !open)
   }
   const handleSettings = () => navigate(`${basePath}/settings`)
+  const handleActivityLogs = () => navigate(`${basePath}/activity-logs`)
 
   // Previously attempted to disable body scroll — removed to avoid 'stuck' behavior.
 
@@ -175,16 +180,16 @@ export default function DashboardLayout({
   const navBtnClassFor = (active = false) => {
     if (active) {
       return isAdmin
-        ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-gray-700 bg-gray-700 text-white shadow-md shadow-gray-700/20'
+        ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-gray-700 bg-gray-700 text-white shadow-md shadow-gray-700/20'
         : isAmuStaff
-          ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-600/20'
-          : 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'
+          ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-teal-600 bg-teal-600 text-white shadow-md shadow-teal-600/20'
+          : 'w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-600/25'
     }
     return isAdmin
-      ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-transparent bg-white/50 text-gray-700 hover:bg-white hover:border-gray-200'
+      ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-transparent bg-white/50 text-gray-700 hover:bg-white hover:border-gray-200'
       : isAmuStaff
-        ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-teal-100'
-        : 'w-full flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-slate-200'
+        ? 'w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-teal-100'
+        : 'w-full flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-medium transition-all border-transparent bg-white/50 text-slate-700 hover:bg-white hover:border-slate-200'
   }
 
   return (
@@ -264,33 +269,43 @@ export default function DashboardLayout({
       </header>
       <div className="flex relative h-[calc(100vh-var(--dashboard-header-height))]">
         {/* Sidebar Navigation */}
-        {(normalizedNavItems.length > 0 || onSettingsPage || onHelpPage) && (
+        {(normalizedNavItems.length > 0 || onSettingsPage || onActivityLogsPage || onHelpPage) && (
           <aside className={`w-48 border-r ${
             isAdmin
               ? 'border-gray-200 bg-gradient-to-b from-gray-50/50 to-white'
               : isAmuStaff
                 ? 'border-teal-100 bg-gradient-to-b from-teal-50/50 to-white'
                 : 'border-slate-200 bg-gradient-to-b from-slate-50/50 to-white'
-          } py-4 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden`}>
-            <nav className="space-y-1" aria-label="Page navigation">
-              {normalizedNavItems.map((item) => {
-                const isActive = !!item.active
-                return (
-                  <button
-                    key={item.label}
-                    type="button"
-                    onClick={item.onClick}
-                    className={navBtnClassFor(isActive)}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    {item.icon ? <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive ? '' : 'opacity-70'}`} /> : null}
-                    <span className="flex-grow text-left">{item.label}</span>
-                    {item.trailing ? <ChevronRight className="h-4 w-4 opacity-70 flex-shrink-0" /> : null}
-                  </button>
-                )
-              })}
-              {/* Sidebar contents remain constant; footer actions shown below */}
-              <div className="mt-6 pt-4 border-t px-1">
+          } py-3 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden flex flex-col`}>
+            <nav className="flex flex-col min-h-0 flex-1" aria-label="Page navigation">
+              <div className={`space-y-1 pr-1 ${isAdmin ? 'overflow-y-visible' : 'overflow-y-auto'}`}>
+                {normalizedNavItems.map((item) => {
+                  const isActive = !!item.active
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={item.onClick}
+                      className={navBtnClassFor(isActive)}
+                      aria-current={isActive ? 'page' : undefined}
+                    >
+                      {item.icon ? <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive ? '' : 'opacity-70'}`} /> : null}
+                      <span className="flex-grow text-left">{item.label}</span>
+                      {item.trailing ? <ChevronRight className="h-4 w-4 opacity-70 flex-shrink-0" /> : null}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-4 pt-3 border-t px-1 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleActivityLogs}
+                  className={navBtnClassFor(onActivityLogsPage) + ' mb-2'}
+                  aria-current={onActivityLogsPage ? 'page' : undefined}
+                >
+                  <Activity className="w-4 h-4" />
+                  Activity logs
+                </button>
                 <button
                   type="button"
                   onClick={handleSettings}

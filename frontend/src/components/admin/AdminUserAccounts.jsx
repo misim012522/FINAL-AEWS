@@ -35,6 +35,12 @@ const rolePermissions = {
   ],
 }
 
+const roleSortOrder = {
+  admin: 0,
+  instructor: 1,
+  'amu-staff': 2,
+}
+
 export default function AdminUserAccounts() {
   const menuRef = useRef(null)
   const [roleFilter, setRoleFilter] = useState('all')
@@ -229,6 +235,11 @@ export default function AdminUserAccounts() {
 
   const detailConfig = detailUser ? (roleConfig[detailUser.role] || roleConfig.instructor) : roleConfig.instructor
   const DetailIcon = detailConfig.icon
+  const sortedUsers = [...users].sort((a, b) => {
+    const roleDiff = (roleSortOrder[a.role] ?? 99) - (roleSortOrder[b.role] ?? 99)
+    if (roleDiff !== 0) return roleDiff
+    return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+  })
 
   return (
     <div className="space-y-4">
@@ -302,13 +313,13 @@ export default function AdminUserAccounts() {
                 <tr>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">College</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {users.map((u) => {
+                {sortedUsers.map((u) => {
                   const config = roleConfig[u.role] || roleConfig.instructor
                   const Icon = config.icon
                   return (
@@ -331,7 +342,7 @@ export default function AdminUserAccounts() {
                           <Icon className="w-3.5 h-3.5" /> {config.label}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-600">{u.department || '-'}</td>
+                      <td className="px-5 py-4 text-sm text-gray-600">{u.college || '-'}</td>
                       <td className="px-5 py-4">
                         <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${u.status === 'active' ? 'bg-emerald-100 text-emerald-700' : u.status === 'pending' ? 'bg-amber-100 text-amber-700' : u.archived ? 'bg-gray-200 text-gray-600' : 'bg-gray-100 text-gray-600'}`}>
                           {u.archived ? 'archived' : (u.status || 'active')}

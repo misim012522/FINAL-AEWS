@@ -33,7 +33,7 @@ export default function ProfilePageLayout({
     setEmail(user.email ?? '')
     setContactNumber(user.contact_number ?? '')
     setProfileImage(user.profile_image ?? null)
-  }, [user])
+  }, [user?.id, user?.name, user?.email, user?.contact_number, user?.profile_image])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -55,12 +55,24 @@ export default function ProfilePageLayout({
     reader.readAsDataURL(file)
   }
 
-  const displayName = [firstName, lastName].filter(Boolean).join(' ') || user?.name || '—'
+  const normalizedOriginalName = String(user?.name ?? '').trim().replace(/\s+/g, ' ')
+  const normalizedCurrentName = [firstName.trim(), lastName.trim()].filter(Boolean).join(' ').replace(/\s+/g, ' ')
+  const normalizedOriginalEmail = String(user?.email ?? '').trim()
+  const normalizedOriginalContactNumber = String(user?.contact_number ?? '').trim()
+  const normalizedOriginalProfileImage = user?.profile_image ?? null
+  const hasChanges =
+    normalizedCurrentName !== normalizedOriginalName ||
+    email.trim() !== normalizedOriginalEmail ||
+    contactNumber.trim() !== normalizedOriginalContactNumber ||
+    (profileImage ?? null) !== normalizedOriginalProfileImage
+
+  const displayName = [firstName, lastName].filter(Boolean).join(' ') || user?.name || '-'
+  const displayEmail = email.trim() || user?.email || '-'
 
   if (!user) return null
 
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden">
+    <div className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/40 overflow-hidden">
       <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/90 to-white">
         <div className="flex flex-col items-start gap-3">
           {backButton && (
@@ -79,8 +91,8 @@ export default function ProfilePageLayout({
       </div>
 
       <div className="p-4 sm:p-5">
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-          <div className="xl:col-span-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-3">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 flex flex-col items-center text-center h-full">
               <label className="relative block cursor-pointer group">
                 <input
@@ -105,7 +117,7 @@ export default function ProfilePageLayout({
               <p className="mt-3 text-base font-bold text-slate-900 truncate w-full">{displayName}</p>
               <p className="text-xs text-slate-500 truncate w-full flex items-center justify-center gap-1">
                 <Mail className="w-3.5 h-3.5 flex-shrink-0" />
-                {user.email || '—'}
+                {displayEmail}
               </p>
               <button
                 type="button"
@@ -114,10 +126,13 @@ export default function ProfilePageLayout({
               >
                 Change photo
               </button>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Choose a new photo, then save your profile.
+              </p>
             </div>
           </div>
 
-          <div className="xl:col-span-5">
+          <div className="lg:col-span-5">
             <div className="rounded-xl border border-slate-200/80 bg-white overflow-hidden h-full">
               <div className="px-5 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
                 <h3 className="text-lg font-bold text-slate-900 tracking-tight">Profile settings</h3>
@@ -201,14 +216,17 @@ export default function ProfilePageLayout({
                   <p className="text-xs text-slate-400 mt-1">Set during signup and cannot be changed here.</p>
                 </div>
 
-                <div className="pt-2">
+                <div className="flex items-center justify-between gap-3 pt-2">
+                  <p className="text-xs text-slate-400">
+                    {hasChanges ? 'You have unsaved profile changes.' : 'Your profile is up to date.'}
+                  </p>
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || !hasChanges}
                     className={`inline-flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
                       saved
                         ? 'bg-emerald-600 text-white'
-                        : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
+                        : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600'
                     }`}
                   >
                     {saved ? (
@@ -217,7 +235,7 @@ export default function ProfilePageLayout({
                         Saved
                       </>
                     ) : saving ? (
-                      'Saving…'
+                      'Saving...'
                     ) : (
                       <>
                         <Save className="w-4 h-4" />
@@ -230,7 +248,7 @@ export default function ProfilePageLayout({
             </div>
           </div>
 
-          <div className="xl:col-span-4">
+          <div className="lg:col-span-4">
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-4 h-full">
               <div className="space-y-4">
                 {rightSection}

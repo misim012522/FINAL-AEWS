@@ -43,7 +43,6 @@ class StudentBase(BaseModel):
     email: EmailStr
     college: str
     course: str
-    risk: Literal["High", "Medium", "Low"]
     instructor: str
 
 
@@ -56,7 +55,6 @@ class StudentUpdate(BaseModel):
     email: Optional[EmailStr] = None
     college: Optional[str] = None
     course: Optional[str] = None
-    risk: Optional[Literal["High", "Medium", "Low"]] = None
     instructor: Optional[str] = None
 
 
@@ -86,6 +84,21 @@ class NotificationUpdate(BaseModel):
 class NotificationResponse(NotificationBase):
     id: str
     role: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ActivityLogResponse(BaseModel):
+    id: str
+    actor_id: str
+    actor_name: str
+    role: str
+    action: str
+    description: str
+    target_type: Optional[str] = None
+    target_id: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
+    created_at: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -134,6 +147,7 @@ class ResetPasswordRequest(BaseModel):
 
 # ----- Class (instructor courses) -----
 class ClassCreate(BaseModel):
+    section_code: str = Field(..., min_length=1)
     subject_code: str = Field(..., min_length=1)
     subject_name: str = Field(..., min_length=1)
     instructor_id: str = Field(..., min_length=1)
@@ -156,7 +170,7 @@ class BatchAddStudentsRequest(BaseModel):
 
 
 class UpdateEnrollmentRequest(BaseModel):
-    """Academic indicators and risk for a student in a class."""
+    """Academic indicators and referral state for a student in a class."""
     gpa: Optional[float] = Field(None, ge=0, le=4)
     attendance: Optional[float] = Field(None, ge=0, le=100)
     lms_activity: Optional[float] = Field(None, ge=0, le=100)
@@ -186,7 +200,6 @@ class UpdateEnrollmentRequest(BaseModel):
     family_issues: Optional[bool] = None
     part_time_work_affecting_studies: Optional[bool] = None
     mental_health_concerns: Optional[bool] = None
-    risk: Optional[Literal["High", "Medium", "Low"]] = None
     flagged_for_mentoring: Optional[bool] = None
     referral_note: Optional[str] = Field(None, max_length=2000)
     referral_reasons: Optional[dict] = None

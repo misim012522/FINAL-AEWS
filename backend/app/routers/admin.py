@@ -8,6 +8,7 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
 from pymongo.errors import ServerSelectionTimeoutError
 
+from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
 from app.ai_model import load_model_metrics
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
@@ -103,7 +104,7 @@ def get_student_by_email(student_identifier: str):
                 "instructor_id": c.get("instructor_id", ""),
                 "instructor_name": (inst.get("name", "") if inst else ""),
                 "department": (inst.get("department", "") if inst else ""),
-                "risk": e.get("risk"),
+                "prediction_label": "External Factor" if e.get("risk_source") == "external_factors" else ("Academic Problem" if e.get("risk_source") else None),
                 "gpa": e.get("gpa"),
                 "attendance": e.get("attendance"),
                 "lms_activity": e.get("lms_activity"),
@@ -151,7 +152,7 @@ def get_overview(department: str | None = None):
         total_students = db.enrollments.count_documents({"class_id": {"$in": class_ids}}) if class_ids else 0
         at_risk_students = (
             db.enrollments.count_documents(
-                {"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}}
+                {"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}
             )
             if class_ids
             else 0
@@ -177,7 +178,7 @@ def get_overview(department: str | None = None):
 
 @router.get("/overview/students-at-risk")
 def list_students_at_risk(department: str | None = None):
-    """List at-risk students (High/Medium) with department from instructor and course info. Filter by department (instructor's)."""
+    """List referred students with AMU outcome context. Filter by department (instructor's)."""
     try:
         db = get_db()
         instructor_ids = _instructor_ids_by_department(db, department)
@@ -187,7 +188,7 @@ def list_students_at_risk(department: str | None = None):
         instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
         rows = []
         for doc in db.enrollments.find(
-            {"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}}
+            {"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}
         ):
             c = class_by_id.get(doc["class_id"])
             if not c:
@@ -205,7 +206,7 @@ def list_students_at_risk(department: str | None = None):
                 "student_name": doc.get("student_name"),
                 "department": dept,
                 "course": course.strip(),
-                "risk": doc.get("risk") or "Medium",
+                "prediction_label": "External Factor" if doc.get("risk_source") == "external_factors" else ("Academic Problem" if doc.get("risk_source") else "Awaiting prediction"),
                 "instructor": inst_name,
                 "class_id": doc["class_id"],
             })
@@ -220,18 +221,18 @@ def list_departments_stats(department: str | None = None):
     try:
         db = get_db()
         instructor_ids = _instructor_ids_by_department(db, department)
-        # Get all instructors to group by department
+        # Get all instructors to group by college
         instructors = list(db.instructor.find({"_id": {"$in": [ObjectId(i) for i in instructor_ids]}}))
         dept_to_instructor_ids = {}
         for inst in instructors:
-            d = (inst.get("department") or "").strip()
+            d = (inst.get("college") or inst.get("department") or "").strip()
             if not d:
                 continue
             sid = str(inst["_id"])
             dept_to_instructor_ids.setdefault(d, []).append(sid)
         classes = list(db.classes.find({"instructor_id": {"$in": instructor_ids}}))
         class_ids = [str(c["_id"]) for c in classes]
-        inst_id_to_dept = {str(i["_id"]): (i.get("department") or "").strip() for i in instructors}
+        inst_id_to_dept = {str(i["_id"]): (i.get("college") or i.get("department") or "").strip() for i in instructors}
         class_to_inst = {str(c["_id"]): c.get("instructor_id") for c in classes}
         enrollments = list(db.enrollments.find({"class_id": {"$in": class_ids}}))
         dept_totals = {}
@@ -243,7 +244,7 @@ def list_departments_stats(department: str | None = None):
             if not d:
                 continue
             dept_totals[d] = dept_totals.get(d, 0) + 1
-            if e.get("risk") in ("High", "Medium"):
+            if e.get("flagged_for_mentoring"):
                 dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
         rows = []
         for d in sorted(dept_to_instructor_ids.keys()):
@@ -283,7 +284,7 @@ def list_overview_instructors(department: str | None = None):
             iid = class_to_inst.get(e["class_id"])
             if iid:
                 inst_students[iid] = inst_students.get(iid, 0) + 1
-                if e.get("risk") in ("High", "Medium"):
+                if e.get("flagged_for_mentoring"):
                     inst_at_risk[iid] = inst_at_risk.get(iid, 0) + 1
         rows = []
         for inst in instructors:
@@ -292,7 +293,7 @@ def list_overview_instructors(department: str | None = None):
                 "id": iid,
                 "name": inst.get("name") or "",
                 "email": inst.get("email") or "",
-                "department": inst.get("department") or "",
+                "college": inst.get("college") or inst.get("department") or "",
                 "classes": inst_class_count.get(iid, 0),
                 "students": inst_students.get(iid, 0),
                 "atRisk": inst_at_risk.get(iid, 0),
@@ -313,7 +314,7 @@ def get_overview_trends(department: str | None = None):
         total = db.enrollments.count_documents({"class_id": {"$in": class_ids}}) if class_ids else 0
         at_risk = (
             db.enrollments.count_documents(
-                {"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}}
+                {"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}
             )
             if class_ids
             else 0
@@ -354,7 +355,7 @@ def get_analytics_department_chart(department: str | None = None):
             if not d:
                 continue
             dept_totals[d] = dept_totals.get(d, 0) + 1
-            if e.get("risk") in ("High", "Medium"):
+            if e.get("flagged_for_mentoring"):
                 dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
         return [
             {"name": d, "atRisk": dept_at_risk.get(d, 0), "total": dept_totals.get(d, 0)}
@@ -366,7 +367,7 @@ def get_analytics_department_chart(department: str | None = None):
 
 @router.get("/analytics/risk-distribution")
 def get_analytics_risk_distribution(department: str | None = None):
-    """Count of enrollments by risk level (High, Medium, Low). For pie chart."""
+    """Count of enrollments by AMU prediction outcome for pie chart."""
     try:
         db = get_db()
         instructor_ids = _instructor_ids_by_department(db, department)
@@ -374,29 +375,29 @@ def get_analytics_risk_distribution(department: str | None = None):
         class_ids = [str(c["_id"]) for c in classes]
         if not class_ids:
             return [
-                {"name": "High", "value": 0, "color": "#ef4444"},
-                {"name": "Medium", "value": 0, "color": "#f59e0b"},
-                {"name": "Low", "value": 0, "color": "#3b82f6"},
+                {"name": "Academic Problem", "value": 0, "color": "#0f766e"},
+                {"name": "External Factor", "value": 0, "color": "#d97706"},
+                {"name": "Awaiting Prediction", "value": 0, "color": "#64748b"},
             ]
         pipeline = [
             {"$match": {"class_id": {"$in": class_ids}}},
-            {"$group": {"_id": "$risk", "count": {"$sum": 1}}},
+            {"$group": {"_id": "$risk_source", "count": {"$sum": 1}}},
         ]
         cursor = db.enrollments.aggregate(pipeline)
         counts = {}
         for doc in cursor:
-            key = doc["_id"] if doc["_id"] in ("High", "Medium", "Low") else "Low"
+            key = doc["_id"] if doc["_id"] in ("academic", "external_factors") else "awaiting"
             counts[key] = counts.get(key, 0) + doc["count"]
         return [
-            {"name": "High", "value": counts.get("High", 0), "color": "#ef4444"},
-            {"name": "Medium", "value": counts.get("Medium", 0), "color": "#f59e0b"},
-            {"name": "Low", "value": counts.get("Low", 0), "color": "#3b82f6"},
+            {"name": "Academic Problem", "value": counts.get("academic", 0), "color": "#0f766e"},
+            {"name": "External Factor", "value": counts.get("external_factors", 0), "color": "#d97706"},
+            {"name": "Awaiting Prediction", "value": counts.get("awaiting", 0), "color": "#64748b"},
         ]
     except ServerSelectionTimeoutError:
         return [
-            {"name": "High", "value": 0, "color": "#ef4444"},
-            {"name": "Medium", "value": 0, "color": "#f59e0b"},
-            {"name": "Low", "value": 0, "color": "#3b82f6"},
+            {"name": "Academic Problem", "value": 0, "color": "#0f766e"},
+            {"name": "External Factor", "value": 0, "color": "#d97706"},
+            {"name": "Awaiting Prediction", "value": 0, "color": "#64748b"},
         ]
 
 
@@ -529,7 +530,7 @@ def download_report(report_id: str):
 
             # Summary stats
             total_enrollments = db.enrollments.count_documents({"class_id": {"$in": class_ids}})
-            at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}})
+            at_risk_count = db.enrollments.count_documents({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True})
             dept_count = len([d for d in db.instructor.distinct("department", {"archived": {"$ne": True}}) if d])
 
             buf = io.StringIO()
@@ -538,12 +539,12 @@ def download_report(report_id: str):
             w.writerow([])
             w.writerow(["Section", "Metric", "Value"])
             w.writerow(["Summary", "Total enrollments", total_enrollments])
-            w.writerow(["Summary", "At-risk students (High/Medium)", at_risk_count])
+            w.writerow(["Summary", "Referred students", at_risk_count])
             w.writerow(["Summary", "Departments", dept_count])
             w.writerow([])
 
-            w.writerow(["At-Risk", "student_email", "risk", "department", "course", "instructor"])
-            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}}):
+            w.writerow(["At-Risk", "student_email", "prediction_label", "department", "course", "instructor"])
+            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
                 c = class_by_id.get(doc["class_id"])
                 if not c:
                     continue
@@ -551,7 +552,8 @@ def download_report(report_id: str):
                 dept = (inst.get("department") or "") if inst else ""
                 course = (c.get("subject_code") or "") + " " + (c.get("subject_name") or "")
                 instr_name = (inst.get("name") or "") if inst else ""
-                w.writerow(["At-Risk", doc.get("student_email", ""), doc.get("risk", ""), dept, course, instr_name])
+                outcome = "External Factor" if doc.get("risk_source") == "external_factors" else ("Academic Problem" if doc.get("risk_source") else "Awaiting prediction")
+                w.writerow(["At-Risk", doc.get("student_email", ""), outcome, dept, course, instr_name])
             w.writerow([])
 
             stats = list(db.instructor.find({"archived": {"$ne": True}}, {"_id": 1, "department": 1}))
@@ -571,7 +573,7 @@ def download_report(report_id: str):
                 if not d:
                     continue
                 dept_total[d] = dept_total.get(d, 0) + 1
-                if e.get("risk") in ("High", "Medium"):
+                if e.get("flagged_for_mentoring"):
                     dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
 
             w.writerow(["Department", "department", "total_students", "at_risk", "instructor_count"])
@@ -593,20 +595,20 @@ def download_report(report_id: str):
             class_by_id = {str(c["_id"]): c for c in classes}
             instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
             rows = []
-            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}}):
+            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
                 c = class_by_id.get(doc["class_id"])
                 if not c:
                     continue
                 inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
                 rows.append({
                     "student_email": doc["student_email"],
-                    "risk": doc.get("risk", ""),
+                    "prediction_label": "External Factor" if doc.get("risk_source") == "external_factors" else ("Academic Problem" if doc.get("risk_source") else "Awaiting prediction"),
                     "department": (inst.get("department") or "") if inst else "",
                     "course": (c.get("subject_code") or "") + " " + (c.get("subject_name") or ""),
                     "instructor": (inst.get("name") or "") if inst else "",
                 })
             buf = io.StringIO()
-            w = csv.DictWriter(buf, fieldnames=["student_email", "risk", "department", "course", "instructor"])
+            w = csv.DictWriter(buf, fieldnames=["student_email", "prediction_label", "department", "course", "instructor"])
             w.writeheader()
             w.writerows(rows)
             return StreamingResponse(io.BytesIO(buf.getvalue().encode("utf-8")), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=at-risk-summary.csv"})
@@ -625,20 +627,20 @@ def download_report(report_id: str):
             class_by_id = {str(c["_id"]): c for c in classes}
             instructor_by_id = {doc["_id"]: doc for doc in db.instructor.find({"archived": {"$ne": True}})}
             rows = []
-            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "risk": {"$in": ["High", "Medium"]}}):
+            for doc in db.enrollments.find({"class_id": {"$in": class_ids}, "flagged_for_mentoring": True}):
                 c = class_by_id.get(doc["class_id"])
                 if not c:
                     continue
                 inst = instructor_by_id.get(ObjectId(c["instructor_id"])) if ObjectId.is_valid(c.get("instructor_id")) else None
                 rows.append({
                     "student_email": doc["student_email"],
-                    "risk": doc.get("risk", ""),
+                    "prediction_label": "External Factor" if doc.get("risk_source") == "external_factors" else ("Academic Problem" if doc.get("risk_source") else "Awaiting prediction"),
                     "department": (inst.get("department") or "") if inst else "",
                     "course": (c.get("subject_code") or "") + " " + (c.get("subject_name") or ""),
                     "instructor": (inst.get("name") or "") if inst else "",
                 })
             buf = io.StringIO()
-            w = csv.DictWriter(buf, fieldnames=["student_email", "risk", "department", "course", "instructor"])
+            w = csv.DictWriter(buf, fieldnames=["student_email", "prediction_label", "department", "course", "instructor"])
             w.writeheader()
             w.writerows(rows)
             safe_name = report_id.replace(" ", "-") + ".csv"
@@ -665,7 +667,7 @@ def download_report(report_id: str):
                 if not d:
                     continue
                 dept_total[d] = dept_total.get(d, 0) + 1
-                if e.get("risk") in ("High", "Medium"):
+                if e.get("flagged_for_mentoring"):
                     dept_at_risk[d] = dept_at_risk.get(d, 0) + 1
             rows = [{"department": d, "total_students": dept_total.get(d, 0), "at_risk": dept_at_risk.get(d, 0), "instructor_count": len(dept_to_ids[d])} for d in sorted(dept_to_ids.keys())]
             buf = io.StringIO()
@@ -762,7 +764,7 @@ def list_archived_users(role: str | None = None, search: str | None = None):
 
 
 @router.post("/users/{user_id}/archive")
-def archive_user(user_id: str):
+def archive_user(user_id: str, actor: dict = Depends(get_current_actor)):
     """Archive a user account. Archived users cannot sign in and appear in the archived list."""
     try:
         db = get_db()
@@ -772,6 +774,16 @@ def archive_user(user_id: str):
         if doc.get("archived"):
             return {"message": "User is already archived."}
         db[coll_name].update_one({"_id": doc["_id"]}, {"$set": {"archived": True}})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="archive_user",
+            description=f"Archived user account for {doc.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+        )
         return {"message": "User archived."}
     except HTTPException:
         raise
@@ -780,7 +792,7 @@ def archive_user(user_id: str):
 
 
 @router.post("/users/{user_id}/restore")
-def restore_user(user_id: str):
+def restore_user(user_id: str, actor: dict = Depends(get_current_actor)):
     """Restore an archived user account."""
     try:
         db = get_db()
@@ -788,6 +800,16 @@ def restore_user(user_id: str):
         if not doc:
             raise HTTPException(status_code=404, detail="User not found.")
         db[coll_name].update_one({"_id": doc["_id"]}, {"$unset": {"archived": ""}})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="restore_user",
+            description=f"Restored user account for {doc.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+        )
         return {"message": "User restored."}
     except HTTPException:
         raise
@@ -796,7 +818,7 @@ def restore_user(user_id: str):
 
 
 @router.delete("/users/{user_id}")
-def delete_user(user_id: str):
+def delete_user(user_id: str, actor: dict = Depends(get_current_actor)):
     """Permanently delete an archived user account. Only archived users can be deleted."""
     try:
         db = get_db()
@@ -809,6 +831,16 @@ def delete_user(user_id: str):
                 detail="Only archived accounts can be permanently deleted. Archive the user first.",
             )
         db[coll_name].delete_one({"_id": doc["_id"]})
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="delete_user",
+            description=f"Permanently deleted user account for {doc.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+        )
         return {"message": "User account deleted."}
     except HTTPException:
         raise
@@ -854,7 +886,7 @@ def _find_pending_user(db, user_id: str):
 
 
 @router.post("/pending-accounts/{user_id}/approve")
-def approve_pending_account(user_id: str):
+def approve_pending_account(user_id: str, actor: dict = Depends(get_current_actor)):
     """Approve a pending instructor/amu-staff account: set active + email_verified, send confirmation email."""
     try:
         db = get_db()
@@ -878,6 +910,16 @@ def approve_pending_account(user_id: str):
             body="Your account request has been approved. You can now sign in to the system.",
             type="success",
         )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="approve_account",
+            description=f"Approved pending account for {name}.",
+            target_type="user",
+            target_id=user_id,
+        )
         return {"message": "Account approved.", "email_sent": sent}
     except HTTPException:
         raise
@@ -886,7 +928,7 @@ def approve_pending_account(user_id: str):
 
 
 @router.post("/pending-accounts/{user_id}/decline")
-def decline_pending_account(user_id: str):
+def decline_pending_account(user_id: str, actor: dict = Depends(get_current_actor)):
     """Decline a pending instructor/amu-staff account: set inactive, send decline email."""
     try:
         db = get_db()
@@ -909,6 +951,16 @@ def decline_pending_account(user_id: str):
             title="Account request declined",
             body="An account request was declined. Please contact the administrator if you need assistance.",
             type="alert",
+        )
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="decline_account",
+            description=f"Declined pending account for {name}.",
+            target_type="user",
+            target_id=user_id,
         )
         return {"message": "Account declined.", "email_sent": sent}
     except HTTPException:

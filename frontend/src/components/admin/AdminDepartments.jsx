@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Building2, Users, TrendingUp } from 'lucide-react'
+import { Building2 } from 'lucide-react'
 import { getAdminDepartmentsStats } from '../../api'
-import ScrollTableContainer from '../ScrollTableContainer'
 
 export default function AdminDepartments({ department = 'all' }) {
   const [departments, setDepartments] = useState([])
@@ -32,7 +31,7 @@ export default function AdminDepartments({ department = 'all' }) {
   }, [department])
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden min-h-[16rem]">
+    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
       {error && (
         <div className="px-4 py-3 bg-red-50 border-b border-red-100 text-sm text-red-700">
           {error}
@@ -55,41 +54,18 @@ export default function AdminDepartments({ department = 'all' }) {
           No colleges in this filter. Colleges come from instructors only.
         </div>
       ) : (
-        <ScrollTableContainer>
-          <table className="w-full text-left">
-            <thead className="sticky top-0 z-10 bg-gray-50/80 border-b border-gray-200">
-              <tr>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">College</th>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Students</th>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Instructors</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {departments.map((d) => (
-                <tr key={d.name} className="hover:bg-blue-50/50 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 shadow-inner">
-                        <Building2 className="w-4 h-4" />
-                      </div>
-                      <span className="font-semibold text-gray-900 text-sm">{d.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-1.5">
-                      <Users className="w-4 h-4 text-gray-400" /> {(d.total ?? 0).toLocaleString()}
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-sm text-gray-600">
-                    <div className="flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4 text-gray-400" /> {d.instructors ?? 0}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollTableContainer>
+        <div className="p-4 grid grid-cols-1 gap-3">
+          {departments.map((d) => (
+            <div key={d.name} className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600 shadow-inner">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900">{d.name}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

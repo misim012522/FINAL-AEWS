@@ -8,6 +8,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo import ReturnDocument
 
+from app.activity_log_utils import create_activity_log
 from app.authz import ensure_self_or_admin, get_current_actor
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_verification_email
@@ -156,6 +157,18 @@ def update_user(user_id: str, body: UserUpdate, actor: dict = Depends(get_curren
             )
     role = result.get("role", "instructor")
     response = _user_doc_to_response(result, role)
+    if payload:
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="update_profile" if actor["id"] == user_id else "update_user",
+            description="Updated profile information." if actor["id"] == user_id else f"Updated user account for {result.get('name', 'user')}.",
+            target_type="user",
+            target_id=user_id,
+            metadata={"changed_fields": sorted(payload.keys())},
+        )
     if email_changed:
         response["requires_email_verification"] = True
         response["message"] = "Email updated. Check your new inbox to confirm it before your next sign in."

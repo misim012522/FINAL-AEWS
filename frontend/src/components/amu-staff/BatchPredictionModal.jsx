@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { X, Zap, AlertTriangle, CheckCircle } from 'lucide-react'
+import { X } from 'lucide-react'
 import { API_BASE } from '../../api'
 import { getAuthHeaders } from '../../lib/authStorage'
 
@@ -8,10 +8,8 @@ export default function BatchPredictionModal({ refIds, onClose }) {
   const [results, setResults] = useState([])
   const [error, setError] = useState(null)
 
-  // Predictions run only when modal opens. Results streamed as they arrive.
   const runPredictions = async () => {
     if (!refIds || refIds.length === 0) return
-    // deduplicate referral ids to avoid duplicate predictions
     const uniqueRefIds = Array.from(new Set(refIds))
     setLoading(true)
     setError(null)
@@ -36,7 +34,6 @@ export default function BatchPredictionModal({ refIds, onClose }) {
   }
 
   useEffect(() => {
-    // Auto-run predictions when modal opens via the Predict student button.
     if (refIds && refIds.length > 0 && results.length === 0 && !loading) {
       runPredictions()
     }
@@ -56,25 +53,27 @@ export default function BatchPredictionModal({ refIds, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl overflow-y-auto max-h-[80vh]">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
+      <div className="w-full max-w-3xl max-h-[80vh] overflow-y-auto rounded-xl bg-white shadow-xl">
+        <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">Batch Predictions</h3>
-            <p className="text-xs text-slate-500">Predicting risk for {refIds.length} student(s)</p>
+            <p className="text-xs text-slate-500">Predicting outcomes for {refIds.length} student(s)</p>
           </div>
-          <button onClick={onClose} className="text-slate-600 rounded-md p-1.5 hover:bg-slate-100">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div className="space-y-3 p-4">
           <div className="flex items-center justify-between">
             <div className="text-sm text-slate-600">Predicting {Array.from(new Set(refIds)).length} student(s)...</div>
           </div>
 
+          {error ? <div className="text-sm text-red-600">{error}</div> : null}
+
           {loading && (
             <div className="flex items-center justify-center py-6">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-t-teal-600" />
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-teal-600" />
             </div>
           )}
 
@@ -84,7 +83,6 @@ export default function BatchPredictionModal({ refIds, onClose }) {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )
@@ -92,37 +90,43 @@ export default function BatchPredictionModal({ refIds, onClose }) {
 
 function ResultRow({ r }) {
   const [open, setOpen] = useState(false)
+  const predictionLabel = String(r?.data?.prediction_label || '').trim() || 'Academic Problem'
+  const probabilityText = r?.data?.probability != null ? `${Math.round((r.data.probability || 0) * 100)}%` : null
+
   return (
-    <div className="p-3 rounded-lg border border-slate-200 bg-white">
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-slate-900">{r.id}</p>
           {r.error ? (
-            <p className="text-xs text-red-600 mt-1">{r.error}</p>
+            <p className="mt-1 text-xs text-red-600">{r.error}</p>
           ) : (
             <div className="mt-1 text-sm text-slate-700">
-              <div>Risk: <span className="font-semibold">{r.data.risk_level}</span> — {(Math.round((r.data.probability||0)*100))}%</div>
+              <div>
+                Outcome: <span className="font-semibold">{predictionLabel}</span>
+                {probabilityText ? ` - ${probabilityText}` : ''}
+              </div>
               {r.data.contributing_factors && r.data.contributing_factors.length > 0 && (
-                <ul className="mt-2 list-disc list-inside text-xs text-slate-700">
+                <ul className="mt-2 list-inside list-disc text-xs text-slate-700">
                   {r.data.contributing_factors.map((f, i) => <li key={i}>{f}</li>)}
                 </ul>
               )}
             </div>
           )}
         </div>
-        <div className="flex-shrink-0 ml-4 text-right">
+        <div className="ml-4 flex-shrink-0 text-right">
           {r.error ? (
-            <div className="text-red-600 text-sm">Failed</div>
+            <div className="text-sm text-red-600">Failed</div>
           ) : (
             <>
-              <div className="text-teal-700 font-semibold">{r.data.risk_level}</div>
+              <div className="font-semibold text-teal-700">{predictionLabel}</div>
               <button onClick={() => setOpen(!open)} className="mt-2 text-xs text-slate-500 underline">{open ? 'Hide details' : 'Show details'}</button>
             </>
           )}
         </div>
       </div>
       {open && !r.error && (
-        <pre className="mt-3 p-2 bg-slate-50 text-xs rounded text-slate-700 overflow-auto">{JSON.stringify(r.data, null, 2)}</pre>
+        <pre className="mt-3 overflow-auto rounded bg-slate-50 p-2 text-xs text-slate-700">{JSON.stringify(r.data, null, 2)}</pre>
       )}
     </div>
   )

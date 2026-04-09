@@ -7,6 +7,29 @@ import InlineToast from '../components/InlineToast'
 import { useAuth } from '../context/AuthContext'
 import { getClass, getClassAttendance, uploadClassFiles } from '../api'
 
+function formatAutoReferralUploadMessage(students) {
+  if (!Array.isArray(students) || students.length === 0) return ''
+  const first = students[0] || {}
+  const reasons = Object.entries(first.referral_reasons || {})
+    .filter(([, value]) => Boolean(value))
+    .map(([key]) => {
+      if (key === 'on_probation_status') return 'on probation status'
+      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 or above'
+      if (key === 'gwa_2_5_or_below') return 'GWA is 2.5 or below'
+      if (key === 'low_midterm_performance') return 'low midterm academic performance'
+      if (key === 'difficulty_catching_up') return 'difficulty with catching up instructions'
+      return key
+    })
+
+  if (students.length === 1) {
+    const label = first.student_name || first.student_id || first.student_email || 'The student'
+    const reasonText = reasons.length > 0 ? reasons[0] : 'the referral rules'
+    return `The system automatically referred ${label} to AMU due to ${reasonText}.`
+  }
+
+  return `The system automatically referred ${students.length} students to AMU after this attendance upload.`
+}
+
 export default function ClassAttendance() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -56,10 +79,13 @@ export default function ClassAttendance() {
       const parts = [`Attendance sheet uploaded. Updated ${updated} student record(s).`]
       if (notEnrolled) parts.push(`${notEnrolled} row(s) did not match enrolled students.`)
       if (missingIdentifiers) parts.push(`${missingIdentifiers} row(s) had no usable student identifier.`)
+      const autoReferralMessage = formatAutoReferralUploadMessage(result?.auto_referred_students)
+      if (autoReferralMessage) parts.push(autoReferralMessage)
       setAttendanceSuccess(parts.join(' '))
       await loadData()
     } catch (err) {
-      setAttendanceError(err.message || 'Upload failed')
+      const errorMessage = err.message || 'Upload failed'
+      setAttendanceError(errorMessage)
     } finally {
       setUploadingAttendance(false)
       if (attendanceInputRef.current) attendanceInputRef.current.value = ''
@@ -163,6 +189,11 @@ export default function ClassAttendance() {
         message={attendanceSuccess}
         tone="success"
         onClose={() => setAttendanceSuccess('')}
+      />
+      <InlineToast
+        message={attendanceError}
+        tone="error"
+        onClose={() => setAttendanceError('')}
       />
     </DashboardLayout>
   )

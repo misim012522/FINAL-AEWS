@@ -23,6 +23,9 @@ DOWNLOADS_DIR = Path.home() / "Downloads"
 ATTENDANCE_PATH = DATA_DIR / "Attendance_XGBoost_Dataset_1000.xlsx"
 GRADES_PATH = DATA_DIR / "Gradesheet_XGBoost_Dataset_1000.xlsx"
 NEEDS_PATH = DATA_DIR / "Needs_Assessment_XGBoost_Dataset_1000.xlsx"
+ATTENDANCE_CSV_READY_PATH = DATA_DIR / "Attendance_XGBoost_Dataset_1000__XGBoost_Ready.csv"
+GRADES_CSV_READY_PATH = DATA_DIR / "Gradesheet_XGBoost_Dataset_1000__XGBoost_Ready.csv"
+NEEDS_GROUPED_CSV_PATH = DATA_DIR / "Needs-Assessment-Sample-with-1000-rows__BukSU_Dataset_Full_Labels.csv"
 MODEL_JSON_PATH = BASE_DIR / "backend" / "xgboost_student_risk.json"
 MODEL_PKL_PATH = BASE_DIR / "backend" / "xgboost_student_risk.pkl"
 MODEL_METRICS_PATH = BASE_DIR / "backend" / "xgboost_student_risk_metrics.json"
@@ -142,6 +145,77 @@ def _read_ready_sheet(path: Path) -> pd.DataFrame:
     return pd.read_excel(path, sheet_name=SHEET_NAME)
 
 
+def _read_table(path: Path, *, sheet_name: str | None = None, header=0) -> pd.DataFrame:
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return pd.read_csv(path, header=header)
+    if suffix in {".xlsx", ".xls"}:
+        return pd.read_excel(path, sheet_name=sheet_name or SHEET_NAME, header=header)
+    raise ValueError(f"Unsupported file format: {path}")
+
+
+def _load_attendance_frame(path: Path) -> pd.DataFrame:
+    if path.exists():
+        return _normalize_training_columns(_read_table(path, sheet_name=SHEET_NAME))
+    if ATTENDANCE_CSV_READY_PATH.exists():
+        return _normalize_training_columns(_read_table(ATTENDANCE_CSV_READY_PATH))
+    raise FileNotFoundError(f"Attendance dataset not found: {path}")
+
+
+def _load_grades_frame(path: Path) -> pd.DataFrame:
+    if path.exists():
+        return _normalize_training_columns(_read_table(path, sheet_name=SHEET_NAME))
+    if GRADES_CSV_READY_PATH.exists():
+        return _normalize_training_columns(_read_table(GRADES_CSV_READY_PATH))
+    raise FileNotFoundError(f"Grades dataset not found: {path}")
+
+
+def _normalize_grouped_needs_columns(columns: list) -> list[str]:
+    normalized: list[str] = []
+    for idx, value in enumerate(columns):
+        text = str(value).strip()
+        if not text or text.lower().startswith("unnamed:"):
+            normalized.append(f"Unnamed: {idx}")
+        else:
+            normalized.append(text)
+    return normalized
+
+
+def _load_grouped_needs_frame(path: Path) -> pd.DataFrame:
+    raw = _read_table(path, header=None)
+    if raw.empty or len(raw.index) < 2:
+        raise ValueError(f"Needs assessment dataset is empty or malformed: {path}")
+    columns = _normalize_grouped_needs_columns(raw.iloc[1].tolist())
+    data = raw.iloc[2:].copy()
+    data.columns = columns
+    data = data.reset_index(drop=True)
+    return _normalize_training_columns(data)
+
+
+def _load_needs_frame(path: Path) -> pd.DataFrame:
+    if path.exists():
+        suffix = path.suffix.lower()
+        if suffix == ".csv":
+            return _load_grouped_needs_frame(path)
+        try:
+            return _normalize_training_columns(_read_table(path, sheet_name=SHEET_NAME))
+        except Exception:
+            pass
+
+        if suffix in {".xlsx", ".xls"}:
+            raw = pd.read_excel(path, sheet_name=0, header=None)
+            if len(raw.index) >= 2:
+                columns = _normalize_grouped_needs_columns(raw.iloc[1].tolist())
+                data = raw.iloc[2:].copy()
+                data.columns = columns
+                return _normalize_training_columns(data.reset_index(drop=True))
+
+    if NEEDS_GROUPED_CSV_PATH.exists():
+        return _load_grouped_needs_frame(NEEDS_GROUPED_CSV_PATH)
+
+    raise FileNotFoundError(f"Needs assessment dataset not found: {path}")
+
+
 def _normalize_training_columns(df: pd.DataFrame) -> pd.DataFrame:
     normalized = df.copy()
     if "Student_ID" not in normalized.columns:
@@ -168,9 +242,9 @@ def load_training_frame(
     grades_path: Path,
     needs_path: Path,
 ) -> tuple[pd.DataFrame, list[str]]:
-    attendance = _normalize_training_columns(_read_ready_sheet(attendance_path))
-    grades = _normalize_training_columns(_read_ready_sheet(grades_path))
-    needs = _normalize_training_columns(_read_ready_sheet(needs_path))
+    attendance = _load_attendance_frame(attendance_path)
+    grades = _load_grades_frame(grades_path)
+    needs = _load_needs_frame(needs_path)
 
     attendance["Student_ID"] = attendance["Student_ID"].astype(str)
     grades["Student_ID"] = grades["Student_ID"].astype(str)
@@ -215,8 +289,8 @@ def load_training_frame(
     merged["risk_label"] = merged["Final_Grade"].apply(map_risk_label)
 
     feature_columns = [
-        "GPA",
-        "Failed Subjects",
+        "Previous GPA",
+        "No. of Subjects Failed (If any)",
         "attendance_rate",
         "academic_challenge_score",
         "external_factor_score",
@@ -225,8 +299,8 @@ def load_training_frame(
 
     renamed = merged[feature_columns + ["risk_label"]].rename(
         columns={
-            "GPA": "previous_gpa",
-            "Failed Subjects": "failed_subject_count",
+            "Previous GPA": "previous_gpa",
+            "No. of Subjects Failed (If any)": "failed_subject_count",
             "Midterm_Grade": "midterm_grade",
         }
     )
@@ -451,6 +525,12 @@ def main() -> None:
         default="midterm_attendance_needs",
         help="Feature profile to train and save.",
     )
+    parser.add_argument(
+        "--save-model",
+        choices=["best", "xgboost", "xgboost_tuned", "random_forest", "extra_trees", "ensemble"],
+        default="xgboost",
+        help="Choose which trained model variant to save for runtime use.",
+    )
     args = parser.parse_args()
 
     training_df, _ = load_training_frame(
@@ -464,11 +544,26 @@ def main() -> None:
         evaluations[profile_name] = evaluate_profile(training_df, profile_columns)
 
     selected_profile_result = evaluations[args.profile]
-    selected_model_name = selected_profile_result["best_model_name"]
+    selected_model_name = (
+        selected_profile_result["best_model_name"]
+        if args.save_model == "best"
+        else args.save_model
+    )
+    if selected_model_name == "ensemble":
+        raise ValueError("The ensemble variant is evaluation-only and cannot be saved for runtime use.")
     selected_model = selected_profile_result["selected_model"]
-    feature_columns = selected_profile_result["feature_columns"]
-    selected_model_metrics = selected_profile_result["models"][selected_model_name]["metrics"]
-    selected_model_report = selected_profile_result["models"][selected_model_name]["report"]
+    if selected_model_name != selected_profile_result["best_model_name"]:
+        selected_model = clone(build_model_registry()[selected_model_name])
+        x, usable_columns = _clean_feature_matrix(training_df, FEATURE_PROFILES[args.profile])
+        y = training_df["risk_label"]
+        selected_model.fit(x, y)
+        feature_columns = usable_columns
+        selected_model_metrics = selected_profile_result["models"][selected_model_name]["metrics"]
+        selected_model_report = selected_profile_result["models"][selected_model_name]["report"]
+    else:
+        feature_columns = selected_profile_result["feature_columns"]
+        selected_model_metrics = selected_profile_result["models"][selected_model_name]["metrics"]
+        selected_model_report = selected_profile_result["models"][selected_model_name]["report"]
 
     print("Attendance source:", args.attendance)
     print("Grades source:", args.grades)
@@ -495,11 +590,18 @@ def main() -> None:
     bundled_model_names: dict[str, str] = {}
 
     for profile_name, result in evaluations.items():
-        bundled_models[profile_name] = result["selected_model"]
-        bundled_feature_columns[profile_name] = list(result["feature_columns"])
-        bundled_model_names[profile_name] = result["best_model_name"]
-
+        profile_model_name = result["best_model_name"]
         profile_model = result["selected_model"]
+        profile_feature_columns = list(result["feature_columns"])
+        if profile_name == args.profile:
+            profile_model_name = selected_model_name
+            profile_model = selected_model
+            profile_feature_columns = list(feature_columns)
+
+        bundled_models[profile_name] = profile_model
+        bundled_feature_columns[profile_name] = profile_feature_columns
+        bundled_model_names[profile_name] = profile_model_name
+
         profile_json_path = BASE_DIR / "backend" / PROFILE_MODEL_JSON_TEMPLATE.format(profile=profile_name)
         if isinstance(profile_model, XGBClassifier):
             profile_model.save_model(profile_json_path)

@@ -11,7 +11,6 @@ import {
   CircleAlert,
   ClipboardList,
   Send,
-  UserRoundCheck,
   X,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
@@ -19,7 +18,6 @@ import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
 import InlineToast from '../components/InlineToast'
 import ScrollTableContainer from '../components/ScrollTableContainer'
 import StudentPreviewModal from '../components/StudentPreviewModal'
-import StudentReferralModal from '../components/StudentReferralModal'
 import { useAuth } from '../context/AuthContext'
 import {
   getClass,
@@ -27,7 +25,6 @@ import {
   uploadClassFiles,
   uploadNeedsAssessmentFiles,
   previewClasslist,
-  updateEnrollment,
   listUsers,
 } from '../api'
 
@@ -54,10 +51,6 @@ function getRiskReasons(student) {
   const failedSubjects = features.failed_subject_count ?? student.failed_subject_count
   const midtermGrade = features.midterm_grade ?? student.midterm_grade
   const finalGrade = features.final_grade ?? student.overall_grade ?? student.gpa
-  const probability = student.risk_probability_percent
-
-  if (probability != null) reasons.push(`Model confidence is ${probability}%.`)
-
   if (attendanceRate != null && Number(attendanceRate) < 75) {
     reasons.push(`Attendance is low at ${Number(attendanceRate).toFixed(2).replace(/\.00$/, '')}%.`)
   }
@@ -123,6 +116,16 @@ function formatTopicComponentLabel(component) {
   return component || 'Activity'
 }
 
+function groupTopicsByComponent(topics) {
+  const groups = new Map()
+  for (const topic of Array.isArray(topics) ? topics : []) {
+    const label = formatTopicComponentLabel(topic?.component)
+    if (!groups.has(label)) groups.set(label, [])
+    groups.get(label).push(topic)
+  }
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }))
+}
+
 function formatModelProfile(profile) {
   if (profile === 'early_warning') return 'Early Warning'
   if (profile === 'midterm_endterm') return 'Midterm-Endterm'
@@ -145,10 +148,6 @@ function formatStudentInsightSummary(student, designation, reasons) {
   const studentLabel = student?.student_name || 'This student'
   const parts = []
 
-  if (student?.risk_probability_percent != null) {
-    parts.push(`${studentLabel} has a model confidence reading of ${student.risk_probability_percent}%.`)
-  }
-
   if (designation) {
     parts.push(`${designation}.`)
   }
@@ -160,15 +159,50 @@ function formatStudentInsightSummary(student, designation, reasons) {
   return parts.join(' ').trim()
 }
 
-function getReferralHelperText(student, amuStaffLoading, amuStaffOptions, selectedAmuStaffId) {
-  const canReferToAmu = hasComputedRisk(student)
-  if (!canReferToAmu) return 'Select a student first before sending a referral to AMU.'
-  if (!amuStaffLoading && amuStaffOptions.length === 0) return 'No active AMU staff accounts are available yet.'
-  if (amuStaffOptions.length > 0 && !selectedAmuStaffId && !student?.flagged_for_mentoring) {
-    return 'Choose an AMU staff member first before sending the referral.'
+function getAutomaticReferralReasons(student) {
+  if (!student) return []
+  const reasons = []
+  const matchesMidtermReferralThreshold = (value) => {
+    if (typeof value !== 'number' || value <= 0) return false
+    if (value <= 5) return value >= 2.5
+    return value <= 75
   }
-  if (student?.flagged_for_mentoring) return 'This student has already been referred to AMU.'
-  return 'Once the summary looks correct, you can send the referral to AMU below.'
+  if (matchesMidtermReferralThreshold(student.midterm_grade)) {
+    reasons.push('Midterm grade is 2.50 or above')
+  }
+  if (student.low_midterm_academic_performance) {
+    reasons.push('Low midterm academic performance')
+  }
+  return [...new Set(reasons)]
+}
+
+function getStudentKey(student) {
+  return String(student?.student_email || student?.student_id || student?.student_name || '').trim().toLowerCase()
+}
+
+function formatAutomaticReferralToast(students) {
+  if (!Array.isArray(students) || students.length === 0) return ''
+
+  const formatReasons = (student) => {
+    const reasons = getAutomaticReferralReasons(student)
+    if (reasons.length === 0) return 'matched the referral rules'
+    if (reasons.length === 1) return `due to ${reasons[0].toLowerCase()}`
+    if (reasons.length === 2) return `due to ${reasons[0].toLowerCase()} and ${reasons[1].toLowerCase()}`
+    return `due to ${reasons[0].toLowerCase()} and ${reasons.length - 1} more reason${reasons.length - 1 === 1 ? '' : 's'}`
+  }
+
+  if (students.length === 1) {
+    const student = students[0]
+    const label = student.student_name || student.student_id || 'The student'
+    return `The system automatically referred ${label} to AMU ${formatReasons(student)}.`
+  }
+
+  const names = students
+    .slice(0, 2)
+    .map((student) => student.student_name || student.student_id || 'Student')
+    .join(', ')
+  const extraCount = students.length - 2
+  return `The system automatically referred ${students.length} students to AMU. ${names}${extraCount > 0 ? `, and ${extraCount} more` : ''}.`
 }
 
 export default function ClassDetails() {
@@ -197,19 +231,14 @@ export default function ClassDetails() {
   const [roster, setRoster] = useState([])
   const [rosterLoading, setRosterLoading] = useState(true)
   const [rosterError, setRosterError] = useState('')
+  const rosterSnapshotRef = useRef(new Map())
+  const hasLoadedRosterRef = useRef(false)
 
   const [activeAIStudent, setActiveAIStudent] = useState(null)
-  const [referringStudentKey, setReferringStudentKey] = useState('')
   const [referralError, setReferralError] = useState('')
   const [referralMessage, setReferralMessage] = useState('')
-  const [referralNote, setReferralNote] = useState('')
   const [amuStaffOptions, setAmuStaffOptions] = useState([])
   const [amuStaffLoading, setAmuStaffLoading] = useState(false)
-  const [selectedAmuStaffId, setSelectedAmuStaffId] = useState('')
-
-  const [showReferralModal, setShowReferralModal] = useState(false)
-  const [studentReferralSubmitting, setStudentReferralSubmitting] = useState(false)
-  const [studentReferralError, setStudentReferralError] = useState('')
 
   // Define all fetch callbacks first
   const fetchAmuStaffOptions = useCallback(async () => {
@@ -254,120 +283,44 @@ export default function ClassDetails() {
     setRosterError('')
     try {
       const data = await listClassStudents(classId)
-      setRoster(Array.isArray(data) ? data : [])
+      const nextRoster = Array.isArray(data) ? data : []
+      const previousRoster = rosterSnapshotRef.current
+      const newlyReferred = hasLoadedRosterRef.current
+        ? nextRoster.filter((student) => {
+            const key = getStudentKey(student)
+            if (!key || !student?.flagged_for_mentoring) return false
+            const previous = previousRoster.get(key)
+            return !previous?.flagged_for_mentoring
+          })
+        : []
+
+      setRoster(nextRoster)
+      if (activeAIStudent) {
+        const activeKey = getStudentKey(activeAIStudent)
+        const refreshedActive = nextRoster.find((student) => getStudentKey(student) === activeKey)
+        if (refreshedActive) setActiveAIStudent(refreshedActive)
+      }
+
+      rosterSnapshotRef.current = new Map(nextRoster.map((student) => [getStudentKey(student), student]))
+      hasLoadedRosterRef.current = true
+
+      const autoReferralToast = formatAutomaticReferralToast(newlyReferred)
+      if (autoReferralToast) {
+        setReferralMessage(autoReferralToast)
+      }
     } catch (err) {
       setRosterError(err.message || 'Failed to load students')
       setRoster([])
     } finally {
       setRosterLoading(false)
     }
-  }, [classId])
+  }, [activeAIStudent, classId])
 
   const openAIForm = useCallback((student) => {
     setActiveAIStudent(student)
     setReferralError('')
     setReferralMessage('')
-    setReferralNote(student?.referral_note || '')
-    setSelectedAmuStaffId(student?.assigned_amu_staff_id || '')
   }, [])
-
-  const handleStudentReferral = useCallback(async (referralData) => {
-    const { student, reasons, amuStaff } = referralData
-    if (!student) {
-      setStudentReferralError('Student not found')
-      return
-    }
-
-    const studentIdentifier = student.student_email || student.student_id
-    if (!studentIdentifier) {
-      setStudentReferralError('Student identifier not found')
-      return
-    }
-
-    const selectedStaff = amuStaffOptions.find((s) => s.id === amuStaff)
-    if (!selectedStaff) {
-      setStudentReferralError('AMU staff not found')
-      return
-    }
-
-    setStudentReferralSubmitting(true)
-    setStudentReferralError('')
-
-    try {
-      // Store the referral reasons and AMU staff in the enrollment record
-      await updateEnrollment(classId, studentIdentifier, {
-        referral_reasons: reasons,
-        flagged_for_mentoring: true,
-        assigned_amu_staff_id: selectedStaff.id,
-        assigned_amu_staff_name: selectedStaff.name,
-        assigned_amu_staff_college: selectedStaff.college || null,
-      })
-      setShowReferralModal(false)
-      // Directly call fetchRoster instead of including it in dependencies
-      await listClassStudents(classId).then((data) => {
-        setRoster(Array.isArray(data) ? data : [])
-      })
-      setReferralMessage(`Successfully referred ${student.student_name || studentIdentifier} to ${selectedStaff.name}.`)
-    } catch (err) {
-      setStudentReferralError(err.message || 'Failed to submit referral')
-    } finally {
-      setStudentReferralSubmitting(false)
-    }
-  }, [classId, amuStaffOptions])
-
-  const referStudentToAmu = useCallback(async (student) => {
-    if (!hasComputedRisk(student)) {
-      setReferralError('This student cannot be referred to AMU yet.')
-      setReferralMessage('')
-      return
-    }
-
-    const targetKey = String(student?.student_email || student?.student_id || '').trim()
-    if (!targetKey) {
-      setReferralError('This student has no valid identifier yet, so the referral cannot be sent to AMU.')
-      setReferralMessage('')
-      return
-    }
-
-    const selectedAmuStaff = amuStaffOptions.find((entry) => entry.id === selectedAmuStaffId)
-    if (!selectedAmuStaff) {
-      setReferralError('Please choose the AMU staff member who will handle this referral.')
-      setReferralMessage('')
-      return
-    }
-
-    setReferringStudentKey(targetKey)
-    setReferralError('')
-    setReferralMessage('')
-    try {
-      await updateEnrollment(classId, targetKey, {
-        flagged_for_mentoring: true,
-        referral_note: referralNote.trim() || null,
-        assigned_amu_staff_id: selectedAmuStaff.id,
-        assigned_amu_staff_name: selectedAmuStaff.name,
-        assigned_amu_staff_college: selectedAmuStaff.college || null,
-      })
-      setReferralMessage(`Referral sent to ${selectedAmuStaff.label || selectedAmuStaff.name} for ${student.student_name || targetKey}.`)
-      // Directly call listClassStudents instead of including fetchRoster in dependencies
-      await listClassStudents(classId).then((data) => {
-        setRoster(Array.isArray(data) ? data : [])
-      })
-      if ((activeAIStudent?.student_email || activeAIStudent?.student_id) === targetKey) {
-        setActiveAIStudent((prev) => prev ? {
-          ...prev,
-          flagged_for_mentoring: true,
-          referral_note: referralNote.trim(),
-          assigned_amu_staff_id: selectedAmuStaff.id,
-          assigned_amu_staff_name: selectedAmuStaff.name,
-          assigned_amu_staff_college: selectedAmuStaff.college || '',
-        } : prev)
-      }
-    } catch (err) {
-      setReferralError(err.message || 'Failed to refer student to AMU.')
-    } finally {
-      setReferringStudentKey('')
-    }
-  }, [activeAIStudent?.student_email, activeAIStudent?.student_id, amuStaffOptions, classId, referralNote, selectedAmuStaffId])
 
   // Now define all effects after all callbacks
   useEffect(() => {
@@ -488,14 +441,16 @@ export default function ClassDetails() {
                       setPreviewLoading(true)
                       setPreviewError('')
                       setPreviewStudents([])
+                      setShowPreview(false)
 
                       try {
-                        const data = await previewClasslist(file)
+                        const data = await previewClasslist(file, classId)
                         setPreviewStudents(data.students || [])
                         setShowPreview(true)
                       } catch (err) {
-                        setPreviewError(err.message || 'Failed to preview file')
-                        setShowPreview(true)
+                        const errorMessage = err.message || 'Failed to preview file'
+                        setPreviewError(errorMessage)
+                        setClasslistError(errorMessage)
                       } finally {
                         setPreviewLoading(false)
                       }
@@ -528,16 +483,6 @@ export default function ClassDetails() {
                     Attendance page
                   </button>
 
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
-                    disabled={rosterLoading}
-                    onClick={() => setShowReferralModal(true)}
-                  >
-                    <Users className="w-4 h-4" />
-                    Refer a student
-                  </button>
-                  {classlistError && <div className="mt-2 text-xs font-medium text-red-600">{classlistError}</div>}
                 </div>
               </div>
 
@@ -635,7 +580,8 @@ export default function ClassDetails() {
             await uploadClassFiles(classId, filesToUpload, 'classlist')
             uploadSucceeded = true
           } catch (err) {
-            setClasslistError(err.message || 'Upload failed')
+            const errorMessage = err.message || 'Upload failed'
+            setClasslistError(errorMessage)
           } finally {
             setUploadingClasslist(false)
             if (classlistInputRef.current) classlistInputRef.current.value = ''
@@ -687,9 +633,10 @@ export default function ClassDetails() {
                   const simplifiedDrivers = directDrivers.map(simplifyReason).filter(Boolean).slice(0, 3)
                   const simplifiedReasons = riskReasons.map(simplifyReason).filter(Boolean).slice(0, 4)
                   const canReferToAmu = hasComputedRisk(activeAIStudent)
-                  const referralHelperText = getReferralHelperText(activeAIStudent, amuStaffLoading, amuStaffOptions, selectedAmuStaffId)
+                  const automaticReferralReasons = getAutomaticReferralReasons(activeAIStudent)
                   const summaryText = formatStudentInsightSummary(activeAIStudent, riskDesignation, simplifiedDrivers.length > 0 ? simplifiedDrivers : simplifiedReasons)
                   const hardestMidtermTopics = Array.isArray(activeAIStudent.hardest_midterm_topics) ? activeAIStudent.hardest_midterm_topics : []
+                  const groupedMidtermTopics = groupTopicsByComponent(hardestMidtermTopics)
                   const topContributingSignals = Array.isArray(activeAIStudent.top_contributing_signals) ? activeAIStudent.top_contributing_signals : []
 
                   return (
@@ -771,32 +718,35 @@ export default function ClassDetails() {
                           <BookOpen className="h-4 w-4" />
                           Midterm Topics To Watch
                         </p>
-                        {hardestMidtermTopics.length > 0 ? (
-                          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                            {hardestMidtermTopics.map((topic, index) => {
-                              const title = topic?.activity_title || 'Untitled activity'
-                              const componentLabel = formatTopicComponentLabel(topic?.component)
-                              const score = topic?.score != null && !Number.isNaN(Number(topic.score))
-                                ? Number(topic.score).toFixed(2).replace(/\.00$/, '')
-                                : 'N/A'
+                        {groupedMidtermTopics.length > 0 ? (
+                          <div className="mt-3 grid gap-4 lg:grid-cols-3">
+                            {groupedMidtermTopics.map((group) => (
+                              <div key={group.label} className="rounded-xl border border-violet-100/80 bg-white/90 px-3 py-3">
+                                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">{group.label}</p>
+                                <div className="mt-3 space-y-3">
+                                  {group.items.map((topic, index) => {
+                                    const title = topic?.activity_title || topic?.title || 'Untitled activity'
+                                    const score = topic?.score != null && !Number.isNaN(Number(topic.score))
+                                      ? Number(topic.score).toFixed(2).replace(/\.00$/, '')
+                                      : 'N/A'
 
-                              return (
-                                <div key={`${title}-${index}`} className="rounded-lg border border-violet-100/80 bg-white/90 px-3 py-3">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-semibold leading-6 text-violet-950">{title}</p>
-                                      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-violet-600">{componentLabel}</p>
-                                    </div>
-                                    <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800">
-                                      {score}
-                                    </span>
-                                  </div>
-                                  <p className="mt-2 text-xs leading-5 text-violet-800">
-                              This is one of the student&apos;s lowest midterm activity scores, so it may need support before finals.
-                                  </p>
+                                    return (
+                                      <div key={`${group.label}-${title}-${index}`} className="rounded-lg border border-violet-100/80 bg-violet-50/50 px-3 py-3">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <p className="text-sm font-semibold leading-6 text-violet-950">{title}</p>
+                                          <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-800">
+                                            {score}
+                                          </span>
+                                        </div>
+                                        <p className="mt-2 text-xs leading-5 text-violet-800">
+                                          This is one of the student&apos;s lowest midterm activity scores, so it may need support before finals.
+                                        </p>
+                                      </div>
+                                    )
+                                  })}
                                 </div>
-                              )
-                            })}
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <p className="mt-3 text-sm leading-6 text-violet-900">
@@ -849,78 +799,59 @@ export default function ClassDetails() {
                             <Send className="w-4 h-4" />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-slate-900">Send to AMU</p>
+                            <p className="text-sm font-semibold text-slate-900">Automatic AMU Referral</p>
                             <p className="mt-1 text-sm leading-6 text-slate-500">
-                              Review the summary first, then choose the staff member and add your note for the referral.
+                              The system now checks the referral reasons automatically and routes the student to the AMU staff assigned to this college as soon as at least one condition is met.
                             </p>
                           </div>
                         </div>
 
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                            Assign to AMU staff
-                          </label>
-                          <select
-                            value={selectedAmuStaffId}
-                            onChange={(e) => setSelectedAmuStaffId(e.target.value)}
-                            disabled={amuStaffLoading || Boolean(activeAIStudent?.flagged_for_mentoring)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 bg-white disabled:bg-slate-100"
-                          >
-                            <option value="">
-                              {amuStaffLoading ? 'Loading AMU staff...' : 'Choose AMU staff'}
-                            </option>
-                            {amuStaffOptions.map((staff) => (
-                              <option key={staff.id} value={staff.id}>
-                                {staff.label}
-                              </option>
-                            ))}
-                          </select>
-                          <p className="mt-2 text-xs text-slate-500">
-                            Choose who will handle this referral. Each option shows the staff name and assigned college.
-                          </p>
+                            <p className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              Assigned AMU staff
+                            </p>
+                            <p className="mt-2 text-sm text-slate-900">
+                              {activeAIStudent.assigned_amu_staff_name
+                                ? `${activeAIStudent.assigned_amu_staff_name}${activeAIStudent.assigned_amu_staff_college ? ` - ${activeAIStudent.assigned_amu_staff_college}` : ''}`
+                                : amuStaffLoading
+                                  ? 'Checking AMU staff assignment...'
+                                  : 'Waiting for a matching AMU staff account for this college.'}
+                            </p>
+                            <p className="mt-2 text-xs text-slate-500">
+                              Assignment is based on the AMU staff account whose college matches the instructor&apos;s college.
+                            </p>
                           </div>
 
                           <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
-                          <label className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500 mb-2">
-                            Referral note for AMU
-                          </label>
-                          <textarea
-                            rows={4}
-                            value={referralNote}
-                            onChange={(e) => setReferralNote(e.target.value)}
-                            placeholder="Explain why this student is being referred to AMU."
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900"
-                          />
-                          <p className="mt-2 text-xs text-slate-500">
-                            This note will be visible to AMU staff when they open the referral.
-                          </p>
+                            <p className="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                              Detected referral reasons
+                            </p>
+                            {automaticReferralReasons.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {automaticReferralReasons.map((reason) => (
+                                  <span key={reason} className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900">
+                                    {reason}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-sm text-slate-900">No automatic referral trigger has been detected yet.</p>
+                            )}
+                            <p className="mt-2 text-xs text-slate-500">
+                              A referral is created automatically once even one configured reason is hit.
+                            </p>
                           </div>
                         </div>
 
-                        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
-                          <button
-                            type="button"
-                            disabled={
-                              !canReferToAmu
-                              || amuStaffLoading
-                              || amuStaffOptions.length === 0
-                              || Boolean(activeAIStudent?.flagged_for_mentoring)
-                              || referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
-                            }
-                            onClick={() => referStudentToAmu(activeAIStudent)}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
-                          >
-                            {activeAIStudent?.flagged_for_mentoring ? <UserRoundCheck className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                            {!canReferToAmu
-                              ? 'Risk result required'
-                              : activeAIStudent?.flagged_for_mentoring
-                                ? 'Already referred to AMU'
-                                : referringStudentKey === (activeAIStudent?.student_email || activeAIStudent?.student_id)
-                                  ? 'Referring...'
-                                  : 'Refer to AMU'}
-                          </button>
-                          <p className="max-w-2xl text-xs leading-5 text-slate-500">{referralHelperText}</p>
+                        <div className="mt-4 border-t border-slate-200 pt-4">
+                          <p className="max-w-2xl text-xs leading-5 text-slate-500">
+                            {activeAIStudent?.flagged_for_mentoring
+                              ? 'This student has already been referred automatically.'
+                              : !amuStaffLoading && amuStaffOptions.length === 0
+                                ? 'No active AMU staff account is available yet for automatic routing.'
+                                : 'Upload or update grades and needs-assessment data so the system can detect the referral conditions automatically.'}
+                          </p>
                         </div>
                       </div>
                     </>
@@ -931,25 +862,6 @@ export default function ClassDetails() {
           </div>
         </HeaderAwareOverlay>
       )}
-      <StudentReferralModal
-        isOpen={showReferralModal}
-        students={roster}
-        amuStaffOptions={amuStaffOptions}
-        instructorCollege={user?.college || ''}
-        onClose={() => {
-          setShowReferralModal(false)
-          setStudentReferralError('')
-        }}
-        onSubmit={handleStudentReferral}
-        isSubmitting={studentReferralSubmitting}
-      />
-      {studentReferralError && (
-        <InlineToast
-          message={studentReferralError}
-          tone="error"
-          onClose={() => setStudentReferralError('')}
-        />
-      )}
       <InlineToast
         message={aiUploadMessage}
         tone="success"
@@ -959,6 +871,11 @@ export default function ClassDetails() {
         message={referralMessage}
         tone="success"
         onClose={() => setReferralMessage('')}
+      />
+      <InlineToast
+        message={classlistError}
+        tone="error"
+        onClose={() => setClasslistError('')}
       />
     </DashboardLayout>
   )

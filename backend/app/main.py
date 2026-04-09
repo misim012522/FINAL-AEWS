@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.database import get_db
-from app.routers import auth, users, students, notifications, classes, admin, amu_staff
+from app.routers import auth, users, students, notifications, classes, admin, amu_staff, activity_logs
 
 # Load .env from backend directory so SMTP and other config work regardless of cwd
 _backend_dir = Path(__file__).resolve().parent.parent
@@ -119,6 +119,7 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(students.router, prefix="/api/students", tags=["students"])
 app.include_router(classes.router, prefix="/api/classes", tags=["classes"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
+app.include_router(activity_logs.router, prefix="/api/activity-logs", tags=["activity-logs"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(amu_staff.router, prefix="/api/amu-staff", tags=["amu-staff"])
 

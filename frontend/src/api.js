@@ -90,9 +90,10 @@ export async function predictClassRisk(classId) {
 }
 
 /** Preview classlist to fetch student names and IDs without saving. */
-export async function previewClasslist(file) {
+export async function previewClasslist(file, classId = '') {
   const formData = new FormData();
   formData.append('file', file);
+  if (classId) formData.append('class_id', classId);
   const res = await fetch(`${API_BASE}/api/classes/preview-classlist`, {
     method: 'POST',
     headers: { ...getAuthHeaders() },
@@ -289,12 +290,13 @@ export async function listClassStudents(classId) {
   return data
 }
 
-export async function createClass({ instructor_id, subject_code, subject_name }) {
+export async function createClass({ instructor_id, section_code, subject_code, subject_name }) {
   const res = await fetch(`${API_BASE}/api/classes`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
     body: JSON.stringify({
       instructor_id: String(instructor_id ?? '').trim(),
+      section_code: String(section_code ?? '').trim(),
       subject_code: String(subject_code ?? '').trim(),
       subject_name: String(subject_name ?? '').trim(),
     }),
@@ -483,6 +485,29 @@ export async function markAllNotificationsRead(role) {
   return data
 }
 
+export async function getActivityLogs(role, limit = 100) {
+  const activeRole = getCurrentAuthRole()
+  const targetRole = normalizeRole(role || activeRole)
+  if (!targetRole) {
+    throw new Error('No authenticated role found')
+  }
+  if (activeRole && targetRole !== activeRole) {
+    throw new Error('Cannot load activity logs for another user role')
+  }
+  const params = new URLSearchParams({
+    role: targetRole,
+    limit: String(limit),
+  })
+  const res = await fetch(`${API_BASE}/api/activity-logs?${params.toString()}`, {
+    headers: getAuthHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load activity logs')
+  }
+  return Array.isArray(data) ? data : []
+}
+
 // ----- AMU Staff (real data) -----
 
 /** List referrals (flagged enrollments) for AMU staff. */
@@ -505,6 +530,16 @@ export async function getAmuStaffReferral(refId) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Referral not found')
+  return data
+}
+
+export async function deleteAllAmuStaffReferrals() {
+  const res = await fetch(`${API_BASE}/api/amu-staff/referrals`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to delete referrals')
   return data
 }
 

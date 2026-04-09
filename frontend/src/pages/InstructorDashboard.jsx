@@ -6,6 +6,7 @@ import {
   Users as UsersIcon,
   AlertTriangle,
   ChevronRight,
+  MoreHorizontal,
   Plus,
   Search,
   GraduationCap,
@@ -33,8 +34,19 @@ const colorClasses = {
 
 function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
   const isArchiving = archisingId === course.id
+  const [showActions, setShowActions] = useState(false)
+
+  const handleArchiveClick = () => {
+    setShowActions(false)
+    onArchive(course)
+  }
+
   return (
-    <div className="group flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 transition-colors hover:bg-slate-50/80">
+    <div
+      className={`group flex items-center justify-between gap-3 rounded-lg px-3.5 py-2.5 transition-[background-color,padding] hover:bg-slate-50/80 ${
+        showActions && !isArchiving ? 'pb-14' : ''
+      }`}
+    >
       <div className="flex-1 min-w-0">
         <div className="flex flex-1 items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
@@ -61,31 +73,45 @@ function CourseCard({ course, onViewDetails, onArchive, archisingId }) {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => onViewDetails(course)}
+              onClick={() => {
+                setShowActions(false)
+                onViewDetails(course)
+              }}
               disabled={isArchiving}
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
             >
               View class
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
-            <button
-              type="button"
-              onClick={() => onArchive(course)}
-              disabled={isArchiving}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-200 text-slate-700 font-semibold hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-xs flex-shrink-0 transition-all hover:shadow-md active:scale-[0.98]"
-            >
-              {isArchiving ? (
-                <>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowActions((prev) => !prev)}
+                disabled={isArchiving}
+                aria-haspopup="menu"
+                aria-expanded={showActions}
+                aria-label={`Open actions for ${course.subject_code}`}
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all hover:shadow-md active:scale-[0.98]"
+              >
+                {isArchiving ? (
                   <div className="w-3.5 h-3.5 border-2 border-slate-600 border-t-transparent rounded-full animate-spin"></div>
-                  Archiving...
-                </>
-              ) : (
-                <>
-                  <Archive className="w-3.5 h-3.5" />
-                  Archive
-                </>
+                ) : (
+                  <MoreHorizontal className="w-4 h-4" />
+                )}
+              </button>
+              {showActions && !isArchiving && (
+                <div className="absolute right-0 top-full mt-2 w-36 rounded-lg border border-slate-200 bg-white shadow-lg shadow-slate-200/70 py-1 z-20">
+                  <button
+                    type="button"
+                    onClick={handleArchiveClick}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <Archive className="w-3.5 h-3.5" />
+                    Archive
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
           </div>
         </div>
       </div>
@@ -110,6 +136,7 @@ export default function InstructorDashboard() {
   const [classesLoading, setClassesLoading] = useState(false)
   const [classesError, setClassesError] = useState('')
   const [showAddClassModal, setShowAddClassModal] = useState(false)
+  const [addSectionCode, setAddSectionCode] = useState('')
   const [addClassCode, setAddClassCode] = useState('')
   const [addClassName, setAddClassName] = useState('')
   const [addClassSubmitting, setAddClassSubmitting] = useState(false)
@@ -186,15 +213,17 @@ export default function InstructorDashboard() {
   const handleCreateClass = async (e) => {
     e.preventDefault()
     setAddClassError('')
+    const section = addSectionCode.trim()
     const code = addClassCode.trim()
     const name = addClassName.trim()
-    if (!code || !name) {
-      setAddClassError('Subject code and subject name are required.')
+    if (!section || !code || !name) {
+      setAddClassError('Section code, subject code, and subject name are required.')
       return
     }
     setAddClassSubmitting(true)
     try {
-      await createClass({ instructor_id: user.id, subject_code: code, subject_name: name })
+      await createClass({ instructor_id: user.id, section_code: section, subject_code: code, subject_name: name })
+      setAddSectionCode('')
       setAddClassCode('')
       setAddClassName('')
       setShowAddClassModal(false)
@@ -284,7 +313,22 @@ export default function InstructorDashboard() {
 
                 {/* Overview + search controls */}
                 {!classesLoading && !classesError && classesList.length > 0 && (
-                  <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-3 items-start" aria-label="Overview and class controls">
+                  <section className="space-y-3" aria-label="Overview and class controls">
+                    <div className="space-y-2 max-w-xs">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your classes</h3>
+                      <label className="sr-only" htmlFor="class-search">Search classes</label>
+                      <div className="relative w-full">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                        <input
+                          id="class-search"
+                          type="text"
+                          value={classSearch}
+                          onChange={(e) => setClassSearch(e.target.value)}
+                          placeholder="Search by code or name..."
+                          className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50/80 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
                     <div className="space-y-2">
                       <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Overview</h3>
                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -308,27 +352,12 @@ export default function InstructorDashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Your classes</h3>
-                      <label className="sr-only" htmlFor="class-search">Search classes</label>
-                      <div className="relative w-full">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-                        <input
-                          id="class-search"
-                          type="text"
-                          value={classSearch}
-                          onChange={(e) => setClassSearch(e.target.value)}
-                          placeholder="Search by code or name..."
-                          className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50/80 text-xs text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:bg-white outline-none transition-colors"
-                        />
-                      </div>
-                    </div>
                   </section>
                 )}
 
                 {/* Class list */}
                 {!classesLoading && !classesError && filteredClasses.length > 0 && (
-                  <ul className="divide-y divide-slate-100 rounded-lg overflow-hidden border border-slate-100" aria-label="Class list">
+                  <ul className="divide-y divide-slate-100 rounded-lg overflow-visible border border-slate-100" aria-label="Class list">
                     {filteredClasses.map((course) => (
                       <li key={course.id}>
                         <CourseCard
@@ -386,15 +415,25 @@ export default function InstructorDashboard() {
                 labelledBy="add-class-title"
                 onBackdropClick={() => !addClassSubmitting && setShowAddClassModal(false)}
                 className="flex items-center justify-center bg-slate-900/50"
-                panelClassName="max-w-md"
-                contentClassName="rounded-xl border border-slate-200/80 bg-white shadow-2xl"
+                panelClassName="h-auto max-w-md"
+                contentClassName="flex-none overflow-visible rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10"
               >
-                <div className="bg-white rounded-xl shadow-2xl border border-slate-200/80 max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
-                  <h3 id="add-class-title" className="text-lg font-bold text-slate-900 mb-4">Add Class</h3>
+                <div className="w-full p-6" onClick={(e) => e.stopPropagation()}>
+                  <h3 id="add-class-title" className="mb-4 text-lg font-bold text-slate-900">Add Class</h3>
                   <form onSubmit={handleCreateClass} className="space-y-4">
                     {addClassError && (
                       <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 text-xs text-red-700">{addClassError}</div>
                     )}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1.5">Section Code</label>
+                      <input
+                        type="text"
+                        value={addSectionCode}
+                        onChange={(e) => setAddSectionCode(e.target.value)}
+                        placeholder="e.g. BSIT 2A"
+                        className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
+                      />
+                    </div>
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1.5">Subject Code</label>
                       <input
@@ -415,7 +454,7 @@ export default function InstructorDashboard() {
                         className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-900 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none"
                       />
                     </div>
-                    <div className="flex gap-2 justify-end pt-2">
+                    <div className="flex justify-end gap-2 pt-2">
                       <button type="button" onClick={() => setShowAddClassModal(false)} disabled={addClassSubmitting} className="px-4 py-2 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50">Cancel</button>
                       <button type="submit" disabled={addClassSubmitting} className="px-4 py-2 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">{addClassSubmitting ? 'Creating...' : 'Add Class'}</button>
                     </div>

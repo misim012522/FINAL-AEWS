@@ -32,6 +32,7 @@ const AmuStaffSettings = lazy(() => import('./pages/AmuStaffSettings'))
 const AmuStaffStudentDetail = lazy(() => import('./pages/AmuStaffStudentDetail'))
 const AmuStaffNeedsAssessments = lazy(() => import('./pages/AmuStaffNeedsAssessments'))
 const ArchivedClasses = lazy(() => import('./pages/ArchivedClasses'))
+const ActivityLogs = lazy(() => import('./pages/ActivityLogs'))
 
 function RouteFallback() {
   return (
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
                 <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
                 <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />
+                <Route path="/instructor/activity-logs" element={<ProtectedRoute allowedRoles={['instructor']}><ActivityLogs /></ProtectedRoute>} />
                 <Route path="/instructor/archived" element={<ProtectedRoute allowedRoles={['instructor']}><ArchivedClasses /></ProtectedRoute>} />
                 <Route path="/instructor/class/:id" element={<ProtectedRoute allowedRoles={['instructor']}><ClassDetails /></ProtectedRoute>} />
                 <Route path="/instructor/class/:id/grades" element={<ProtectedRoute allowedRoles={['instructor']}><ClassGrades /></ProtectedRoute>} />
@@ -82,10 +84,12 @@ export default function App() {
                 <Route path="/instructor/student/:id" element={<ProtectedRoute allowedRoles={['instructor']}><StudentProfile /></ProtectedRoute>} />
                 <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminSettings /></ProtectedRoute>} />
+                <Route path="/admin/activity-logs" element={<ProtectedRoute allowedRoles={['admin']}><ActivityLogs /></ProtectedRoute>} />
                 <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
                 <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
                 <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
                 <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
+                <Route path="/amu-staff/activity-logs" element={<ProtectedRoute allowedRoles={['amu-staff']}><ActivityLogs /></ProtectedRoute>} />
                 <Route path="/amu-staff/student/:id" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffStudentDetail /></ProtectedRoute>} />
                 <Route path="/amu-staff/needs-assessments" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffNeedsAssessments /></ProtectedRoute>} />
                 <Route path="/help" element={<ProtectedRoute allowedRoles={['instructor', 'admin', 'amu-staff']}><Help /></ProtectedRoute>} />

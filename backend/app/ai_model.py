@@ -51,6 +51,8 @@ def _extract_topic_difficulty(
         normalized_key = str(score_key or "").strip()
         if not normalized_key.startswith("midterm_"):
             continue
+        if "equivalent" in normalized_key.lower():
+            continue
 
         raw_value = enrollment.get(normalized_key)
         try:
@@ -64,6 +66,8 @@ def _extract_topic_difficulty(
             component = str(meta.get("component") or "").strip()
         else:
             component = ""
+        if "equivalent" in title.lower():
+            continue
 
         # Handle both percentage-like scores and 1.0-5.0 grade-like values.
         if numeric_value <= 5:

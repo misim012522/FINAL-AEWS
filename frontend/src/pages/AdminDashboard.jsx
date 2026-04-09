@@ -128,7 +128,12 @@ export default function AdminDashboard() {
           description={`${contentSubtitle} Keep the main sections in one place so approvals, reports, and oversight tasks stay easier to follow.`}
         >
           <div className="mt-1 space-y-4">
-            {/* Overview removed per request */}
+            {mainTab === 'overview' && (
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <AdminDepartments department={department} />
+                <AdminInstructorsList department={department} />
+              </div>
+            )}
 
             {mainTab === 'pending' && <AdminPendingAccounts />}
             {mainTab === 'analytics' && <AdminSystemAnalytics />}

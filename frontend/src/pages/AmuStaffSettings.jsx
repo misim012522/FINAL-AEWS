@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, KeyRound, Users, ArrowLeft, HelpCircle, PlayCircle } from 'lucide-react'
+import { Lock, KeyRound, Users, HelpCircle, PlayCircle } from 'lucide-react'
 import { getPlayTutorialEveryLogin, setPlayTutorialEveryLogin } from '../lib/tutorialPrefs'
 import DashboardLayout from '../components/DashboardLayout'
 import ProfilePageLayout from '../components/ProfilePageLayout'

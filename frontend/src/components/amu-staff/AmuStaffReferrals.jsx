@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
-import { User, Mail, Building2, BookOpen, AlertTriangle, ChevronRight, Search } from 'lucide-react'
-import { getAmuStaffReferrals } from '../../api'
+import { User, Mail, Building2, BookOpen, AlertTriangle, ChevronRight, Search, Trash2 } from 'lucide-react'
+import { deleteAllAmuStaffReferrals, getAmuStaffReferrals } from '../../api'
+import InlineToast from '../InlineToast'
 import ScrollTableContainer from '../ScrollTableContainer'
 import ReferralDetailModal from './ReferralDetailModal'
 
@@ -16,6 +17,9 @@ export default function AmuStaffReferrals() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [selectedRefId, setSelectedRefId] = useState(null)
+  const [deletingAll, setDeletingAll] = useState(false)
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
     let isMounted = true
@@ -50,6 +54,27 @@ export default function AmuStaffReferrals() {
       )
     : list
 
+  const handleDeleteAll = async () => {
+    try {
+      setDeletingAll(true)
+      setError(null)
+      const result = await deleteAllAmuStaffReferrals()
+      setList([])
+      setConfirmDeleteAll(false)
+      setSelectedRefId(null)
+      const deletedCount = Number(result?.deleted_count ?? 0)
+      setSuccessMessage(
+        deletedCount === 1
+          ? 'Deleted 1 referral.'
+          : `Deleted ${deletedCount} referrals.`
+      )
+    } catch (e) {
+      setError(e?.message || 'Failed to delete referrals')
+    } finally {
+      setDeletingAll(false)
+    }
+  }
+
   return (
     <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white">
@@ -68,15 +93,48 @@ export default function AmuStaffReferrals() {
         <section className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">Student referrals</h3>
-            <div className="relative w-full sm:w-80">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              <input
-                type="search"
-                placeholder="Search by name or email..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/80 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white outline-none transition-colors"
-              />
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+              {confirmDeleteAll ? (
+                <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-2 ring-1 ring-red-100">
+                  <span className="text-sm font-medium text-red-700">Delete all referrals?</span>
+                  <button
+                    type="button"
+                    onClick={handleDeleteAll}
+                    disabled={deletingAll || loading || list.length === 0}
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deletingAll ? 'Deleting...' : 'Yes'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteAll(false)}
+                    disabled={deletingAll}
+                    className="rounded-lg bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteAll(true)}
+                  disabled={loading || deletingAll || list.length === 0}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 shadow-sm transition-all hover:bg-red-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete all referrals
+                </button>
+              )}
+              <div className="relative w-full sm:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="search"
+                  placeholder="Search by name or email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50/80 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white outline-none transition-colors"
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -167,6 +225,11 @@ export default function AmuStaffReferrals() {
           onClose={() => setSelectedRefId(null)}
         />
       )}
+      <InlineToast
+        message={successMessage}
+        tone="success"
+        onClose={() => setSuccessMessage('')}
+      />
     </div>
   )
 }

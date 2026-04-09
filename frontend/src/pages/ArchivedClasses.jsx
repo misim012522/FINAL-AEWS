@@ -151,9 +151,11 @@ export default function ArchivedClasses() {
 
   const handleRestore = async (classId) => {
     try {
+      setError('')
       setRestoringId(classId)
       await restoreClass(classId)
-      setClasses(classes.filter((c) => c.id !== classId))
+      setClasses((current) => current.filter((c) => c.id !== classId))
+      setDeleteConfirmId((current) => (current === classId ? null : current))
     } catch (err) {
       setError(err.message || 'Failed to restore class')
     } finally {
@@ -163,9 +165,10 @@ export default function ArchivedClasses() {
 
   const handleDeletePermanently = async (classId) => {
     try {
+      setError('')
       setDeletingId(classId)
       await permanentDeleteClass(classId)
-      setClasses(classes.filter((c) => c.id !== classId))
+      setClasses((current) => current.filter((c) => c.id !== classId))
       setDeleteConfirmId(null)
     } catch (err) {
       setError(err.message || 'Failed to delete class')

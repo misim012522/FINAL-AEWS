@@ -11,6 +11,7 @@ import bcrypt
 from fastapi import APIRouter, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
 
+from app.activity_log_utils import create_activity_log
 from app.authz import create_access_token
 log = logging.getLogger(__name__)
 
@@ -340,6 +341,16 @@ def login(body: LoginRequest):
     password_hash = user.get("password_hash")
     if not password_hash or not _check_password(body.password, password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    create_activity_log(
+        db,
+        actor_id=str(user["_id"]),
+        actor_name=user.get("name", "User"),
+        role=user["role"],
+        action="login",
+        description="Signed in to the system.",
+        target_type="auth",
+        target_id=str(user["_id"]),
+    )
     return {
         "user": {
             "id": str(user["_id"]),
