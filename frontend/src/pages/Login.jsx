@@ -19,6 +19,7 @@ export default function Login() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [redirectPath, setRedirectPath] = useState('/instructor')
   const [recaptchaReady, setRecaptchaReady] = useState(false)
+  const [recaptchaEnabled, setRecaptchaEnabled] = useState(false)
   const [notice, setNotice] = useState('')
   const recaptchaContainerRef = useRef(null)
   const recaptchaWidgetIdRef = useRef(null)
@@ -46,7 +47,7 @@ export default function Login() {
   }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
-    if (!RECAPTCHA_SITE_KEY || !recaptchaContainerRef.current) return
+    if (!RECAPTCHA_SITE_KEY || !recaptchaEnabled || !recaptchaContainerRef.current) return
     if (typeof recaptchaWidgetIdRef.current === 'number') {
       setRecaptchaReady(true)
       return
@@ -93,7 +94,7 @@ export default function Login() {
         delete window.__recaptchaOnLoad
       }
     }
-  }, [RECAPTCHA_SITE_KEY])
+  }, [RECAPTCHA_SITE_KEY, recaptchaEnabled])
 
   const handleSignIn = async (e) => {
     e.preventDefault()
@@ -107,6 +108,11 @@ export default function Login() {
       return
     }
     let recaptchaToken = ''
+    if (RECAPTCHA_SITE_KEY && !recaptchaEnabled) {
+      setRecaptchaEnabled(true)
+      setError('Load the verification challenge, complete it, then sign in again.')
+      return
+    }
     if (RECAPTCHA_SITE_KEY && window.grecaptcha && typeof recaptchaWidgetIdRef.current === 'number') {
       try {
         recaptchaToken = window.grecaptcha.getResponse(recaptchaWidgetIdRef.current) || ''
@@ -242,9 +248,29 @@ export default function Login() {
             {RECAPTCHA_SITE_KEY && (
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-gray-700">Verify you&apos;re not a robot</span>
-                <div ref={recaptchaContainerRef} className="min-h-[78px] flex items-center justify-start" />
-                {!recaptchaReady && (
-                  <p className="text-xs text-gray-500">Loading reCAPTCHA...</p>
+                {!recaptchaEnabled ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm text-slate-600">
+                      Verification is loaded only when needed to avoid third-party tracking warnings in local development.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError('')
+                        setRecaptchaEnabled(true)
+                      }}
+                      className="mt-3 inline-flex items-center justify-center rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-medium text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
+                    >
+                      Load verification
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div ref={recaptchaContainerRef} className="min-h-[78px] flex items-center justify-start" />
+                    {!recaptchaReady && (
+                      <p className="text-xs text-gray-500">Loading reCAPTCHA...</p>
+                    )}
+                  </>
                 )}
               </div>
             )}

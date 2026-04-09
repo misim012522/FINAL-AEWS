@@ -159,7 +159,11 @@ export default function DashboardLayout({
   }
   const handleNotificationsClick = (e) => {
     e.stopPropagation()
-    setNotificationsOpen((open) => !open)
+    const nextOpen = !notificationsOpen
+    setNotificationsOpen(nextOpen)
+    if (nextOpen) {
+      notificationsApi?.refreshNotifications?.().catch(() => {})
+    }
   }
   const handleSettings = () => navigate(`${basePath}/settings`)
   const handleActivityLogs = () => navigate(`${basePath}/activity-logs`)
@@ -260,6 +264,7 @@ export default function DashboardLayout({
                     notifications={notifications}
                     onMarkRead={(id) => notificationsApi?.markAsRead(variant, id)}
                     onMarkAllRead={() => notificationsApi?.markAllAsRead(variant)}
+                    onClear={() => notificationsApi?.clearAll(variant)}
                   />
                 </div>
               )}
@@ -278,7 +283,7 @@ export default function DashboardLayout({
                 : 'border-slate-200 bg-gradient-to-b from-slate-50/50 to-white'
           } py-3 px-3 flex-none h-[calc(100vh-var(--dashboard-header-height))] max-h-[calc(100vh-var(--dashboard-header-height))] overflow-hidden flex flex-col`}>
             <nav className="flex flex-col min-h-0 flex-1" aria-label="Page navigation">
-              <div className={`space-y-1 pr-1 ${isAdmin ? 'overflow-y-visible' : 'overflow-y-auto'}`}>
+              <div className={`space-y-1 pr-1 ${isAdmin ? 'overflow-y-visible' : 'clean-scrollbar overflow-y-auto'}`}>
                 {normalizedNavItems.map((item) => {
                   const isActive = !!item.active
                   return (
@@ -337,7 +342,7 @@ export default function DashboardLayout({
           </aside>
         )}
         {/* Main Content */}
-        <main className="flex-1 min-h-[calc(100vh-var(--dashboard-header-height))] overflow-y-auto overflow-x-hidden">
+        <main className="clean-scrollbar flex-1 min-h-[calc(100vh-var(--dashboard-header-height))] overflow-y-auto overflow-x-hidden">
           <div className="max-w-[1680px] mx-auto px-3 sm:px-4 lg:px-5 py-4 sm:py-5">
             <div className="mx-auto w-full max-w-[1200px] rounded-2xl border border-slate-200/80 bg-white/45 p-4 shadow-sm sm:p-5 lg:p-6">
               {children}

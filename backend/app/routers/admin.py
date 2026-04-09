@@ -906,6 +906,7 @@ def approve_pending_account(user_id: str, actor: dict = Depends(get_current_acto
         create_notification(
             db,
             role=doc.get("role", "instructor"),
+            recipient_user_id=user_id,
             title="Account approved",
             body="Your account request has been approved. You can now sign in to the system.",
             type="success",
@@ -948,6 +949,7 @@ def decline_pending_account(user_id: str, actor: dict = Depends(get_current_acto
         create_notification(
             db,
             role=doc.get("role", "instructor"),
+            recipient_user_id=user_id,
             title="Account request declined",
             body="An account request was declined. Please contact the administrator if you need assistance.",
             type="alert",

@@ -28,7 +28,7 @@ const rolePermissions = {
   ],
   'amu-staff': [
     'View student referrals',
-    'Review uploaded needs assessments',
+    'Review completed needs assessment forms',
     'Run AMU-side predictions',
     'Coordinate with instructors',
     'Access student support resources',

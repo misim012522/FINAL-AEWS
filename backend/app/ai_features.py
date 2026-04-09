@@ -28,6 +28,7 @@ EXTERNAL_FACTOR_FIELDS = [
     "family_issues",
     "part_time_work_affecting_studies",
     "mental_health_concerns",
+    "internet_issues",
 ]
 
 def _to_float(value: Any) -> float | None:

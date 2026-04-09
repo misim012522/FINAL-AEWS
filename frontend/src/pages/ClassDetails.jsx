@@ -168,7 +168,7 @@ function getAutomaticReferralReasons(student) {
     return value <= 75
   }
   if (matchesMidtermReferralThreshold(student.midterm_grade)) {
-    reasons.push('Midterm grade is 2.50 or above')
+    reasons.push('Midterm grade is 2.50 or below')
   }
   if (student.low_midterm_academic_performance) {
     reasons.push('Low midterm academic performance')
@@ -621,7 +621,7 @@ export default function ClassDetails() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-slate-50/60 p-6">
+            <div className="clean-scrollbar flex-1 overflow-y-auto bg-slate-50/60 p-6">
               <div className="space-y-5">
                 {referralError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{referralError}</div>}
                 {referralMessage && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{referralMessage}</div>}

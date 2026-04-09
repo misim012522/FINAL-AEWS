@@ -72,7 +72,7 @@ export default function AdminSettings() {
         })
         return
       }
-      updateUser({ name: name.trim(), email: email.trim(), contact_number: (contact_number || '').trim(), profile_image: profile_image || undefined })
+      updateUser(result)
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err) {

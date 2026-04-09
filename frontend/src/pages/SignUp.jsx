@@ -28,7 +28,8 @@ const COUNTRY_CODES = [
 
 export default function SignUp() {
   const navigate = useNavigate()
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [surname, setSurname] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [retypePassword, setRetypePassword] = useState('')
@@ -53,13 +54,18 @@ export default function SignUp() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    const fullName = [firstName.trim(), surname.trim()].filter(Boolean).join(' ')
+    if (!firstName.trim() || !surname.trim()) {
+      setError('Please enter your first name and surname.')
+      return
+    }
     if (password !== retypePassword) {
       setError('Passwords do not match.')
       return
     }
     setLoading(true)
     try {
-      const data = await signup({ name, email, password, contact_number: fullContactNumber, college, role })
+      const data = await signup({ name: fullName, email, password, contact_number: fullContactNumber, college, role })
       if (data.pending_approval) {
         navigate('/pending-approval', { state: { email } })
       } else {
@@ -122,17 +128,32 @@ export default function SignUp() {
                 <option value="amu-staff">AMU Staff</option>
               </select>
             </div>
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">Full name</label>
-              <div className="relative">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Dr. Jane Smith"
-                  className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 placeholder:text-gray-400"
-                />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div>
+                <label className="block text-base font-medium text-gray-700 mb-2">First name</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Jane"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 placeholder:text-gray-400"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-base font-medium text-gray-700 mb-2">Surname</label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={surname}
+                    onChange={(e) => setSurname(e.target.value)}
+                    placeholder="Smith"
+                    className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition text-base text-gray-900 placeholder:text-gray-400"
+                  />
+                </div>
               </div>
             </div>
             <div>

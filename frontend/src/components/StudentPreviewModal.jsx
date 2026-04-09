@@ -1,4 +1,3 @@
-// import { useState } from 'react'
 import { useEffect } from 'react'
 import { X, AlertCircle, CheckCircle } from 'lucide-react'
 import HeaderAwareOverlay from './HeaderAwareOverlay'
@@ -53,7 +52,7 @@ export default function StudentPreviewModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="clean-scrollbar flex-1 overflow-y-auto p-5">
           {error && (
             <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2.5 flex items-start gap-2.5">
               <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" />
@@ -81,7 +80,7 @@ export default function StudentPreviewModal({
               </div>
 
               {/* Students Table */}
-              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+              <div className="clean-scrollbar overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>

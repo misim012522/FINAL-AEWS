@@ -25,6 +25,7 @@ export function AuthProvider({ children }) {
     const payload = normalizeAuthPayload({
       user: { ...auth.user, ...updates },
       role: auth.role,
+      accessToken: auth.accessToken,
     })
     if (!payload) return
     setAuth(payload)

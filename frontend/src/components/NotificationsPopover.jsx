@@ -32,6 +32,7 @@ export default function NotificationsPopover({
   notifications = [],
   onMarkRead,
   onMarkAllRead,
+  onClear,
 }) {
   const styles = VARIANT[variant] || VARIANT.instructor
   const unreadCount = notifications.filter((n) => !n.read).length
@@ -41,17 +42,28 @@ export default function NotificationsPopover({
     <div className="w-[380px] max-w-[calc(100vw-2rem)] bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden flex flex-col max-h-[420px]">
       <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between gap-3 flex-shrink-0">
         <h2 className="font-semibold text-gray-900 text-base">Notifications</h2>
-        {unreadCount > 0 && (
-          <button
-            type="button"
-            onClick={onMarkAllRead}
-            className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
-          >
-            Mark all read
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          {notifications.length > 0 && (
+            <button
+              type="button"
+              onClick={onClear}
+              className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={onMarkAllRead}
+              className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+            >
+              Mark all read
+            </button>
+          )}
+        </div>
       </div>
-      <div className="overflow-y-auto flex-1 min-h-0">
+      <div className="clean-scrollbar overflow-y-auto flex-1 min-h-0">
         {displayList.length === 0 ? (
           <div className="py-10 px-4 text-center">
             <div className={`w-12 h-12 rounded-xl ${styles.accentBg} flex items-center justify-center mx-auto mb-3`}>

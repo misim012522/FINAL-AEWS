@@ -83,10 +83,10 @@ def _matches_midterm_referral_threshold(value) -> bool:
     numeric = float(value)
     if numeric <= 0:
         return False
-    # Grade-scale midterms use 1.00-5.00 where higher values are worse,
-    # so 2.50 or above is the trigger.
+    # Grade-scale midterms use 1.00-5.00.
+    # This system treats 2.50 or below as the referral trigger.
     if numeric <= 5:
-        return numeric >= 2.5
+        return numeric <= 2.5
     # Percentage-style midterms use 0-100 where 75 or below is the trigger.
     return numeric <= 75
 
@@ -190,6 +190,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         create_notification(
             db,
             role="amu-staff",
+            recipient_user_id=assigned_staff_id,
             title="Student auto-referred by system",
             body=(
                 f"Student {student_label} met the automatic referral criteria in "
@@ -202,6 +203,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         create_notification(
             db,
             role="instructor",
+            recipient_user_id=str(class_doc.get("instructor_id")) if class_doc and class_doc.get("instructor_id") else None,
             title="Student auto-referred to AMU",
             body=(
                 f"{student_label} from {class_label} was automatically referred to "
@@ -593,7 +595,7 @@ def _score_rows_for_preferred_type(rows: list[dict], preferred_type: str | None)
     keys = list(rows[0].keys())
     score = 0
 
-    id_col = _find_column(keys, ['student no.', 'id number', 'student id', 'student_id', 'school id', 'sid'])
+    id_col = _find_student_id_column(keys)
     name_col = _find_column(keys, ['name of students', 'student name', 'name'])
     if id_col:
         score += 10
@@ -671,6 +673,7 @@ _AI_UPLOAD_FIELD_MAPPINGS = {
     "family_issues": ["family issues", "family_issues"],
     "part_time_work_affecting_studies": ["part-time work affecting studies", "part_time_work_affecting_studies"],
     "mental_health_concerns": ["mental health-related concerns", "mental_health_concerns"],
+    "internet_issues": ["internet/connectivity issues", "internet connectivity issues", "internet issues", "connectivity issues", "internet_issues", "connectivity_issues"],
 }
 
 _PREVIOUS_GRADES_FIELD_MAPPINGS = {
@@ -1450,7 +1453,6 @@ def _legacy_grade_score_map(enrollment: dict) -> dict:
 
 
 _GRADESHEET_FIELD_MAPPINGS = {
-    'id_number': ['id', 'id number', 'student no.', 'student id', 'student_id', 'school id', 'sid'],
     'class_standing': ['class standing', 'cs (0%)', 'cs (30%)', 'class stand', 'standing', 'cs'],
     'laboratory': ['lab (30%)', 'lab', 'laboratory', 'lab grade'],
     'major_output': ['mo(40%)', 'mo (40%)', 'major output', 'major', 'mo', 'project'],
@@ -1468,7 +1470,7 @@ _GRADESHEET_FIELD_MAPPINGS = {
     'class_time': ['time', 'class time', 'schedule', 'sched'],
 }
 
-def _build_gradesheet_update_payload(row, keys, score_aliases, score_alias_terms, active_score_source_cols):
+def _build_gradesheet_update_payload(row, keys, score_aliases, score_alias_terms, active_score_source_cols, student_id=None):
     """Build grade update payloads that replace stale data on re-upload."""
     update_data = {}
     unset_data = {}
@@ -1491,6 +1493,10 @@ def _build_gradesheet_update_payload(row, keys, score_aliases, score_alias_terms
             continue
 
         update_data[db_field] = parsed
+
+    normalized_student_id = _normalize_student_id(student_id)
+    if normalized_student_id:
+        update_data['id_number'] = normalized_student_id
 
     score_map = {}
     score_term_map = {}
@@ -1954,6 +1960,18 @@ def _find_column(keys, keywords):
     return None
 
 
+_PRIMARY_STUDENT_ID_KEYWORDS = ['id number', 'student id', 'student_id', 'student no.', 'student number', 'student no', 'school id', 'sid']
+_FALLBACK_STUDENT_ID_KEYWORDS = ['id', 'number', 'no.', 'no']
+
+
+def _find_student_id_column(keys):
+    """Find the canonical student-id column, preferring 'ID Number' style headers."""
+    col = _find_column(keys, _PRIMARY_STUDENT_ID_KEYWORDS)
+    if col:
+        return col
+    return _find_column(keys, _FALLBACK_STUDENT_ID_KEYWORDS)
+
+
 def _build_full_name(row, keys):
     """Build a full name from first/middle/last name columns, or a single name column."""
     first_col = _find_column(keys, ['first name', 'first_name', 'firstname', 'fname'])
@@ -1979,8 +1997,10 @@ def _build_full_name(row, keys):
 def _extract_student_identity(row, keys):
     """Extract student identity from a row with best-effort fallbacks."""
     email_col = _find_column(keys, ['email'])
-    # Prioritize more specific keywords first to avoid matching partial names
-    id_col = _find_column(keys, ['student no.', 'student number', 'student no', 'id number', 'student id', 'student_id', 'school id', 'sid', 'id', 'number', 'no.', 'no'])
+    # Treat "ID Number" as the canonical file column for student identifiers.
+    # Fallback aliases remain for compatibility, but broad matches like "id" or "no."
+    # should only be used after the more exact student-id columns fail.
+    id_col = _find_student_id_column(keys)
     name_col = _find_column(keys, ['name of students', 'name of student', 'student name', 'student_name', 'full name', 'name'])
 
     student_email = _normalize_cell(row.get(email_col, '')).lower() if email_col else ''
@@ -2081,7 +2101,7 @@ def _get_enrollment_identity(doc):
     """Return normalized identity fields for an enrollment doc."""
     student_email = (doc.get("student_email") or "").strip()
     student_name = (doc.get("student_name") or "").strip()
-    student_id = (doc.get("student_id") or doc.get("id_number") or "").strip()
+    student_id = _normalize_student_id(doc.get("student_id") or doc.get("id_number") or "")
     student_key = student_email or student_id or student_name or str(doc.get("_id", ""))
     return student_email, student_name, student_id, student_key
 
@@ -2200,6 +2220,7 @@ async def preview_classlist(
             students = []
             for row in rows:
                 student_email, student_name, student_id = _extract_student_identity(row, keys)
+                student_id = _normalize_student_id(student_id)
                 
                 # Only include rows with at least a name or ID
                 if student_name or student_id:
@@ -2317,13 +2338,8 @@ async def upload_class_files(
 
         if type == "classlist":
             for row in rows:
-                # Extract student identity (name and/or ID)
-                student_name = _build_full_name(row, keys)
-                student_id_col = _find_column(keys, ['id number', 'student id', 'student_id', 'school id', 'sid', 'id', 'number', 'no.', 'no'])
-                student_id = _normalize_cell(row.get(student_id_col, '')) if student_id_col else None
-                
-                email_col_data = _normalize_cell(row.get(email_col, '')).lower() if email_col else ''
-                student_email = email_col_data if email_col_data and '@' in email_col_data else None
+                student_email, student_name, student_id = _extract_student_identity(row, keys)
+                student_id = _normalize_student_id(student_id)
                 
                 section_col = _find_column(keys, ['section', 'section code', 'sec', 'section_code'])
                 section_code = _normalize_cell(row.get(section_col, '')) if section_col else None
@@ -2366,6 +2382,20 @@ async def upload_class_files(
                     existing = db.enrollments.find_one({"class_id": class_id, "student_email": student_email})
                 
                 if existing:
+                    existing_updates = {}
+                    if student_name and _normalize_cell(existing.get("student_name")) != student_name:
+                        existing_updates["student_name"] = student_name
+                    if student_email and _normalize_cell(existing.get("student_email")).lower() != student_email:
+                        existing_updates["student_email"] = student_email
+                    if student_id:
+                        if _normalize_student_id(existing.get("student_id")) != student_id:
+                            existing_updates["student_id"] = student_id
+                        if _normalize_student_id(existing.get("id_number")) != student_id:
+                            existing_updates["id_number"] = student_id
+                    if section_code and _normalize_cell(existing.get("section_code")) != section_code:
+                        existing_updates["section_code"] = section_code
+                    if existing_updates:
+                        db.enrollments.update_one({"_id": existing["_id"]}, {"$set": existing_updates})
                     add_summary['skipped'] += 1
                     skipped_students.append({"email": student_email, "name": student_name})
                 else:
@@ -2388,7 +2418,7 @@ async def upload_class_files(
 
         elif type == "gradesheet":
             name_col = _find_column(keys, ['name of students', 'name', 'student name', 'student_name', 'full name', 'name of student'])
-            id_col = _find_column(keys, ['id number', 'student no.', 'student id', 'student_id', 'school id', 'sid', 'number', 'no.', 'no'])
+            id_col = _find_student_id_column(keys)
             identity_cols = {k for k in [email_col, name_col, id_col] if k}
             score_aliases = _build_raw_score_column_aliases(
                 keys,
@@ -2413,7 +2443,7 @@ async def upload_class_files(
             )
 
             for row in rows:
-                enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
+                enrollment, lookup_identifier, _email, _name, matched_student_id = _find_matching_enrollment(db, class_id, row, keys)
                 if not enrollment:
                     if not _row_identifier_label(row, keys):
                         missing_identifiers += 1
@@ -2427,6 +2457,7 @@ async def upload_class_files(
                     score_aliases,
                     score_alias_terms,
                     active_score_source_cols,
+                    matched_student_id,
                 )
 
                 if update_data or unset_data:
@@ -2462,8 +2493,8 @@ async def upload_class_files(
             
             for row in rows:
                 name_col = _find_column(keys, ['name of students', 'name', 'student name', 'student_name', 'full name', 'name of student'])
-                id_col = _find_column(keys, ['number', 'no', 'no.', 'id', 'id number', 'student id', 'sid'])
-                enrollment, lookup_identifier, _email, _name, _id = _find_matching_enrollment(db, class_id, row, keys)
+                id_col = _find_student_id_column(keys)
+                enrollment, lookup_identifier, _email, _name, matched_student_id = _find_matching_enrollment(db, class_id, row, keys)
                 if not enrollment:
                     if not _row_identifier_label(row, keys):
                         missing_identifiers += 1
@@ -2503,8 +2534,9 @@ async def upload_class_files(
                         update_data['attendance'] = update_data['attendance_overall']
                 
                 # Extract attendance-related fields
-                if id_col and _normalize_cell(row.get(id_col, '')):
-                    update_data['id_number'] = _normalize_cell(row.get(id_col, ''))
+                normalized_student_id = _normalize_student_id(matched_student_id)
+                if normalized_student_id:
+                    update_data['id_number'] = normalized_student_id
                 
                 section_col = _find_column(keys, ['section', 'section code', 'sec'])
                 if section_col and _normalize_cell(row.get(section_col, '')):
@@ -2745,7 +2777,7 @@ async def upload_and_create_classlist(
                 continue
 
             has_name = _find_column(source_keys, ['name of students', 'name of student', 'student name', 'student_name', 'full name', 'name', 'first name', 'last name']) is not None
-            has_id = _find_column(source_keys, ['number', 'no', 'no.', 'id', 'student id', 'id number', 'sid', 'school id', 'student_id']) is not None
+            has_id = _find_student_id_column(source_keys) is not None
             has_email = _find_column(source_keys, ['email']) is not None
 
             if has_name or has_id or has_email:
@@ -2786,7 +2818,7 @@ async def upload_and_create_classlist(
         seen_seed_keys = set()
         for source_type, source_rows, source_keys in seed_sources:
             source_email_col = _find_column(source_keys, ['email'])
-            source_id_col = _find_column(source_keys, ['number', 'no', 'no.', 'id', 'student id', 'id number', 'sid', 'school id', 'student_id'])
+            source_id_col = _find_student_id_column(source_keys)
             source_section_col = _find_column(source_keys, ['section', 'section code', 'sec', 'section_code'])
 
             source_name_cols = set()
@@ -2800,6 +2832,7 @@ async def upload_and_create_classlist(
 
             for row in source_rows:
                 student_email, student_name, student_id = _extract_student_identity(row, source_keys)
+                student_id = _normalize_student_id(student_id)
                 section_code = row.get(source_section_col, '').strip() if source_section_col else None
 
                 if student_id:
@@ -2857,6 +2890,20 @@ async def upload_and_create_classlist(
                     existing = db.enrollments.find_one({"class_id": class_id, "student_email": student_email})
 
                 if existing:
+                    existing_updates = {}
+                    if student_name and _normalize_cell(existing.get("student_name")) != student_name:
+                        existing_updates["student_name"] = student_name
+                    if student_email and _normalize_cell(existing.get("student_email")).lower() != (student_email or ""):
+                        existing_updates["student_email"] = student_email
+                    if student_id:
+                        if _normalize_student_id(existing.get("student_id")) != student_id:
+                            existing_updates["student_id"] = student_id
+                        if _normalize_student_id(existing.get("id_number")) != student_id:
+                            existing_updates["id_number"] = student_id
+                    if section_code and _normalize_cell(existing.get("section_code")) != section_code:
+                        existing_updates["section_code"] = section_code
+                    if existing_updates:
+                        db.enrollments.update_one({"_id": existing["_id"]}, {"$set": existing_updates})
                     classlist_summary['skipped'] += 1
                     classlist_skipped.append({"source": source_type, "name": student_name, "id": student_id})
                 else:
@@ -2883,7 +2930,7 @@ async def upload_and_create_classlist(
             not_enrolled_gs = []
             gs_email_col = _find_column(gradesheet_keys, ['email'])
             gs_name_col = _find_column(gradesheet_keys, ['name of students', 'name of student', 'student name', 'student_name', 'full name', 'name'])
-            gs_id_col = _find_column(gradesheet_keys, ['id', 'id number', 'student id', 'student_id', 'school id', 'sid', 'number', 'no.', 'no'])
+            gs_id_col = _find_student_id_column(gradesheet_keys)
             gs_identity_cols = {k for k in [gs_email_col, gs_name_col, gs_id_col] if k}
             gs_score_aliases = _build_raw_score_column_aliases(
                 gradesheet_keys,
@@ -3893,6 +3940,7 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
             create_notification(
                 db,
                 role="amu-staff",
+                recipient_user_id=payload.get("assigned_amu_staff_id"),
                 title="Student flagged by instructor",
                 body=f"Student {student_label} was flagged by {instructor_name} ({class_label}) and assigned to {assigned_label}. Please review the case.",
                 type="alert",

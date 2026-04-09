@@ -111,7 +111,7 @@ export default function AdminPendingAccounts() {
                 <tr>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">User</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Department</th>
+                  <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">College</th>
                   <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -142,7 +142,7 @@ export default function AdminPendingAccounts() {
                           {config.label}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-sm text-gray-700">{u.department || '-'}</td>
+                      <td className="px-5 py-4 text-sm text-gray-700">{u.college || '-'}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
                           <button

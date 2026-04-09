@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X, AlertTriangle, Clock3, CheckCircle2 } from 'lucide-react'
 import { API_BASE } from '../../api'
 import { getAuthHeaders } from '../../lib/authStorage'
@@ -164,7 +164,7 @@ export default function PredictionResultsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="max-h-[82vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+      <div className="clean-scrollbar max-h-[82vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Referral details</p>
@@ -212,7 +212,7 @@ export default function PredictionResultsModal({
                     <Clock3 className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600" />
                     <div className="space-y-1">
                       <p className="font-semibold text-amber-900">Awaiting needs assessment</p>
-                      <p className="text-sm text-amber-800">AMU can only run the prediction after the needs assessment has been uploaded for this referral.</p>
+                      <p className="text-sm text-amber-800">AMU can only run the prediction after the student completes the emailed needs assessment form for this referral.</p>
                     </div>
                   </div>
                 </div>

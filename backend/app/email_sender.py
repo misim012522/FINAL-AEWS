@@ -7,6 +7,7 @@ import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from html import escape
 
 logger = logging.getLogger(__name__)
 
@@ -398,3 +399,98 @@ Academic Early Warning System
     except Exception as e:
         logger.exception("Gmail SMTP failed: %s", e)
         return False, str(e)
+
+
+def send_needs_assessment_email(
+    to_email: str,
+    user_name: str,
+    form_link: str,
+    custom_message: str | None = None,
+) -> tuple[bool, str | None]:
+    """Send a needs assessment invitation email to a student."""
+    config = _get_gmail_config()
+    host, port, user, password, from_email = config
+    if host is None:
+        return False, "Gmail not configured"
+
+    note = (custom_message or "").strip()
+    subject = "Needs assessment form - Academic Early Warning System"
+    plain_note = f"\n\nMessage from AMU Staff:\n{note}\n" if note else ""
+    plain_body = f"""Hello {user_name},
+
+You have been requested to complete a needs assessment form for student support follow-up.
+
+Please open the link below and submit your response:
+
+{form_link}{plain_note}
+
+If you have already completed the form, no further action is needed.
+
+Academic Early Warning System
+"""
+    html_note = (
+        f'<div style="margin: 0 0 24px; padding: 14px 16px; border-radius: 10px; background-color: #ecfeff; color: #155e75; font-size: 14px; line-height: 1.6;"><strong>Message from AMU Staff:</strong><br>{escape(note).replace(chr(10), "<br>")}</div>'
+        if note else ""
+    )
+    html_body = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{subject}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color: #f5f5f5; padding: 24px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #ffffff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden;">
+          <tr>
+            <td style="padding: 32px 32px 24px; text-align: center; background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);">
+              <h1 style="margin: 0; font-size: 20px; font-weight: 700; color: #ffffff;">Academic Early Warning System</h1>
+              <p style="margin: 8px 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Needs assessment invitation</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px; font-size: 16px; color: #374151; line-height: 1.5;">Hello {escape(user_name)},</p>
+              <p style="margin: 0 0 18px; font-size: 15px; color: #6b7280; line-height: 1.7;">You have been requested to complete a needs assessment form for student support follow-up. Please use the button below to open the form and submit your responses.</p>
+              {html_note}
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 24px;">
+                    <a href="{form_link}" style="display: inline-block; padding: 14px 28px; font-size: 15px; font-weight: 600; color: #ffffff; background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%); text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(15, 118, 110, 0.3);">Open needs assessment form</a>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin: 0; font-size: 13px; color: #9ca3af; line-height: 1.5;">If you already completed the form, no further action is needed.</p>
+              <p style="margin: 16px 0 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">If the button doesn't work, copy and paste this link into your browser:</p>
+              <p style="margin: 4px 0 0; font-size: 12px; color: #0f766e; word-break: break-all;">{form_link}</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+"""
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = from_email
+    msg["To"] = to_email
+    msg.attach(MIMEText(plain_body, "plain"))
+    msg.attach(MIMEText(html_body, "html"))
+
+    try:
+      with smtplib.SMTP(host, port, timeout=15) as server:
+          server.ehlo()
+          server.starttls()
+          server.ehlo()
+          server.login(user, password)
+          server.sendmail(from_email, to_email, msg.as_string())
+      logger.info("Needs assessment invitation email sent to %s", to_email)
+      return True, None
+    except Exception as e:
+      logger.exception("Gmail SMTP failed: %s", e)
+      return False, str(e)

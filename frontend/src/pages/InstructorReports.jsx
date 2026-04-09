@@ -397,7 +397,7 @@ export default function InstructorReports() {
     return () => window.clearTimeout(timeoutId)
   }, [reportMessage])
 
-  const previewRows = useMemo(() => (reportData?.rows || []).slice(0, 8), [reportData?.rows])
+  const previewRows = useMemo(() => (reportData?.rows || []), [reportData?.rows])
 
   const handleExportCsv = useCallback(() => {
     if (!reportData?.rows?.length) {
@@ -571,14 +571,14 @@ export default function InstructorReports() {
                   <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold text-slate-900">Report preview</h3>
-                      <p className="text-xs text-slate-500 mt-1">Showing the first {previewRows.length} student rows from this section export.</p>
+                      <p className="text-xs text-slate-500 mt-1">Showing all {previewRows.length} student rows included in this section export.</p>
                     </div>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
                       <Users className="w-3.5 h-3.5" />
                       {reportData.rows.length} row{reportData.rows.length !== 1 ? 's' : ''}
                     </span>
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="clean-scrollbar max-h-[32rem] overflow-auto">
                     <table className="w-full text-left min-w-[760px]">
                       <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>

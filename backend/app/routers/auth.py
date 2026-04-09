@@ -135,13 +135,15 @@ def _signup_instructor_amu_flow(db, coll, body, existing, doc_base):
     else:
         result = coll.insert_one(doc)
         doc["_id"] = result.inserted_id
-    create_notification(
-        db,
-        role="admin",
-        title="New account pending approval",
-        body=f"{body.name} ({body.role}) signed up and is waiting for approval.",
-        type="system",
-    )
+    for admin_doc in db.admin.find({"archived": {"$ne": True}}):
+        create_notification(
+            db,
+            role="admin",
+            recipient_user_id=str(admin_doc["_id"]),
+            title="New account pending approval",
+            body=f"{body.name} ({body.role}) signed up and is waiting for approval.",
+            type="system",
+        )
     response = {
         "id": str(doc["_id"]),
         "name": doc["name"],
@@ -330,7 +332,7 @@ def login(body: LoginRequest):
             detail="Database unavailable. Set MONGODB_URI in backend .env to your Atlas connection string.",
         )
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="No account was found for that email address. Please sign up first.")
     if user.get("archived"):
         raise HTTPException(status_code=403, detail="This account has been archived. Contact your administrator.")
     if user.get("email_verified") is False:

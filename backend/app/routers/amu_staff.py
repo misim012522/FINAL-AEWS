@@ -1,18 +1,20 @@
 """AMU Staff endpoints: referrals (flagged enrollments), overview stats, reports."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pymongo.errors import ServerSelectionTimeoutError
 import json
 import csv
 from io import StringIO
+import secrets
 
 from app.activity_log_utils import create_activity_log
 from app.authz import get_current_actor
 from app.database import get_db
-from app.email_sender import send_student_support_email
+from app.email_sender import send_student_support_email, send_needs_assessment_email
 from app.notification_utils import create_notification
-from app.schemas import ReferralEmailRequest
+from app.schemas import NeedsAssessmentInvitationRequest, PublicNeedsAssessmentSubmission, ReferralEmailRequest
 from app.ai_model import predict_student_risk
 import os
 import math
@@ -37,6 +39,7 @@ def require_amu_staff_role(actor: dict = Depends(get_current_actor)):
 
 
 router = APIRouter(dependencies=[Depends(require_amu_staff_role)])
+public_router = APIRouter()
 
 REF_ID_SEP = "::"
 
@@ -99,6 +102,40 @@ def _serialize_support_routing(doc: dict) -> dict | None:
     }
 
 
+def _build_student_email(student_id: str | None) -> str | None:
+    normalized = _normalize_referral_value(student_id)
+    if not normalized:
+        return None
+    return f"{normalized}@student.buksu.edu.ph".lower()
+
+
+def _get_referral_contact_email(doc: dict) -> str | None:
+    student_email = _normalize_referral_value(doc.get("student_email")).lower()
+    if student_email:
+        return student_email
+    return _build_student_email(doc.get("student_id"))
+
+
+def _serialize_invitation(doc: dict) -> dict | None:
+    invitation = doc.get("needs_assessment_invitation")
+    if not isinstance(invitation, dict):
+        return None
+
+    def _format_dt(value):
+        if isinstance(value, datetime):
+            return value.isoformat()
+        return value
+
+    return {
+        "status": invitation.get("status") or "not_sent",
+        "token": invitation.get("token"),
+        "email": invitation.get("email"),
+        "sent_at": _format_dt(invitation.get("sent_at")),
+        "submitted_at": _format_dt(invitation.get("submitted_at")),
+        "last_error": invitation.get("last_error"),
+    }
+
+
 def _build_referral_reasons(doc: dict) -> list[str]:
     """Build referral reasons from instructor's selected checklist only."""
     reasons: list[str] = []
@@ -108,7 +145,7 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     if isinstance(referral_reasons_dict, dict):
         support_map = {
             "on_probation_status": "On probation status",
-            "grade_2_5_or_below": "Midterm grade is 2.50 or above",
+            "grade_2_5_or_below": "Midterm grade is 2.50 or below",
             "gwa_2_5_or_below": "GWA is 2.5 or below",
             "low_midterm_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
@@ -121,7 +158,7 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     if not reasons:
         individual_map = {
             "on_probation_status": "On probation status",
-            "has_subject_grade_2_5": "Midterm grade is 2.50 or above",
+            "has_subject_grade_2_5": "Midterm grade is 2.50 or below",
             "gwa_2_5_or_below": "GWA is 2.5 or below",
             "low_midterm_academic_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
@@ -181,7 +218,7 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                 continue
             out.append({
                 "id": _referral_id(class_id, identifier),
-                "student_email": student_email or None,
+                "student_email": _get_referral_contact_email(doc),
                 "student_id": student_id or None,
                 "student_name": student_name,
                 "class_id": class_id,
@@ -201,6 +238,7 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                     if doc.get("needs_assessment_uploaded_at")
                     else None
                 ),
+                "needs_assessment_invitation": _serialize_invitation(doc),
                 "risk_source": doc.get("risk_source"),
                 "risk_source_label": doc.get("risk_source_label"),
                 "risk_drivers": doc.get("risk_drivers") or [],
@@ -295,7 +333,7 @@ def get_referral(ref_id: str):
         referred_at_str = referred_at.strftime("%b %d, %Y") if referred_at else "—"
         return {
             "id": ref_id,
-            "student_email": student_email or None,
+            "student_email": _get_referral_contact_email(doc),
             "student_id": student_id or None,
             "student_name": student_name,
             "class_id": class_id,
@@ -312,6 +350,9 @@ def get_referral(ref_id: str):
             "risk_probability_percent": doc.get("risk_probability_percent"),
             "previous_gpa": doc.get("previous_gpa"),
             "failed_subject_count": doc.get("failed_subject_count"),
+            "has_needs_assessment": bool(doc.get("needs_assessment")),
+            "needs_assessment": _normalize_needs_assessment(doc),
+            "needs_assessment_invitation": _serialize_invitation(doc),
             "risk_source": doc.get("risk_source"),
             "risk_source_label": doc.get("risk_source_label"),
             "risk_drivers": doc.get("risk_drivers") or [],
@@ -345,6 +386,7 @@ def notify_referred_student(ref_id: str, body: ReferralEmailRequest, actor: dict
         doc = _find_referral_doc(db, class_id, identifier)
         if not doc:
             raise HTTPException(status_code=404, detail="Referral not found.")
+        class_doc = db.classes.find_one({"_id": ObjectId(class_id)}) if ObjectId.is_valid(class_id) else None
 
         student_email = _normalize_referral_value(doc.get("student_email")).lower()
         if not student_email:
@@ -358,13 +400,16 @@ def notify_referred_student(ref_id: str, body: ReferralEmailRequest, actor: dict
         create_notification(
             db,
             role="amu-staff",
+            recipient_user_id=str(actor["id"]),
             title="Student support email sent",
             body=f"Support email sent to {student_email}.",
             type="report",
         )
+        instructor_id = str(class_doc.get("instructor_id")) if class_doc and class_doc.get("instructor_id") else None
         create_notification(
             db,
             role="instructor",
+            recipient_user_id=instructor_id,
             title="AMU reached out to a referred student",
             body=f"AMU staff sent a support email to {student_email}.",
             type="case",
@@ -457,13 +502,17 @@ async def upload_needs_assessment(ref_id: str, file: UploadFile = File(...), act
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Use CSV, Excel, or JSON.")
 
+        normalized_needs_assessment = _normalize_needs_assessment_payload(needs_assessment_data)
+
         # Store needs assessment data in enrollment record
         db.enrollments.update_one(
             {"_id": doc["_id"]},
             {
                 "$set": {
-                    "needs_assessment": needs_assessment_data,
+                    "needs_assessment": normalized_needs_assessment,
                     "needs_assessment_uploaded_at": datetime.now(timezone.utc),
+                    "academic_challenge_score": normalized_needs_assessment.get("academic_challenge_score"),
+                    "external_factor_score": normalized_needs_assessment.get("external_factor_score"),
                 }
             },
         )
@@ -476,12 +525,12 @@ async def upload_needs_assessment(ref_id: str, file: UploadFile = File(...), act
             description=f"Uploaded a needs assessment for referral {ref_id}.",
             target_type="referral",
             target_id=ref_id,
-            metadata={"filename": filename, "field_count": len(needs_assessment_data)},
+            metadata={"filename": filename, "field_count": len(normalized_needs_assessment)},
         )
 
         return {
             "message": "Needs assessment uploaded successfully.",
-            "data_received": len(needs_assessment_data),
+            "data_received": len(normalized_needs_assessment),
             "filename": filename,
         }
     except HTTPException:
@@ -596,6 +645,19 @@ def _normalize_needs_assessment(doc: dict) -> dict[str, Any]:
     return normalized
 
 
+def _serialize_public_invitation(doc: dict) -> dict[str, Any]:
+    invitation = doc.get("needs_assessment_invitation") or {}
+    student_name = _normalize_referral_value(doc.get("student_name")) or _normalize_referral_value(doc.get("student_id")) or "Student"
+    return {
+        "student_name": student_name,
+        "student_id": _normalize_referral_value(doc.get("student_id")) or None,
+        "student_email": _get_referral_contact_email(doc),
+        "status": invitation.get("status") or ("completed" if doc.get("needs_assessment") else "sent"),
+        "submitted_at": invitation.get("submitted_at").isoformat() if isinstance(invitation.get("submitted_at"), datetime) else invitation.get("submitted_at"),
+        "can_submit": not bool(doc.get("needs_assessment")),
+    }
+
+
 def _slugify_needs_assessment_label(value: Any) -> str:
     text = str(value or "").strip().lower()
     cleaned = []
@@ -646,6 +708,9 @@ _NEEDS_ASSESSMENT_FIELD_ALIASES = {
     "family_issues": "family_issues",
     "part_time_work_affecting_studies": "part_time_work_affecting_studies",
     "mental_health_related_concerns": "mental_health_concerns",
+    "internet_connectivity_issues": "internet_issues",
+    "internet_issues": "internet_issues",
+    "connectivity_issues": "internet_issues",
 }
 
 
@@ -661,6 +726,55 @@ def _normalize_uploaded_value(value: Any) -> Any:
             return 0
         return stripped
     return value
+
+
+def _normalize_needs_assessment_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized: dict[str, Any] = {}
+    grouped_sections = payload.get("_grouped_sections") if isinstance(payload.get("_grouped_sections"), dict) else {}
+    column_map = payload.get("_column_map") if isinstance(payload.get("_column_map"), list) else []
+
+    for raw_key, raw_value in payload.items():
+        if raw_key in {"_grouped_sections", "_column_map"} or raw_key is None:
+            continue
+        field_key = _slugify_needs_assessment_label(raw_key)
+        normalized_key = _NEEDS_ASSESSMENT_FIELD_ALIASES.get(field_key, field_key)
+        normalized[normalized_key] = _normalize_uploaded_value(raw_value)
+
+    academic_fields = [
+        "difficulty_understanding_lectures",
+        "struggles_specific_subjects",
+        "weak_study_habits_time_management",
+        "low_motivation_engagement",
+        "poor_comprehension_writing_skills",
+    ]
+    external_fields = [
+        "financial_difficulties",
+        "physical_health_concerns",
+        "family_issues",
+        "part_time_work_affecting_studies",
+        "mental_health_concerns",
+        "internet_issues",
+    ]
+
+    normalized["academic_challenge_score"] = sum(1 for field in academic_fields if _is_truthy_value(normalized.get(field)))
+    normalized["external_factor_score"] = sum(1 for field in external_fields if _is_truthy_value(normalized.get(field)))
+
+    compatibility_aliases = {
+        "on_probation_status": normalized.get("on_probationary_status"),
+        "has_subject_grade_2_5": normalized.get("grade_2_5_or_below"),
+        "difficulty_catching_up_instructions": normalized.get("difficulty_catching_up"),
+        "low_midterm_performance": normalized.get("low_midterm_academic_performance"),
+        "health_issues": normalized.get("physical_health_concerns"),
+    }
+    for alias_key, alias_value in compatibility_aliases.items():
+        if alias_value is not None:
+            normalized[alias_key] = alias_value
+
+    if grouped_sections:
+        normalized["_grouped_sections"] = grouped_sections
+    if column_map:
+        normalized["_column_map"] = column_map
+    return normalized
 
 
 def _build_needs_assessment_payload_from_grouped_rows(
@@ -695,11 +809,12 @@ def _build_needs_assessment_payload_from_grouped_rows(
             }
         )
 
-    return {
+    payload = {
         **flat_data,
         "_grouped_sections": grouped_data,
         "_column_map": column_map,
     }
+    return _normalize_needs_assessment_payload(payload)
 
 
 def _is_truthy_value(value: Any) -> bool:
@@ -913,6 +1028,11 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
                 "support_routing": _serialize_support_routing(doc),
             }
 
+        normalized_needs_assessment = _normalize_needs_assessment_payload(doc.get("needs_assessment") or {})
+        doc["needs_assessment"] = normalized_needs_assessment
+        doc["academic_challenge_score"] = normalized_needs_assessment.get("academic_challenge_score")
+        doc["external_factor_score"] = normalized_needs_assessment.get("external_factor_score")
+
         result = predict_student_risk(doc)
         probability = result.get("probability")
         if probability is None:
@@ -927,26 +1047,32 @@ def predict_referral(ref_id: str, actor: dict = Depends(get_current_actor)):
         # Save prediction to enrollment doc
         db.enrollments.update_one(
             {"_id": doc["_id"]},
-            {"$set": {"amu_prediction": {
-                "prediction_status": "ready",
-                "probability": probability,
-                "prediction_label": prediction_label,
-                "prediction_basis": "weight_score_comparison",
-                "factors": factors,
-                "academic_weight_reasons": academic_weight_reasons,
-                "external_weight_reasons": external_weight_reasons,
-                "academic_weight_score": academic_weight_score,
-                "external_weight_score": external_weight_score,
-                "risk_source": result.get("risk_source"),
-                "risk_source_label": result.get("risk_source_label"),
-                "risk_drivers": result.get("risk_drivers") or [],
-                "academic_risk_drivers": result.get("academic_risk_drivers") or [],
-                "external_risk_drivers": result.get("external_risk_drivers") or [],
-                "top_contributing_signals": result.get("top_contributing_signals") or [],
-                "features": result.get("features") or {},
-                "used_model": result.get("model_path") is not None,
-                "model_source": result.get("model_source"),
-            }, "amu_prediction_generated_at": datetime.now(timezone.utc)}}
+            {"$set": {
+                "needs_assessment": normalized_needs_assessment,
+                "academic_challenge_score": doc.get("academic_challenge_score"),
+                "external_factor_score": doc.get("external_factor_score"),
+                "amu_prediction": {
+                    "prediction_status": "ready",
+                    "probability": probability,
+                    "prediction_label": prediction_label,
+                    "prediction_basis": "weight_score_comparison",
+                    "factors": factors,
+                    "academic_weight_reasons": academic_weight_reasons,
+                    "external_weight_reasons": external_weight_reasons,
+                    "academic_weight_score": academic_weight_score,
+                    "external_weight_score": external_weight_score,
+                    "risk_source": result.get("risk_source"),
+                    "risk_source_label": result.get("risk_source_label"),
+                    "risk_drivers": result.get("risk_drivers") or [],
+                    "academic_risk_drivers": result.get("academic_risk_drivers") or [],
+                    "external_risk_drivers": result.get("external_risk_drivers") or [],
+                    "top_contributing_signals": result.get("top_contributing_signals") or [],
+                    "features": result.get("features") or {},
+                    "used_model": result.get("model_path") is not None,
+                    "model_source": result.get("model_source"),
+                },
+                "amu_prediction_generated_at": datetime.now(timezone.utc),
+            }}
         )
         create_activity_log(
             db,
@@ -1071,6 +1197,164 @@ def get_overview(actor: dict = Depends(get_current_actor)):
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
+@router.post("/referrals/{ref_id:path}/needs-assessment/send")
+def send_needs_assessment_invitation(
+    ref_id: str,
+    body: NeedsAssessmentInvitationRequest,
+    actor: dict = Depends(get_current_actor),
+):
+    """Send or resend a tokenized needs assessment form link to a referred student."""
+    try:
+        class_id, identifier = _parse_ref_id(ref_id)
+        db = get_db()
+        doc = _find_referral_doc(db, class_id, identifier)
+        if not doc:
+            raise HTTPException(status_code=404, detail="Referral not found.")
+
+        student_email = _get_referral_contact_email(doc)
+        if not student_email:
+            raise HTTPException(status_code=400, detail="This referred student has no student ID or email on file.")
+
+        student_name = _normalize_referral_value(doc.get("student_name")) or _normalize_referral_value(doc.get("student_id")) or student_email
+        existing_invitation = doc.get("needs_assessment_invitation") or {}
+        token = existing_invitation.get("token") or secrets.token_urlsafe(32)
+        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+        form_link = f"{frontend_url}/needs-assessment/{token}"
+        now = datetime.now(timezone.utc)
+
+        sent, err = send_needs_assessment_email(
+            student_email,
+            student_name,
+            form_link,
+            body.custom_message,
+        )
+        if not sent:
+            db.enrollments.update_one(
+                {"_id": doc["_id"]},
+                {
+                    "$set": {
+                        "needs_assessment_invitation": {
+                            **existing_invitation,
+                            "token": token,
+                            "email": student_email,
+                            "status": "failed",
+                            "last_error": err or "Failed to send email.",
+                        }
+                    }
+                },
+            )
+            raise HTTPException(status_code=500, detail=err or "Failed to send email.")
+
+        invitation = {
+            "token": token,
+            "email": student_email,
+            "status": "completed" if doc.get("needs_assessment") else "sent",
+            "sent_at": now,
+            "submitted_at": existing_invitation.get("submitted_at"),
+            "last_error": None,
+        }
+        db.enrollments.update_one({"_id": doc["_id"]}, {"$set": {"needs_assessment_invitation": invitation}})
+
+        create_activity_log(
+            db,
+            actor_id=actor["id"],
+            actor_name=actor.get("name", "User"),
+            role=actor["role"],
+            action="send_needs_assessment_invitation",
+            description=f"Sent needs assessment form to {student_email}.",
+            target_type="referral",
+            target_id=ref_id,
+        )
+        return {
+            "message": f"Needs assessment form sent to {student_email}.",
+            "invitation": _serialize_invitation({"needs_assessment_invitation": invitation}),
+            "form_link": form_link,
+        }
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.get("/needs-assessments/export")
+def export_needs_assessments(actor: dict = Depends(get_current_actor)):
+    """Export completed needs assessment responses for the current AMU staff member."""
+    try:
+        db = get_db()
+        cursor = db.enrollments.find(
+            {
+                "flagged_for_mentoring": True,
+                "assigned_amu_staff_id": actor["id"],
+                "needs_assessment": {"$exists": True, "$ne": None},
+            }
+        ).sort("referred_at", -1)
+
+        fieldnames = [
+            "student_id",
+            "student_email",
+            "student_name",
+            "subject_code",
+            "subject_name",
+            "referred_at",
+            "submitted_at",
+            "previous_gpa",
+            "failed_subject_count",
+            "regular_attendance",
+            "frequently_absent_or_late",
+            "tutoring_sessions",
+            "peer_mentoring",
+            "faculty_consultation",
+            "counselling_sessions",
+            "no_previous_support",
+            "difficulty_understanding_lectures",
+            "struggles_specific_subjects",
+            "weak_study_habits_time_management",
+            "low_motivation_engagement",
+            "poor_comprehension_writing_skills",
+            "financial_difficulties",
+            "physical_health_concerns",
+            "family_issues",
+            "part_time_work_affecting_studies",
+            "mental_health_concerns",
+            "internet_issues",
+            "notes",
+        ]
+
+        buffer = StringIO()
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        for doc in cursor:
+            needs = doc.get("needs_assessment") or {}
+            invitation = doc.get("needs_assessment_invitation") or {}
+            class_doc = db.classes.find_one({"_id": ObjectId(doc["class_id"])}) if ObjectId.is_valid(doc["class_id"]) else None
+            student_email = _get_referral_contact_email(doc)
+            referred_at = doc.get("referred_at")
+            submitted_at = invitation.get("submitted_at") or doc.get("needs_assessment_uploaded_at")
+            writer.writerow({
+                "student_id": _normalize_referral_value(doc.get("student_id")),
+                "student_email": student_email or "",
+                "student_name": _normalize_referral_value(doc.get("student_name")),
+                "subject_code": class_doc.get("subject_code") if class_doc else "",
+                "subject_name": class_doc.get("subject_name") if class_doc else "",
+                "referred_at": referred_at.isoformat() if isinstance(referred_at, datetime) else "",
+                "submitted_at": submitted_at.isoformat() if isinstance(submitted_at, datetime) else (submitted_at or ""),
+                **{key: needs.get(key, "") for key in fieldnames if key not in {
+                    "student_id", "student_email", "student_name", "subject_code", "subject_name", "referred_at", "submitted_at"
+                }},
+            })
+
+        filename = f"needs-assessment-responses-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.csv"
+        return StreamingResponse(
+            iter([buffer.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
 @router.get("/reports")
 def get_reports(actor: dict = Depends(get_current_actor)):
     """Monthly summary of referrals and saved AMU support routing outcomes."""
@@ -1112,5 +1396,64 @@ def get_reports(actor: dict = Depends(get_current_actor)):
             "history": out,
             "support_routing_summary": verdict_counts,
         }
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@public_router.get("/needs-assessments/{token}")
+def get_public_needs_assessment(token: str):
+    """Return invitation metadata for a student needs assessment form."""
+    try:
+        db = get_db()
+        doc = db.enrollments.find_one({"needs_assessment_invitation.token": token, "flagged_for_mentoring": True})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Needs assessment link not found.")
+        return _serialize_public_invitation(doc)
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@public_router.post("/needs-assessments/{token}")
+def submit_public_needs_assessment(token: str, body: PublicNeedsAssessmentSubmission):
+    """Submit a tokenized student needs assessment form."""
+    try:
+        db = get_db()
+        doc = db.enrollments.find_one({"needs_assessment_invitation.token": token, "flagged_for_mentoring": True})
+        if not doc:
+            raise HTTPException(status_code=404, detail="Needs assessment link not found.")
+
+        invitation = doc.get("needs_assessment_invitation") or {}
+        if doc.get("needs_assessment") and invitation.get("status") == "completed":
+            raise HTTPException(status_code=409, detail="This needs assessment form has already been submitted.")
+
+        payload = _normalize_needs_assessment_payload(body.model_dump())
+        payload["_submitted_via"] = "public_form"
+        now = datetime.now(timezone.utc)
+        updated_invitation = {
+            **invitation,
+            "status": "completed",
+            "submitted_at": now,
+            "last_error": None,
+        }
+        db.enrollments.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {
+                    "needs_assessment": payload,
+                    "needs_assessment_uploaded_at": now,
+                    "needs_assessment_invitation": updated_invitation,
+                    "academic_challenge_score": payload.get("academic_challenge_score"),
+                    "external_factor_score": payload.get("external_factor_score"),
+                }
+            },
+        )
+        return {
+            "message": "Needs assessment submitted successfully.",
+            "submitted_at": now.isoformat(),
+        }
+    except HTTPException:
+        raise
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")

@@ -23,7 +23,7 @@ export default function HeaderAwareOverlay({
     .filter(Boolean)
     .join(' ')
 
-  const contentClasses = ['flex-1 overflow-y-auto', contentClassName]
+  const contentClasses = ['clean-scrollbar flex-1 overflow-y-auto', contentClassName]
     .filter(Boolean)
     .join(' ')
 

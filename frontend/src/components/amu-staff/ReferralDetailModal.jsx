@@ -45,7 +45,7 @@ export default function ReferralDetailModal({ refId, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-200/80">
+      <div className="clean-scrollbar w-full max-w-xl max-h-[80vh] overflow-y-auto rounded-2xl bg-white shadow-xl border border-slate-200/80">
         {/* Header */}
         <div className="flex items-start justify-between px-5 py-4 border-b border-slate-200 bg-gradient-to-r from-teal-50 via-sky-50 to-white">
           <div>

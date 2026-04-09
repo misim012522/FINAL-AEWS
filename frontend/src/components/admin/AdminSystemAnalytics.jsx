@@ -57,7 +57,7 @@ export default function AdminSystemAnalytics() {
     },
     midterm_attendance_needs: {
       label: 'Midterm, Attendance, and Needs Assessment',
-      description: 'Uses the retrained XGBoost pipeline based on midterm grades, attendance, and uploaded needs assessment factors.',
+      description: 'Uses the retrained XGBoost pipeline based on midterm grades, attendance, and completed needs assessment form factors.',
     },
   }
   const activeProfile = profileMeta[latestAccuracy?.profile] || {

@@ -116,7 +116,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: 'What can AMU Staff do?',
-        a: 'AMU Staff handle referrals, review student follow-up needs, upload needs assessments, and coordinate support work for referred students.',
+        a: 'AMU Staff handle referrals, send needs assessment forms to referred students, review completed responses, and coordinate support work for referred students.',
       },
     ],
   },

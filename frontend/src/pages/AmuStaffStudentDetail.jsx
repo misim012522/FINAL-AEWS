@@ -8,7 +8,7 @@ import {
   Building2,
   AlertTriangle,
   CheckCircle,
-  Upload,
+  Send,
   Zap,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
@@ -165,17 +165,20 @@ export default function AmuStaffStudentDetail() {
           <div className="p-3 border-t border-gray-200 space-y-3">
             <div className="rounded-md border border-teal-200 bg-teal-50 p-3">
               <div className="flex items-center gap-2 mb-2">
-                <Upload className="w-4 h-4 text-teal-600" />
-                <h2 className="text-xs font-bold text-gray-900">Upload Needs Assessment</h2>
+                <Send className="w-4 h-4 text-teal-600" />
+                <h2 className="text-xs font-bold text-gray-900">Send Needs Assessment Form</h2>
               </div>
               <p className="text-[10px] text-gray-600 mb-2.5">
-                Upload the needs assessment for this student to generate academic support predictions.
+                Send the online needs assessment form to this student through their BukSU email, then wait for the completed response before generating predictions.
               </p>
-              <input
-                type="file"
-                accept=".csv,.xlsx,.json"
-                className="w-full block text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:text-xs file:font-semibold file:bg-teal-100 file:text-teal-700 hover:file:bg-teal-200"
-              />
+              <button
+                type="button"
+                onClick={() => navigate('/amu-staff/needs-assessments')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 transition-colors"
+              >
+                <Send className="w-3.5 h-3.5" />
+                Open needs assessment workflow
+              </button>
             </div>
 
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
@@ -184,7 +187,7 @@ export default function AmuStaffStudentDetail() {
                 <h2 className="text-xs font-bold text-gray-900">Generate Prediction</h2>
               </div>
               <p className="text-[10px] text-gray-600 mb-2.5">
-                Based on grade, attendance, and needs assessment data, generate a prediction for this student's academic performance.
+                Based on grade, attendance, and completed needs assessment form responses, generate a prediction for this student's academic performance.
               </p>
               <button
                 type="button"

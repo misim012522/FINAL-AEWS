@@ -80,13 +80,19 @@ export default function ActivityLogs() {
           )}
 
           {!loading && !error && logs.length > 0 && (
-            <div className="space-y-3">
-              {logs.map((log) => (
-                <div key={log.id} className="rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <div className="clean-scrollbar max-h-[28rem] space-y-3 overflow-y-auto pr-1 sm:max-h-[32rem]">
+              {logs.map((log, index) => (
+                <div
+                  key={log.id}
+                  className={`rounded-xl border border-slate-200 bg-white px-4 py-4 shadow-sm ${index === 0 ? 'sticky top-0 z-10 border-blue-100 bg-white/95 backdrop-blur-sm shadow-md' : ''}`}
+                >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-slate-900">{log.description}</p>
-                      <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">{String(log.action || '').replace(/_/g, ' ')}</p>
+                      <p className="mt-1 text-xs uppercase tracking-wide text-slate-400">
+                        {String(log.action || '').replace(/_/g, ' ')}
+                        {index === 0 ? ' • latest' : ''}
+                      </p>
                     </div>
                     <div className="inline-flex items-center gap-1 text-xs text-slate-500">
                       <CalendarClock className="w-3.5 h-3.5" />

@@ -20,7 +20,7 @@ export default class ErrorBoundary extends Component {
             <p className="text-sm text-gray-600 mb-4">
               The page could not be displayed. Check the browser console for details.
             </p>
-            <pre className="text-xs text-red-700 bg-red-50 p-3 rounded-lg overflow-auto max-h-32 mb-4">
+            <pre className="clean-scrollbar text-xs text-red-700 bg-red-50 p-3 rounded-lg overflow-auto max-h-32 mb-4">
               {this.state.error?.message ?? 'Unknown error'}
             </pre>
             <button

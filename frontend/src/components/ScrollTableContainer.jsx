@@ -9,6 +9,6 @@ export default function ScrollTableContainer({
   className = '',
 }) {
   const heightClass = SIZE_CLASS[size] || SIZE_CLASS.compact
-  const classes = [heightClass, 'overflow-auto', className].filter(Boolean).join(' ')
+  const classes = [heightClass, 'clean-scrollbar overflow-auto', className].filter(Boolean).join(' ')
   return <div className={classes}>{children}</div>
 }

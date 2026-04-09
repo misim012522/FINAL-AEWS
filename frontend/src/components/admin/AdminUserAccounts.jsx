@@ -28,7 +28,7 @@ const rolePermissions = {
   ],
   'amu-staff': [
     'View student referrals',
-    'Review uploaded needs assessments',
+    'Review completed needs assessment forms',
     'Run AMU-side predictions',
     'Coordinate with instructors',
     'Access student support resources',
@@ -408,24 +408,25 @@ export default function AdminUserAccounts() {
                               <button
                                 type="button"
                                 aria-haspopup="true"
+                                aria-expanded={openMenuId === String(u.id)}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   e.nativeEvent?.stopImmediatePropagation?.()
                                   setOpenMenuId(openMenuId === String(u.id) ? null : String(u.id))
                                 }}
-                                className="p-2 rounded-md hover:bg-gray-100 text-gray-500 transition-colors"
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-200 text-slate-700 shadow-sm transition-all hover:bg-slate-300 hover:shadow-md active:scale-[0.98]"
                               >
                                 <MoreVertical className="w-4 h-4" />
                               </button>
                               {openMenuId === String(u.id) && (
-                                <div className="absolute right-0 top-full mt-1 py-1 w-36 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-visible">
+                                <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-lg border border-slate-200 bg-white py-1 shadow-lg shadow-slate-200/70 overflow-visible">
                                   <button
                                     type="button"
                                     onClick={() => handleArchive(u.id)}
                                     disabled={actingId === u.id}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors text-left"
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
                                   >
-                                    <Archive className="w-4 h-4 text-gray-500" />
+                                    <Archive className="w-3.5 h-3.5" />
                                     Archive
                                   </button>
                                 </div>
@@ -467,7 +468,7 @@ export default function AdminUserAccounts() {
                 Close
               </button>
             </div>
-            <div className="p-8 overflow-y-auto max-h-[calc(100vh-11rem)]">
+            <div className="clean-scrollbar p-8 overflow-y-auto max-h-[calc(100vh-11rem)]">
               {detailLoading ? (
                 <div className="p-8 text-center text-sm text-gray-500">Loading user...</div>
               ) : detailError ? (

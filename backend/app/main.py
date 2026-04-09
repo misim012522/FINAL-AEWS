@@ -122,6 +122,7 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["not
 app.include_router(activity_logs.router, prefix="/api/activity-logs", tags=["activity-logs"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(amu_staff.router, prefix="/api/amu-staff", tags=["amu-staff"])
+app.include_router(amu_staff.public_router, prefix="/api/public", tags=["public-needs-assessment"])
 
 
 @app.get("/api/health")

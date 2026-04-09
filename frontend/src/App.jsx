@@ -12,6 +12,7 @@ const PendingApproval = lazy(() => import('./pages/PendingApproval'))
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
+const StudentNeedsAssessment = lazy(() => import('./pages/StudentNeedsAssessment'))
 const Help = lazy(() => import('./pages/Help'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 const InstructorDashboard = lazy(() => import('./pages/InstructorDashboard'))
@@ -71,6 +72,7 @@ export default function App() {
                 <Route path="/verify-email" element={<VerifyEmail />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/needs-assessment/:token" element={<StudentNeedsAssessment />} />
                 <Route path="/instructor" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorDashboard /></ProtectedRoute>} />
                 <Route path="/instructor/reports" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorReports /></ProtectedRoute>} />
                 <Route path="/instructor/settings" element={<ProtectedRoute allowedRoles={['instructor']}><InstructorSettings /></ProtectedRoute>} />

@@ -1,4 +1,26 @@
-import { getAuthHeaders, getCurrentAuthRole, readStoredAuth } from './lib/authStorage'
+import { getAuthHeaders, getCurrentAuthRole, normalizeRole, readStoredAuth } from './lib/authStorage'
+
+function getDefaultApiBase() {
+  if (typeof window === 'undefined') return 'http://localhost:8000'
+  const { protocol, hostname } = window.location
+  return `${protocol}//${hostname}:8000`
+}
+
+function normalizeApiBase(rawValue) {
+  const fallback = getDefaultApiBase()
+  const raw = String(rawValue ?? '').trim()
+  if (!raw) return fallback
+  if (/^:\d+/.test(raw)) {
+    if (typeof window === 'undefined') return `http://localhost${raw}`
+    const { protocol, hostname } = window.location
+    return `${protocol}//${hostname}${raw}`
+  }
+  if (raw.startsWith('//')) {
+    if (typeof window === 'undefined') return `http:${raw}`
+    return `${window.location.protocol}${raw}`
+  }
+  return raw.replace(/\/+$/, '')
+}
 
 /** Upload gradesheet/attendance files for a class (CSV/XLSX). */
 /** Upload classlist and create class automatically. */
@@ -106,7 +128,7 @@ export async function previewClasslist(file, classId = '') {
   return data;
 }
 
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+export const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL)
 
 function formatErrorDetail(detail) {
   if (Array.isArray(detail)) {
@@ -485,6 +507,26 @@ export async function markAllNotificationsRead(role) {
   return data
 }
 
+export async function clearNotifications(role) {
+  const activeRole = getCurrentAuthRole()
+  const targetRole = normalizeRole(role || activeRole)
+  if (!targetRole) {
+    throw new Error('No authenticated role found')
+  }
+  if (activeRole && targetRole !== activeRole) {
+    throw new Error('Cannot clear notifications for another user role')
+  }
+  const res = await fetch(`${API_BASE}/api/notifications/${targetRole}/clear`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to clear notifications')
+  }
+  return data
+}
+
 export async function getActivityLogs(role, limit = 100) {
   const activeRole = getCurrentAuthRole()
   const targetRole = normalizeRole(role || activeRole)
@@ -557,6 +599,54 @@ export async function sendAmuStaffReferralEmail(refId, payload) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to send email')
+  return data
+}
+
+export async function sendNeedsAssessmentInvitation(refId, payload = {}) {
+  const res = await fetch(`${API_BASE}/api/amu-staff/referrals/${encodeURIComponent(refId)}/needs-assessment/send`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      custom_message: String(payload?.custom_message ?? '').trim() || undefined,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to send needs assessment')
+  return data
+}
+
+export async function exportNeedsAssessmentResponses() {
+  const res = await fetch(`${API_BASE}/api/amu-staff/needs-assessments/export`, {
+    headers: getAuthHeaders(),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to export needs assessments')
+  }
+  return {
+    blob: await res.blob(),
+    filename: res.headers.get('Content-Disposition')?.match(/filename=\"?([^"]+)\"?/)?.[1] || 'needs-assessment-responses.csv',
+  }
+}
+
+export async function getPublicNeedsAssessment(token) {
+  const res = await fetch(`${API_BASE}/api/public/needs-assessments/${encodeURIComponent(token)}`)
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load needs assessment')
+  return data
+}
+
+export async function submitPublicNeedsAssessment(token, payload) {
+  const res = await fetch(`${API_BASE}/api/public/needs-assessments/${encodeURIComponent(token)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload || {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to submit needs assessment')
   return data
 }
 

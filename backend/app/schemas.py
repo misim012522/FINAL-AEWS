@@ -75,6 +75,7 @@ class NotificationBase(BaseModel):
 
 class NotificationCreate(NotificationBase):
     role: Literal["instructor", "admin", "amu-staff"]
+    recipient_user_id: Optional[str] = None
 
 
 class NotificationUpdate(BaseModel):
@@ -84,6 +85,7 @@ class NotificationUpdate(BaseModel):
 class NotificationResponse(NotificationBase):
     id: str
     role: str
+    recipient_user_id: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -211,6 +213,42 @@ class UpdateEnrollmentRequest(BaseModel):
 class ReferralEmailRequest(BaseModel):
     subject: str = Field(..., min_length=1, max_length=200)
     message: str = Field(..., min_length=1, max_length=5000)
+
+
+class NeedsAssessmentInvitationRequest(BaseModel):
+    custom_message: Optional[str] = Field(None, max_length=5000)
+
+
+class PublicNeedsAssessmentSubmission(BaseModel):
+    admission_type: Optional[str] = Field(None, max_length=200)
+    academic_adviser: Optional[str] = Field(None, max_length=200)
+    on_probationary_status: bool = False
+    grade_2_5_or_below: bool = False
+    gwa_2_5_or_below: bool = False
+    low_midterm_academic_performance: bool = False
+    difficulty_catching_up: bool = False
+    previous_year_semester: Optional[str] = Field(None, max_length=200)
+    previous_gpa: Optional[float] = Field(None, ge=0, le=4)
+    failed_subject_count: Optional[int] = Field(None, ge=0)
+    regular_attendance: bool = False
+    frequently_absent_or_late: bool = False
+    tutoring_sessions: bool = False
+    peer_mentoring: bool = False
+    faculty_consultation: bool = False
+    counselling_sessions: bool = False
+    no_previous_support: bool = False
+    difficulty_understanding_lectures: bool = False
+    struggles_specific_subjects: bool = False
+    weak_study_habits_time_management: bool = False
+    low_motivation_engagement: bool = False
+    poor_comprehension_writing_skills: bool = False
+    financial_difficulties: bool = False
+    physical_health_concerns: bool = False
+    family_issues: bool = False
+    part_time_work_affecting_studies: bool = False
+    mental_health_concerns: bool = False
+    internet_issues: bool = False
+    notes: Optional[str] = Field(None, max_length=3000)
 
 
 # ----- Gradesheet -----

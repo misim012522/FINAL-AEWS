@@ -50,8 +50,8 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
       role="dialog"
       labelledBy="tutorial-title"
       className="flex items-start justify-center bg-black/50"
-      panelClassName="max-w-md"
-      contentClassName="rounded-xl bg-white shadow-xl"
+      panelClassName="max-w-md h-auto"
+      contentClassName="flex-none overflow-visible rounded-xl bg-white shadow-xl"
     >
       <div className="bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
@@ -68,7 +68,7 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="px-4 py-3 overflow-y-auto">
+        <div className="clean-scrollbar px-4 py-3 overflow-y-auto">
           <p className="text-xs text-slate-600 mb-3">
             Here are the main features and terms you’ll see so nothing feels confusing:
           </p>
@@ -105,4 +105,3 @@ export default function TutorialModal({ variant = 'instructor', onClose }) {
     </HeaderAwareOverlay>
   )
 }
-

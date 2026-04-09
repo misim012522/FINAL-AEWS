@@ -1,6 +1,6 @@
 import { createContext, useContext, useReducer, useMemo, useEffect, useCallback } from 'react'
 import { AuthContext } from './AuthContext'
-import { listNotifications, markNotificationRead as apiMarkRead, markAllNotificationsRead as apiMarkAllRead } from '../api'
+import { listNotifications, markNotificationRead as apiMarkRead, markAllNotificationsRead as apiMarkAllRead, clearNotifications as apiClearNotifications } from '../api'
 
 const INITIAL = { instructor: [], admin: [], 'amu-staff': [] }
 
@@ -19,6 +19,11 @@ function notificationsReducer(state, action) {
       return {
         ...state,
         [role]: list.map((n) => ({ ...n, read: true })),
+      }
+    case 'CLEAR_ALL':
+      return {
+        ...state,
+        [role]: [],
       }
     case 'RESET':
       return INITIAL
@@ -52,7 +57,7 @@ export function NotificationsProvider({ children }) {
 
     const intervalId = window.setInterval(() => {
       refreshNotifications().catch(() => {})
-    }, 15000)
+    }, 5000)
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -100,6 +105,19 @@ export function NotificationsProvider({ children }) {
     [refreshNotifications, role]
   )
 
+  const clearAll = useCallback(
+    async (r) => {
+      if (r !== role) return
+      dispatch({ type: 'CLEAR_ALL', role: r })
+      try {
+        await apiClearNotifications(role)
+      } catch {
+        if (role === r) refreshNotifications().catch(() => {})
+      }
+    },
+    [refreshNotifications, role]
+  )
+
   const api = useMemo(
     () => ({
       getNotifications(r) {
@@ -111,9 +129,10 @@ export function NotificationsProvider({ children }) {
       },
       markAsRead,
       markAllAsRead,
+      clearAll,
       refreshNotifications,
     }),
-    [notifications, markAsRead, markAllAsRead, refreshNotifications]
+    [notifications, markAsRead, markAllAsRead, clearAll, refreshNotifications]
   )
 
   return (
@@ -132,6 +151,7 @@ export function useNotifications() {
       getUnreadCount() { return 0 },
       markAsRead() {},
       markAllAsRead() {},
+      clearAll() {},
       refreshNotifications() { return Promise.resolve([]) },
     }
   }

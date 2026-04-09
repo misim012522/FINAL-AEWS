@@ -14,7 +14,7 @@ function formatAutoReferralUploadMessage(students) {
     .filter(([, value]) => Boolean(value))
     .map(([key]) => {
       if (key === 'on_probation_status') return 'on probation status'
-      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 or above'
+      if (key === 'grade_2_5_or_below') return 'midterm grade is 2.50 or below'
       if (key === 'gwa_2_5_or_below') return 'GWA is 2.5 or below'
       if (key === 'low_midterm_performance') return 'low midterm academic performance'
       if (key === 'difficulty_catching_up') return 'difficulty with catching up instructions'
