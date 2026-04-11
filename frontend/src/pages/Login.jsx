@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Brain, GraduationCap, Mail, Lock, UserPlus, CheckCircle } from 'lucide-react'
 import { login as apiLogin } from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -222,16 +222,7 @@ export default function Login() {
               {emailRequired && <p className="mt-1 text-sm text-red-600">This is required</p>}
             </div>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="block text-base font-medium text-gray-700">Password</label>
-                <button
-                  type="button"
-                  onClick={() => navigate('/forgot-password')}
-                  className="text-sm font-medium text-blue-600 hover:text-blue-700"
-                >
-                  Forgot password?
-                </button>
-              </div>
+              <label className="block text-base font-medium text-gray-700 mb-2">Password</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
                 <input
@@ -243,6 +234,14 @@ export default function Login() {
                 />
               </div>
               {passwordRequired && <p className="mt-1 text-sm text-red-600">This is required</p>}
+              <div className="mt-2 text-right">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-medium text-blue-600 transition hover:text-blue-700 hover:underline"
+                >
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             {RECAPTCHA_SITE_KEY && (

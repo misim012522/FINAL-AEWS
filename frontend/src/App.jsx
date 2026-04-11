@@ -28,6 +28,7 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const AdminSettings = lazy(() => import('./pages/AdminSettings'))
 const AdminStudentDetail = lazy(() => import('./pages/AdminStudentDetail'))
 const AdminUserDetail = lazy(() => import('./pages/AdminUserDetail'))
+const AdminNeedsAssessmentFormBuilder = lazy(() => import('./pages/AdminNeedsAssessmentFormBuilder'))
 const AmuStaffDashboard = lazy(() => import('./pages/AmuStaffDashboard'))
 const AmuStaffSettings = lazy(() => import('./pages/AmuStaffSettings'))
 const AmuStaffStudentDetail = lazy(() => import('./pages/AmuStaffStudentDetail'))
@@ -89,6 +90,7 @@ export default function App() {
                 <Route path="/admin/activity-logs" element={<ProtectedRoute allowedRoles={['admin']}><ActivityLogs /></ProtectedRoute>} />
                 <Route path="/admin/student/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminStudentDetail /></ProtectedRoute>} />
                 <Route path="/admin/user/:id" element={<ProtectedRoute allowedRoles={['admin']}><AdminUserDetail /></ProtectedRoute>} />
+                <Route path="/admin/needs-assessment-form" element={<ProtectedRoute allowedRoles={['admin']}><AdminNeedsAssessmentFormBuilder /></ProtectedRoute>} />
                 <Route path="/amu-staff" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffDashboard /></ProtectedRoute>} />
                 <Route path="/amu-staff/settings" element={<ProtectedRoute allowedRoles={['amu-staff']}><AmuStaffSettings /></ProtectedRoute>} />
                 <Route path="/amu-staff/activity-logs" element={<ProtectedRoute allowedRoles={['amu-staff']}><ActivityLogs /></ProtectedRoute>} />

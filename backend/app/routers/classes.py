@@ -104,6 +104,33 @@ def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
     return reasons
 
 
+AUTO_REFERRAL_REASON_KEYS = (
+    "on_probation_status",
+    "grade_2_5_or_below",
+    "gwa_2_5_or_below",
+    "low_midterm_performance",
+    "difficulty_catching_up",
+)
+
+MANUAL_NON_ACADEMIC_REASON_KEYS = (
+    "financial_difficulties",
+    "physical_health_concerns",
+    "family_issues",
+    "part_time_work_affecting_studies",
+    "mental_health_concerns",
+)
+
+
+def _normalized_referral_reasons_map(value) -> dict[str, bool]:
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): bool(flag) for key, flag in value.items()}
+
+
+def _has_any_referral_reason(reasons: dict, keys: tuple[str, ...]) -> bool:
+    return any(bool(reasons.get(key)) for key in keys)
+
+
 def _find_amu_staff_for_college(db, college: str) -> dict | None:
     college_name = _normalize_cell(college).strip()
     if not college_name:
@@ -120,10 +147,17 @@ def _find_amu_staff_for_college(db, college: str) -> dict | None:
 
 def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool:
     reasons = _build_auto_referral_reasons(enrollment_doc)
-    existing_reasons = enrollment_doc.get("referral_reasons") or {}
+    existing_reasons = _normalized_referral_reasons_map(enrollment_doc.get("referral_reasons"))
     already_referred = enrollment_doc.get("flagged_for_mentoring") is True
+    referral_source = _normalize_cell(enrollment_doc.get("referral_source")).lower()
+    has_manual_non_academic_reasons = _has_any_referral_reason(existing_reasons, MANUAL_NON_ACADEMIC_REASON_KEYS)
 
     if not any(reasons.values()):
+        if already_referred and (referral_source in {"manual_non_academic", "combined"} or has_manual_non_academic_reasons):
+            next_source = "manual_non_academic"
+            if referral_source != next_source:
+                db.enrollments.update_one({"_id": enrollment_doc["_id"]}, {"$set": {"referral_source": next_source}})
+            return False
         if already_referred and any(existing_reasons.values()):
             db.enrollments.update_one(
                 {"_id": enrollment_doc["_id"]},
@@ -131,6 +165,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
                     "$set": {"flagged_for_mentoring": False},
                     "$unset": {
                         "referral_reasons": "",
+                        "referral_source": "",
                         "assigned_amu_staff_id": "",
                         "assigned_amu_staff_name": "",
                         "assigned_amu_staff_college": "",
@@ -159,13 +194,16 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         and _normalize_cell(enrollment_doc.get("assigned_amu_staff_name")) == assigned_staff_name
         and _normalize_cell(enrollment_doc.get("assigned_amu_staff_college")) == (assigned_staff_college or "")
     )
-    same_reasons = existing_reasons == reasons
+    merged_reasons = {**existing_reasons, **reasons}
+    next_source = "combined" if has_manual_non_academic_reasons else "automatic_academic"
+    same_reasons = existing_reasons == merged_reasons
     if already_referred and already_assigned and same_reasons:
         return False
 
     update_data = {
         "flagged_for_mentoring": True,
-        "referral_reasons": reasons,
+        "referral_source": next_source,
+        "referral_reasons": merged_reasons,
         "assigned_amu_staff_id": assigned_staff_id,
         "assigned_amu_staff_name": assigned_staff_name,
         "assigned_amu_staff_college": assigned_staff_college,
@@ -3442,6 +3480,10 @@ def list_class_students(class_id: str, actor: dict = Depends(get_current_actor))
                 row["flagged_for_mentoring"] = doc["flagged_for_mentoring"]
             if doc.get("referral_note") is not None:
                 row["referral_note"] = doc["referral_note"]
+            if doc.get("referral_reasons") is not None:
+                row["referral_reasons"] = doc["referral_reasons"]
+            if doc.get("referral_source") is not None:
+                row["referral_source"] = doc["referral_source"]
             if doc.get("assigned_amu_staff_id") is not None:
                 row["assigned_amu_staff_id"] = doc["assigned_amu_staff_id"]
             if doc.get("assigned_amu_staff_name") is not None:
@@ -3883,16 +3925,16 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
         if not payload:
             return {"message": "No updates.", "student_email": student_email or None, "student_id": student_id or None}
         if payload.get("flagged_for_mentoring") is True:
-            # Debug: log the referral_reasons being received
-            if "referral_reasons" in payload:
-                print(f"DEBUG: Referral reasons received: {payload['referral_reasons']}")
+            existing_reasons = _normalized_referral_reasons_map(doc.get("referral_reasons"))
+            referral_reasons = _normalized_referral_reasons_map(payload.get("referral_reasons"))
+            selected_manual_non_academic = _has_any_referral_reason(referral_reasons, MANUAL_NON_ACADEMIC_REASON_KEYS)
             assigned_amu_staff_id = str(payload.get("assigned_amu_staff_id") or "").strip()
             assigned_amu_staff_name = str(payload.get("assigned_amu_staff_name") or "").strip()
             assigned_amu_staff_college = str(payload.get("assigned_amu_staff_college") or "").strip()
             if not assigned_amu_staff_id or not assigned_amu_staff_name:
                 inferred_doc = {**doc, **payload}
                 auto_reasons = _build_auto_referral_reasons(inferred_doc)
-                if any(auto_reasons.values()):
+                if any(auto_reasons.values()) and not selected_manual_non_academic:
                     instructor_doc = None
                     instructor_id = class_doc.get("instructor_id")
                     if instructor_id and ObjectId.is_valid(instructor_id):
@@ -3908,9 +3950,17 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
                     status_code=400,
                     detail="Please choose an AMU staff member before sending the referral.",
                 )
+            if selected_manual_non_academic:
+                merged_reasons = {**existing_reasons}
+                for key in MANUAL_NON_ACADEMIC_REASON_KEYS:
+                    merged_reasons[key] = bool(referral_reasons.get(key))
+                payload["referral_reasons"] = merged_reasons
+                payload["referral_source"] = "combined" if _has_any_referral_reason(merged_reasons, AUTO_REFERRAL_REASON_KEYS) else "manual_non_academic"
             payload["assigned_amu_staff_id"] = assigned_amu_staff_id
             payload["assigned_amu_staff_name"] = assigned_amu_staff_name
             payload["assigned_amu_staff_college"] = assigned_amu_staff_college or None
+            if not selected_manual_non_academic:
+                payload["referral_source"] = "automatic_academic"
         db.enrollments.update_one(
             {"_id": doc["_id"]},
             {"$set": payload},

@@ -1,92 +1,163 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AlertTriangle, CheckCircle2, ClipboardList, LoaderCircle } from 'lucide-react'
 import { getPublicNeedsAssessment, submitPublicNeedsAssessment } from '../api'
 
-const checkboxGroups = [
-  {
-    title: 'Current Academic Standing',
-    fields: [
-      ['on_probationary_status', 'On Probationary Status'],
-      ['grade_2_5_or_below', 'At least one subject has a grade of 2.5'],
-      ['gwa_2_5_or_below', 'GWA is 2.5 lower or below'],
-      ['low_midterm_academic_performance', 'Low midterm academic performance'],
-      ['difficulty_catching_up', 'Difficulty with catching up instructions'],
-    ],
-  },
-  {
-    title: 'Previous Academic Support Received',
-    fields: [
-      ['tutoring_sessions', 'Tutoring Sessions'],
-      ['peer_mentoring', 'Peer Mentoring'],
-      ['faculty_consultation', 'Faculty Consultation'],
-      ['counselling_sessions', 'Counselling Sessions'],
-      ['no_previous_support', 'None'],
-    ],
-  },
-  {
-    title: 'Academic Challenges',
-    fields: [
-      ['difficulty_understanding_lectures', 'Difficulty in Understanding Lectures'],
-      ['struggles_specific_subjects', 'Struggles with Specific Subjects'],
-      ['weak_study_habits_time_management', 'Weak Study Habits or Time Management'],
-      ['low_motivation_engagement', 'Low Motivation or Engagement'],
-      ['poor_comprehension_writing_skills', 'Poor Comprehension or Writing Skills'],
-    ],
-  },
-  {
-    title: 'External/Personal Factors Affecting Performance',
-    fields: [
-      ['financial_difficulties', 'Financial Difficulties'],
-      ['physical_health_concerns', 'Physical Health-Related Concerns'],
-      ['family_issues', 'Family Issues'],
-      ['part_time_work_affecting_studies', 'Part-Time Work Affecting Studies'],
-      ['mental_health_concerns', 'Mental Health-Related Concerns'],
-      ['internet_issues', 'Internet / Connectivity Issues'],
-    ],
-  },
-]
+const EMPTY_FORM = {}
 
-const initialForm = {
-  admission_type: '',
-  academic_adviser: '',
-  on_probationary_status: false,
-  grade_2_5_or_below: false,
-  gwa_2_5_or_below: false,
-  low_midterm_academic_performance: false,
-  difficulty_catching_up: false,
-  previous_year_semester: '',
-  previous_gpa: '',
-  failed_subject_count: '',
-  regular_attendance: false,
-  frequently_absent_or_late: false,
-  tutoring_sessions: false,
-  peer_mentoring: false,
-  faculty_consultation: false,
-  counselling_sessions: false,
-  no_previous_support: false,
-  difficulty_understanding_lectures: false,
-  struggles_specific_subjects: false,
-  weak_study_habits_time_management: false,
-  low_motivation_engagement: false,
-  poor_comprehension_writing_skills: false,
-  financial_difficulties: false,
-  physical_health_concerns: false,
-  family_issues: false,
-  part_time_work_affecting_studies: false,
-  mental_health_concerns: false,
-  internet_issues: false,
-  notes: '',
+function normalizeSections(form) {
+  if (!form || !Array.isArray(form.sections)) return []
+  return [...form.sections]
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((section) => ({
+      ...section,
+      fields: Array.isArray(section.fields)
+        ? [...section.fields].filter((field) => field?.active !== false).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        : [],
+    }))
+}
+
+function initialValuesFromSections(sections) {
+  const values = {}
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (field.type === 'boolean') values[field.name] = false
+      else values[field.name] = ''
+    }
+  }
+  return values
+}
+
+function buildSubmissionPayload(values, sections) {
+  const payload = {}
+  for (const section of sections) {
+    for (const field of section.fields) {
+      const rawValue = values[field.name]
+      if (field.type === 'number') {
+        payload[field.name] = rawValue === '' ? null : Number(rawValue)
+      } else if (field.type === 'textarea' || field.type === 'text' || field.type === 'select') {
+        payload[field.name] = String(rawValue ?? '').trim() || null
+      } else {
+        payload[field.name] = rawValue
+      }
+    }
+  }
+  return payload
+}
+
+function isEmptyRequiredValue(field, value) {
+  if (field.type === 'boolean') return value !== true
+  if (field.type === 'number') return value === '' || value === null || value === undefined
+  return String(value ?? '').trim() === ''
+}
+
+function validateRequiredFields(values, sections) {
+  const nextErrors = {}
+  for (const section of sections) {
+    for (const field of section.fields) {
+      if (!field.required) continue
+      if (isEmptyRequiredValue(field, values[field.name])) {
+        nextErrors[field.name] = 'This field is required.'
+      }
+    }
+  }
+  return nextErrors
+}
+
+function renderField(field, value, setValue, error) {
+  const sharedClass = `w-full rounded-xl border px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 ${
+    error ? 'border-red-300 bg-red-50/40' : 'border-slate-200'
+  }`
+  const helpText = field.help_text ? <p className="mt-1 text-xs text-slate-500">{field.help_text}</p> : null
+  const label = (
+    <span className="mb-1 block text-sm font-medium text-slate-700">
+      {field.label}
+      {field.required ? <span className="ml-1 text-red-600">*</span> : null}
+    </span>
+  )
+  const errorText = error ? <p className="mt-1 text-xs font-medium text-red-600">{error}</p> : null
+
+  if (field.type === 'boolean') {
+    return (
+      <label key={field.id} className={`flex items-start gap-3 rounded-xl border px-3 py-3 text-sm text-slate-700 hover:bg-slate-50 ${error ? 'border-red-300 bg-red-50/40' : 'border-slate-200'}`}>
+        <input
+          type="checkbox"
+          checked={Boolean(value)}
+          onChange={(e) => setValue(field.name, e.target.checked)}
+          className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+        />
+        <span>
+          {field.label}
+          {field.required ? <span className="ml-1 text-red-600">*</span> : null}
+          {helpText}
+          {errorText}
+        </span>
+      </label>
+    )
+  }
+
+  if (field.type === 'textarea') {
+    return (
+      <label key={field.id} className="block">
+        {label}
+        <textarea
+          rows={5}
+          value={value ?? ''}
+          onChange={(e) => setValue(field.name, e.target.value)}
+          placeholder={field.placeholder || ''}
+          className={sharedClass}
+        />
+        {helpText}
+        {errorText}
+      </label>
+    )
+  }
+
+  if (field.type === 'select') {
+    return (
+      <label key={field.id} className="block">
+        {label}
+        <select value={value ?? ''} onChange={(e) => setValue(field.name, e.target.value)} className={sharedClass}>
+          <option value="">Select an option</option>
+          {(field.options || []).map((option) => (
+            <option key={option} value={option}>{option}</option>
+          ))}
+        </select>
+        {helpText}
+        {errorText}
+      </label>
+    )
+  }
+
+  return (
+    <label key={field.id} className="block">
+      {label}
+      <input
+        type={field.type === 'number' ? 'number' : 'text'}
+        step={field.type === 'number' ? '0.01' : undefined}
+        value={value ?? ''}
+        onChange={(e) => setValue(field.name, e.target.value)}
+        placeholder={field.placeholder || ''}
+        className={sharedClass}
+      />
+      {helpText}
+      {errorText}
+    </label>
+  )
 }
 
 export default function StudentNeedsAssessment() {
   const { token } = useParams()
   const [meta, setMeta] = useState(null)
-  const [form, setForm] = useState(initialForm)
+  const [formTemplate, setFormTemplate] = useState(null)
+  const [formValues, setFormValues] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+
+  const sections = useMemo(() => normalizeSections(formTemplate), [formTemplate])
 
   useEffect(() => {
     let cancelled = false
@@ -95,7 +166,11 @@ export default function StudentNeedsAssessment() {
         setLoading(true)
         setError('')
         const data = await getPublicNeedsAssessment(token)
-        if (!cancelled) setMeta(data)
+        if (cancelled) return
+        setMeta(data)
+        setFormTemplate(data.form || null)
+        setFormValues(initialValuesFromSections(normalizeSections(data.form)))
+        setFieldErrors({})
       } catch (err) {
         if (!cancelled) setError(err.message || 'Failed to load form')
       } finally {
@@ -108,18 +183,30 @@ export default function StudentNeedsAssessment() {
     }
   }, [token])
 
+  const setValue = (name, nextValue) => {
+    setFieldErrors((prev) => {
+      if (!prev[name]) return prev
+      const next = { ...prev }
+      delete next[name]
+      return next
+    })
+    setFormValues((prev) => ({ ...prev, [name]: nextValue }))
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
+    const nextErrors = validateRequiredFields(formValues, sections)
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors(nextErrors)
+      setError('Please complete all required fields before submitting.')
+      return
+    }
     try {
       setSaving(true)
       setError('')
       setSuccess('')
-      await submitPublicNeedsAssessment(token, {
-        ...form,
-        previous_gpa: form.previous_gpa === '' ? null : Number(form.previous_gpa),
-        failed_subject_count: form.failed_subject_count === '' ? null : Number(form.failed_subject_count),
-        notes: form.notes.trim() || null,
-      })
+      setFieldErrors({})
+      await submitPublicNeedsAssessment(token, buildSubmissionPayload(formValues, sections))
       setSuccess('Your needs assessment has been submitted successfully.')
       setMeta((prev) => ({ ...(prev || {}), status: 'completed', can_submit: false }))
     } catch (err) {
@@ -130,21 +217,21 @@ export default function StudentNeedsAssessment() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-100 via-cyan-50 to-slate-100 px-4 py-10">
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-xl shadow-slate-300/30 backdrop-blur">
+    <div className="min-h-screen bg-gradient-to-br from-teal-100 via-cyan-50 to-slate-100 px-4 py-6 sm:py-8">
+      <div className="mx-auto flex max-w-3xl flex-col overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-xl shadow-slate-300/30 backdrop-blur sm:h-[calc(100vh-4rem)]">
         <div className="bg-gradient-to-r from-teal-700 via-cyan-700 to-sky-700 px-6 py-6 text-white">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
               <ClipboardList className="h-6 w-6" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold">Needs Assessment Form</h1>
+              <h1 className="text-xl font-semibold">{formTemplate?.title || 'Needs Assessment Form'}</h1>
               <p className="text-sm text-white/85">Academic Early Warning System</p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-5 px-6 py-6">
+        <div className="clean-scrollbar flex-1 overflow-y-auto px-6 py-6">
           {loading && (
             <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
               <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -167,7 +254,7 @@ export default function StudentNeedsAssessment() {
           )}
 
           {!loading && meta && (
-            <>
+            <div className="space-y-5">
               <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4 text-sm text-slate-700">
                 <p><span className="font-semibold">Student:</span> {meta.student_name || 'Student'}</p>
                 {meta.student_id && <p className="mt-1"><span className="font-semibold">Student ID:</span> {meta.student_id}</p>}
@@ -180,116 +267,21 @@ export default function StudentNeedsAssessment() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-5">
-                  <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <h2 className="text-sm font-semibold text-slate-900">General Information</h2>
-                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Admission Type</span>
-                        <input
-                          type="text"
-                          value={form.admission_type}
-                          onChange={(e) => setForm((prev) => ({ ...prev, admission_type: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Academic Adviser</span>
-                        <input
-                          type="text"
-                          value={form.academic_adviser}
-                          onChange={(e) => setForm((prev) => ({ ...prev, academic_adviser: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-                        />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <h2 className="text-sm font-semibold text-slate-900">GPA/Academic Performance from Previous Term</h2>
-                    <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Previous Year & Semester</span>
-                        <input
-                          type="text"
-                          value={form.previous_year_semester}
-                          onChange={(e) => setForm((prev) => ({ ...prev, previous_year_semester: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-                        />
-                      </label>
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">Previous GPA</span>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          max="4"
-                          value={form.previous_gpa}
-                          onChange={(e) => setForm((prev) => ({ ...prev, previous_gpa: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-                        />
-                      </label>
-                      <label className="block sm:col-span-2">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">No. of Subjects Failed (If any)</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={form.failed_subject_count}
-                          onChange={(e) => setForm((prev) => ({ ...prev, failed_subject_count: e.target.value }))}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-                        />
-                      </label>
-                    </div>
-                  </section>
-
-                  <section className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                    <h2 className="text-sm font-semibold text-slate-900">Attendance Record</h2>
-                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {[
-                        ['regular_attendance', 'Regular Attendance'],
-                        ['frequently_absent_or_late', 'Frequently Absent / Late'],
-                      ].map(([key, label]) => (
-                        <label key={key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700 hover:bg-slate-50">
-                          <input
-                            type="checkbox"
-                            checked={Boolean(form[key])}
-                            onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.checked }))}
-                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                          />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </section>
-
-                  {checkboxGroups.map((group) => (
-                    <section key={group.title} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-                      <h2 className="text-sm font-semibold text-slate-900">{group.title}</h2>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        {group.fields.map(([key, label]) => (
-                          <label key={key} className="flex items-start gap-3 rounded-xl border border-slate-200 px-3 py-3 text-sm text-slate-700 hover:bg-slate-50">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(form[key])}
-                              onChange={(e) => setForm((prev) => ({ ...prev, [key]: e.target.checked }))}
-                              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                            />
-                            <span>{label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">Additional notes</span>
-                    <textarea
-                      rows={5}
-                      value={form.notes}
-                      onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
-                      placeholder="Share any details you want AMU staff to know."
-                    />
-                  </label>
+                  <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
+                    Fields marked with <span className="text-red-600">*</span> are required.
+                  </p>
+                  {sections.map((section) => {
+                    const allBoolean = section.fields.length > 0 && section.fields.every((field) => field.type === 'boolean')
+                    return (
+                      <section key={section.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                        <h2 className="text-sm font-semibold text-slate-900">{section.title}</h2>
+                        {section.description ? <p className="mt-1 text-sm text-slate-500">{section.description}</p> : null}
+                        <div className={`mt-3 grid gap-3 ${allBoolean ? 'sm:grid-cols-2' : 'sm:grid-cols-2'}`}>
+                          {section.fields.map((field) => renderField(field, formValues[field.name], setValue, fieldErrors[field.name]))}
+                        </div>
+                      </section>
+                    )
+                  })}
 
                   <button
                     type="submit"
@@ -300,7 +292,7 @@ export default function StudentNeedsAssessment() {
                   </button>
                 </form>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Clock, ArrowLeft } from 'lucide-react'
+import { Clock } from 'lucide-react'
 
 export default function PendingApproval() {
   const location = useLocation()
@@ -26,13 +26,6 @@ export default function PendingApproval() {
             Back to sign in
           </Link>
         </div>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 mt-6 text-base font-medium text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to login
-        </Link>
       </div>
     </div>
   )

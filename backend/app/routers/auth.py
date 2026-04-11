@@ -8,17 +8,18 @@ import urllib.parse
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from fastapi import APIRouter, HTTPException
+from bson import ObjectId
+from fastapi import APIRouter, Depends, HTTPException
 from pymongo.errors import ServerSelectionTimeoutError
 
 from app.activity_log_utils import create_activity_log
-from app.authz import create_access_token
+from app.authz import create_access_token, get_current_actor
 log = logging.getLogger(__name__)
 
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import is_smtp_configured, send_password_reset_email, send_test_email, send_verification_email
 from app.notification_utils import create_notification
-from app.schemas import ForgotPasswordRequest, LoginRequest, ResetPasswordRequest, SignUpRequest
+from app.schemas import ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, ResetPasswordRequest, SignUpRequest
 
 router = APIRouter()
 
@@ -285,6 +286,47 @@ def reset_password(body: ResetPasswordRequest):
             )
             return {"message": "Password updated. You can now sign in."}
         raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
+    except HTTPException:
+        raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/change-password")
+def change_password(body: ChangePasswordRequest, actor: dict = Depends(get_current_actor)):
+    """Allow authenticated users to change their password directly."""
+    try:
+        db = get_db()
+        coll_name = get_collection_for_role(actor["role"])
+        coll = db[coll_name]
+        if not ObjectId.is_valid(actor["id"]):
+            raise HTTPException(status_code=401, detail="Authentication required")
+        doc = coll.find_one({"_id": ObjectId(actor["id"])})
+        if not doc:
+            raise HTTPException(status_code=404, detail="User not found")
+        password_hash = doc.get("password_hash")
+        if not password_hash or not _check_password(body.current_password, password_hash):
+            raise HTTPException(status_code=400, detail="Current password is incorrect")
+        if body.current_password == body.new_password:
+            raise HTTPException(status_code=400, detail="New password must be different from the current password")
+        coll.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {"password_hash": _hash_password(body.new_password)},
+                "$unset": {"password_reset_token": "", "password_reset_expires": ""},
+            },
+        )
+        create_activity_log(
+            db,
+            actor_id=str(doc["_id"]),
+            actor_name=doc.get("name", "User"),
+            role=actor["role"],
+            action="change_password",
+            description="Changed account password from settings.",
+            target_type="auth",
+            target_id=str(doc["_id"]),
+        )
+        return {"message": "Password updated successfully."}
     except HTTPException:
         raise
     except ServerSelectionTimeoutError:

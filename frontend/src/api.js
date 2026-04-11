@@ -353,6 +353,22 @@ export async function archiveClass(classId) {
   return data
 }
 
+export async function changePassword(currentPassword, newPassword) {
+  const res = await fetch(`${API_BASE}/api/auth/change-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify({
+      current_password: String(currentPassword ?? ''),
+      new_password: String(newPassword ?? ''),
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Password change failed')
+  }
+  return data
+}
+
 export async function restoreClass(classId) {
   const res = await fetch(`${API_BASE}/api/classes/${encodeURIComponent(classId)}/restore`, {
     method: 'PATCH',
@@ -618,6 +634,22 @@ export async function sendNeedsAssessmentInvitation(refId, payload = {}) {
   return data
 }
 
+export async function sendNeedsAssessmentInvitationsForAll(payload = {}) {
+  const res = await fetch(`${API_BASE}/api/amu-staff/needs-assessments/send-all`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({
+      custom_message: String(payload?.custom_message ?? '').trim() || undefined,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to send needs assessments')
+  return data
+}
+
 export async function exportNeedsAssessmentResponses() {
   const res = await fetch(`${API_BASE}/api/amu-staff/needs-assessments/export`, {
     headers: getAuthHeaders(),
@@ -636,6 +668,36 @@ export async function getPublicNeedsAssessment(token) {
   const res = await fetch(`${API_BASE}/api/public/needs-assessments/${encodeURIComponent(token)}`)
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load needs assessment')
+  return data
+}
+
+export async function getAdminNeedsAssessmentForm() {
+  const res = await fetch(`${API_BASE}/api/admin/needs-assessment-form`, {
+    headers: getAuthHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to load form config')
+  return data
+}
+
+export async function updateAdminNeedsAssessmentForm(payload) {
+  const res = await fetch(`${API_BASE}/api/admin/needs-assessment-form`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+    body: JSON.stringify(payload || {}),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to update form config')
+  return data
+}
+
+export async function resetAdminNeedsAssessmentForm() {
+  const res = await fetch(`${API_BASE}/api/admin/needs-assessment-form/reset-default`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(formatErrorDetail(data.detail) || res.statusText || 'Failed to reset form config')
   return data
 }
 

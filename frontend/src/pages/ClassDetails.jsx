@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Send,
   X,
+  ChevronDown,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import HeaderAwareOverlay from '../components/HeaderAwareOverlay'
@@ -22,8 +23,8 @@ import { useAuth } from '../context/AuthContext'
 import {
   getClass,
   listClassStudents,
+  updateEnrollment,
   uploadClassFiles,
-  uploadNeedsAssessmentFiles,
   previewClasslist,
   listUsers,
 } from '../api'
@@ -40,6 +41,18 @@ const AI_CHECKBOX_FIELDS = [
   ['part_time_work_affecting_studies', 'Part-time work affecting studies'],
   ['mental_health_concerns', 'Mental health-related concerns'],
 ]
+
+const MANUAL_NON_ACADEMIC_FIELDS = [
+  ['financial_difficulties', 'Financial difficulties'],
+  ['physical_health_concerns', 'Physical health concerns'],
+  ['family_issues', 'Family issues'],
+  ['part_time_work_affecting_studies', 'Part-time work affecting studies'],
+  ['mental_health_concerns', 'Mental health concerns'],
+]
+
+function createManualReferralReasons() {
+  return Object.fromEntries(MANUAL_NON_ACADEMIC_FIELDS.map(([key]) => [key, false]))
+}
 
 function getRiskReasons(student) {
   if (!student) return []
@@ -86,10 +99,6 @@ function getRiskDesignation(student) {
     mixed: 'Main concern: both academics and outside factors',
   }
   return labels[student.risk_source] || student.risk_source_label || null
-}
-
-function hasComputedRisk(student) {
-  return Boolean(student)
 }
 
 function simplifyReason(reason) {
@@ -237,8 +246,15 @@ export default function ClassDetails() {
   const [activeAIStudent, setActiveAIStudent] = useState(null)
   const [referralError, setReferralError] = useState('')
   const [referralMessage, setReferralMessage] = useState('')
+  const [manualReferralReasons, setManualReferralReasons] = useState(() => createManualReferralReasons())
+  const [manualReferralNote, setManualReferralNote] = useState('')
+  const [submittingReferral, setSubmittingReferral] = useState(false)
+  const [showManualReferralModal, setShowManualReferralModal] = useState(false)
+  const [selectedReferralStudentKey, setSelectedReferralStudentKey] = useState('')
+  const [studentDropdownOpen, setStudentDropdownOpen] = useState(false)
   const [amuStaffOptions, setAmuStaffOptions] = useState([])
   const [amuStaffLoading, setAmuStaffLoading] = useState(false)
+  const studentDropdownRef = useRef(null)
 
   // Define all fetch callbacks first
   const fetchAmuStaffOptions = useCallback(async () => {
@@ -320,7 +336,79 @@ export default function ClassDetails() {
     setActiveAIStudent(student)
     setReferralError('')
     setReferralMessage('')
+    const nextReasons = createManualReferralReasons()
+    for (const [key] of MANUAL_NON_ACADEMIC_FIELDS) {
+      if (student?.referral_reasons?.[key]) nextReasons[key] = true
+    }
+    setManualReferralReasons(nextReasons)
+    setManualReferralNote(student?.referral_source === 'manual_non_academic' || student?.referral_source === 'combined' ? student?.referral_note || '' : '')
   }, [])
+
+  const openManualReferralModal = useCallback(() => {
+    setReferralError('')
+    setReferralMessage('')
+    setManualReferralReasons(createManualReferralReasons())
+    setManualReferralNote('')
+    setSelectedReferralStudentKey('')
+    setStudentDropdownOpen(false)
+    setShowManualReferralModal(true)
+  }, [])
+
+  const applySelectedReferralStudent = useCallback((key) => {
+    setSelectedReferralStudentKey(key)
+    const student = roster.find((entry) => getStudentKey(entry) === key)
+    const nextReasons = createManualReferralReasons()
+    for (const [reasonKey] of MANUAL_NON_ACADEMIC_FIELDS) {
+      if ((student?.referral_source === 'manual_non_academic' || student?.referral_source === 'combined') && student?.referral_reasons?.[reasonKey]) {
+        nextReasons[reasonKey] = true
+      }
+    }
+    setManualReferralReasons(nextReasons)
+    setManualReferralNote(student?.referral_source === 'manual_non_academic' || student?.referral_source === 'combined' ? student?.referral_note || '' : '')
+    setStudentDropdownOpen(false)
+  }, [roster])
+
+  const submitManualReferral = useCallback(async () => {
+    const selectedStudent = roster.find((student) => getStudentKey(student) === selectedReferralStudentKey)
+    if (!selectedStudent) {
+      setReferralError('Select a student first before sending the referral.')
+      return
+    }
+
+    const selectedReasons = Object.entries(manualReferralReasons).filter(([, value]) => Boolean(value))
+    if (selectedReasons.length === 0) {
+      setReferralError('Select at least one non-academic reason before sending the referral.')
+      return
+    }
+
+    const instructorCollege = String(user?.college || '').trim().toLowerCase()
+    const assignedStaff = amuStaffOptions.find((entry) => String(entry.college || '').trim().toLowerCase() === instructorCollege)
+    if (!assignedStaff) {
+      setReferralError('No active AMU staff account matches your college yet.')
+      return
+    }
+
+    setSubmittingReferral(true)
+    setReferralError('')
+    try {
+      await updateEnrollment(classId, selectedStudent.student_email || selectedStudent.student_id, {
+        flagged_for_mentoring: true,
+        referral_source: 'manual_non_academic',
+        referral_reasons: manualReferralReasons,
+        referral_note: manualReferralNote.trim(),
+        assigned_amu_staff_id: assignedStaff.id,
+        assigned_amu_staff_name: assignedStaff.name,
+        assigned_amu_staff_college: assignedStaff.college || '',
+      })
+      setReferralMessage(`Referral sent for ${selectedStudent.student_name || selectedStudent.student_id || 'the student'} to ${assignedStaff.label || assignedStaff.name}.`)
+      setShowManualReferralModal(false)
+      await fetchRoster()
+    } catch (err) {
+      setReferralError(err.message || 'Failed to send referral.')
+    } finally {
+      setSubmittingReferral(false)
+    }
+  }, [amuStaffOptions, classId, fetchRoster, manualReferralNote, manualReferralReasons, roster, selectedReferralStudentKey, user])
 
   // Now define all effects after all callbacks
   useEffect(() => {
@@ -346,6 +434,17 @@ export default function ClassDetails() {
   useEffect(() => {
     fetchAmuStaffOptions()
   }, [fetchAmuStaffOptions])
+
+  useEffect(() => {
+    if (!showManualReferralModal || !studentDropdownOpen) return undefined
+    const handlePointerDown = (event) => {
+      if (studentDropdownRef.current && !studentDropdownRef.current.contains(event.target)) {
+        setStudentDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [showManualReferralModal, studentDropdownOpen])
 
   if (classLoading && !classData) {
     return (
@@ -407,20 +506,20 @@ export default function ClassDetails() {
 
           <div className="p-4 space-y-4">
             <div className="rounded-xl bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 px-4 py-4 text-white shadow-sm overflow-hidden relative">
-              <div className="relative z-10 flex flex-wrap items-end justify-between gap-4">
+              <div className="relative z-10 flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
                     <BookOpen className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h1 className="text-base font-bold tracking-tight">
+                  <div className="min-w-0">
+                    <h1 className="text-base font-bold tracking-tight truncate">
                       {subjectCode}: {subjectName}
                     </h1>
                     <p className="text-blue-100 text-xs mt-0.5">{studentCount} student{studentCount !== 1 ? 's' : ''}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex shrink-0 items-center gap-1.5">
                   <input
                     type="file"
                     ref={classlistInputRef}
@@ -459,7 +558,7 @@ export default function ClassDetails() {
 
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
+                    className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.75 rounded-lg bg-white/15 border border-white/25 text-white text-[11px] font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
                     disabled={uploadingClasslist}
                     onClick={() => classlistInputRef.current && classlistInputRef.current.click()}
                   >
@@ -468,7 +567,7 @@ export default function ClassDetails() {
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
+                    className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.75 rounded-lg bg-white/15 border border-white/25 text-white text-[11px] font-semibold hover:bg-white/20 transition-colors"
                     onClick={() => navigate(`/instructor/class/${classId}/grades`)}
                   >
                     <BarChart3 className="w-4 h-4" />
@@ -476,11 +575,20 @@ export default function ClassDetails() {
                   </button>
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white/15 border border-white/25 text-white text-xs font-semibold hover:bg-white/20 transition-colors"
+                    className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.75 rounded-lg bg-white/15 border border-white/25 text-white text-[11px] font-semibold hover:bg-white/20 transition-colors"
                     onClick={() => navigate(`/instructor/class/${classId}/attendance`)}
                   >
                     <TrendingUp className="w-4 h-4" />
                     Attendance page
+                  </button>
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.75 rounded-lg bg-white/15 border border-white/25 text-white text-[11px] font-semibold hover:bg-white/20 transition-colors disabled:opacity-60 disabled:hover:bg-white/15"
+                    onClick={openManualReferralModal}
+                    disabled={roster.length === 0}
+                  >
+                    <Send className="w-4 h-4" />
+                    Refer for non-academic concern
                   </button>
 
                 </div>
@@ -521,8 +629,7 @@ export default function ClassDetails() {
                         <th className="w-[40%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Name</th>
                         <th className="w-[22%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Student Number</th>
                         <th className="w-[16%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MTG</th>
-                        <th className="w-[16%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Attendance %</th>
-                        <th className="w-[6%] px-4 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wider"></th>
+                        <th className="w-[22%] px-4 py-2.5 text-center text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Attendance %</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -543,7 +650,6 @@ export default function ClassDetails() {
                           <td className="px-4 py-2.5 text-center">
                             <div className="text-sm text-slate-700">{formatRosterMetric(row.attendance, '%')}</div>
                           </td>
-                          <td className="px-4 py-2.5 text-right"></td>
                         </tr>
                       ))}
                     </tbody>
@@ -594,6 +700,161 @@ export default function ClassDetails() {
           }
         }}
       />
+      {showManualReferralModal && (
+        <HeaderAwareOverlay
+          role="dialog"
+          labelledBy="manual-referral-title"
+          className="bg-slate-900/35"
+          panelClassName="max-w-3xl"
+          contentClassName="rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10"
+        >
+          <div className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/10">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-white via-rose-50 to-orange-50/50 px-6 py-5">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-rose-700">Instructor referral</p>
+                <h2 id="manual-referral-title" className="mt-1 text-lg font-bold tracking-tight text-slate-900">Non-Academic Referral</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Select the student and mark the non-academic concern(s) to send to AMU.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowManualReferralModal(false)}
+                className="rounded-xl border border-transparent p-2 text-slate-400 transition-colors hover:border-slate-200 hover:bg-white hover:text-slate-700"
+                aria-label="Close non-academic referral form"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="clean-scrollbar flex-1 overflow-y-auto bg-slate-50/60 p-6">
+              <div className="space-y-5">
+                {referralError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{referralError}</div>}
+
+                <div className="rounded-xl border border-rose-200/80 bg-white p-4">
+                  <label className="block">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Student to refer</span>
+                    <div ref={studentDropdownRef} className="relative mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setStudentDropdownOpen((current) => !current)}
+                        className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-700 outline-none transition hover:border-rose-300 hover:bg-white focus:border-rose-300 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                      >
+                        <span className="truncate">
+                          {selectedReferralStudentKey
+                            ? (() => {
+                                const student = roster.find((entry) => getStudentKey(entry) === selectedReferralStudentKey)
+                                return student
+                                  ? `${student.student_name || 'Student'}${student.student_id ? ` (${student.student_id})` : ''}`
+                                  : 'Select a student'
+                              })()
+                            : 'Select a student'}
+                        </span>
+                        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${studentDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {studentDropdownOpen && (
+                        <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg shadow-slate-900/10">
+                          <div className="max-h-64 overflow-y-auto py-1">
+                            {roster.map((student, index) => {
+                              const key = getStudentKey(student)
+                              const isSelected = selectedReferralStudentKey === key
+                              return (
+                                <button
+                                  key={`${key}-${index}`}
+                                  type="button"
+                                  onClick={() => applySelectedReferralStudent(key)}
+                                  className={`flex w-full items-center px-3 py-2 text-left text-sm transition ${
+                                    isSelected ? 'bg-rose-50 text-rose-700' : 'text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <span className="truncate">
+                                    {student.student_name || 'Student'}{student.student_id ? ` (${student.student_id})` : ''}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-xl border border-rose-200/80 bg-white p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Select non-academic reasons</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {MANUAL_NON_ACADEMIC_FIELDS.map(([key, label]) => (
+                        <label key={key} className="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                            checked={Boolean(manualReferralReasons[key])}
+                            onChange={(event) => {
+                              const checked = event.target.checked
+                              setManualReferralReasons((current) => ({ ...current, [key]: checked }))
+                            }}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <label className="mt-4 block">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Instructor note</span>
+                      <textarea
+                        value={manualReferralNote}
+                        onChange={(event) => setManualReferralNote(event.target.value)}
+                        rows={4}
+                        maxLength={2000}
+                        placeholder="Add context for AMU, like what concern the student shared and what support might help."
+                        className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-rose-300 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="rounded-xl border border-rose-200/80 bg-white p-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Referral routing</p>
+                    <p className="mt-2 text-sm text-slate-900">
+                      {(() => {
+                        const instructorCollege = String(user?.college || '').trim().toLowerCase()
+                        const assignedStaff = amuStaffOptions.find((entry) => String(entry.college || '').trim().toLowerCase() === instructorCollege)
+                        return assignedStaff
+                          ? `${assignedStaff.name}${assignedStaff.college ? ` - ${assignedStaff.college}` : ''}`
+                          : amuStaffLoading
+                            ? 'Checking AMU staff assignment...'
+                            : 'No matching AMU staff account is available for your college.'
+                      })()}
+                    </p>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      This referral is for non-academic concerns only. Academic referrals remain automatic in the system.
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {MANUAL_NON_ACADEMIC_FIELDS.filter(([key]) => manualReferralReasons[key]).map(([, label]) => (
+                        <span key={label} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-800">
+                          {label}
+                        </span>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={submitManualReferral}
+                      disabled={submittingReferral || amuStaffLoading}
+                      className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+                    >
+                      <Send className="h-4 w-4" />
+                      {submittingReferral ? 'Sending referral...' : 'Send non-academic referral'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </HeaderAwareOverlay>
+      )}
       {activeAIStudent && (
         <HeaderAwareOverlay
           role="dialog"
@@ -632,8 +893,10 @@ export default function ClassDetails() {
                   const directDrivers = Array.isArray(activeAIStudent.risk_drivers) ? activeAIStudent.risk_drivers : []
                   const simplifiedDrivers = directDrivers.map(simplifyReason).filter(Boolean).slice(0, 3)
                   const simplifiedReasons = riskReasons.map(simplifyReason).filter(Boolean).slice(0, 4)
-                  const canReferToAmu = hasComputedRisk(activeAIStudent)
                   const automaticReferralReasons = getAutomaticReferralReasons(activeAIStudent)
+                  const manualReferralLabels = MANUAL_NON_ACADEMIC_FIELDS.filter(([key]) => manualReferralReasons[key]).map(([, label]) => label)
+                  const isManualNonAcademicReferral = activeAIStudent.referral_source === 'manual_non_academic'
+                  const isCombinedReferral = activeAIStudent.referral_source === 'combined'
                   const summaryText = formatStudentInsightSummary(activeAIStudent, riskDesignation, simplifiedDrivers.length > 0 ? simplifiedDrivers : simplifiedReasons)
                   const hardestMidtermTopics = Array.isArray(activeAIStudent.hardest_midterm_topics) ? activeAIStudent.hardest_midterm_topics : []
                   const groupedMidtermTopics = groupTopicsByComponent(hardestMidtermTopics)
@@ -665,6 +928,18 @@ export default function ClassDetails() {
                                   : activeAIStudent.flagged_for_mentoring
                                     ? 'Already referred'
                                     : 'Not referred yet'}
+                              </p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
+                              <span className="block text-xs font-medium text-slate-500">Referral type</span>
+                              <p className="mt-1 text-sm text-slate-900">
+                                {isManualNonAcademicReferral
+                                  ? 'Instructor referral for non-academic concerns'
+                                  : isCombinedReferral
+                                    ? 'Combined academic and non-academic referral'
+                                  : activeAIStudent.flagged_for_mentoring
+                                    ? 'Automatic academic referral'
+                                    : 'No referral yet'}
                               </p>
                             </div>
                             <div className="rounded-xl border border-slate-200/70 bg-white px-3 py-2.5">
@@ -852,6 +1127,92 @@ export default function ClassDetails() {
                                 ? 'No active AMU staff account is available yet for automatic routing.'
                                 : 'Upload or update grades and needs-assessment data so the system can detect the referral conditions automatically.'}
                           </p>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-rose-200/80 bg-rose-50/70 p-5 shadow-sm shadow-rose-100/40">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-rose-100 text-rose-700">
+                            <Send className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Instructor Non-Academic Referral</p>
+                            <p className="mt-1 text-sm leading-6 text-slate-600">
+                              Use this when the student needs AMU support because of non-academic concerns like financial, family, health, or work-related issues.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                          <div className="rounded-xl border border-rose-200/80 bg-white p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Select non-academic reasons</p>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              {MANUAL_NON_ACADEMIC_FIELDS.map(([key, label]) => (
+                                <label key={key} className="flex items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1 h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                                    checked={Boolean(manualReferralReasons[key])}
+                                    onChange={(event) => {
+                                      const checked = event.target.checked
+                                      setManualReferralReasons((current) => ({ ...current, [key]: checked }))
+                                    }}
+                                  />
+                                  <span>{label}</span>
+                                </label>
+                              ))}
+                            </div>
+
+                            <label className="mt-4 block">
+                              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Instructor note</span>
+                              <textarea
+                                value={manualReferralNote}
+                                onChange={(event) => setManualReferralNote(event.target.value)}
+                                rows={4}
+                                maxLength={2000}
+                                placeholder="Add context for AMU, like what concern the student shared and what support might help."
+                                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-rose-300 focus:bg-white focus:ring-2 focus:ring-rose-100"
+                              />
+                            </label>
+                          </div>
+
+                          <div className="rounded-xl border border-rose-200/80 bg-white p-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Referral routing</p>
+                            <p className="mt-2 text-sm text-slate-900">
+                              {(() => {
+                                const instructorCollege = String(user?.college || '').trim().toLowerCase()
+                                const assignedStaff = amuStaffOptions.find((entry) => String(entry.college || '').trim().toLowerCase() === instructorCollege)
+                                return assignedStaff
+                                  ? `${assignedStaff.name}${assignedStaff.college ? ` - ${assignedStaff.college}` : ''}`
+                                  : amuStaffLoading
+                                    ? 'Checking AMU staff assignment...'
+                                    : 'No matching AMU staff account is available for your college.'
+                              })()}
+                            </p>
+                            <p className="mt-3 text-xs leading-5 text-slate-500">
+                              This manual referral stays separate from the automatic academic trigger. It is meant for outside-the-classroom concerns.
+                            </p>
+
+                            {manualReferralLabels.length > 0 && (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                {manualReferralLabels.map((label) => (
+                                  <span key={label} className="rounded-full bg-rose-100 px-3 py-1 text-xs font-medium text-rose-800">
+                                    {label}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={submitManualReferral}
+                              disabled={submittingReferral || amuStaffLoading}
+                              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-rose-300"
+                            >
+                              <Send className="h-4 w-4" />
+                              {submittingReferral ? 'Sending referral...' : isManualNonAcademicReferral ? 'Update non-academic referral' : 'Send non-academic referral'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </>

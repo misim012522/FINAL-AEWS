@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Lock, KeyRound, GraduationCap, HelpCircle, PlayCircle } from 'lucide-react'
+import { GraduationCap, HelpCircle, PlayCircle } from 'lucide-react'
 import { getPlayTutorialEveryLogin, setPlayTutorialEveryLogin } from '../lib/tutorialPrefs'
 import DashboardLayout from '../components/DashboardLayout'
 import ProfilePageLayout from '../components/ProfilePageLayout'
@@ -82,12 +82,10 @@ export default function InstructorSettings() {
     }
   }
 
-  const handleGoToForgotPassword = () => navigate('/forgot-password')
-
   if (!user) {
     return (
       <DashboardLayout title="Instructor Dashboard" subtitle="Settings" icon={GraduationCap} variant="instructor">
-        <div className="max-w-6xl mx-auto px-4 py-8 text-center text-slate-500">Loading…</div>
+        <div className="max-w-6xl mx-auto px-4 py-8 text-center text-slate-500">Loading...</div>
       </DashboardLayout>
     )
   }
@@ -96,27 +94,6 @@ export default function InstructorSettings() {
 
   const rightSection = (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex items-center gap-2">
-          <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center text-red-600">
-            <Lock className="w-4 h-4" />
-          </div>
-          <h3 className="text-base font-bold text-slate-900">Security</h3>
-        </div>
-        <div className="p-6 space-y-3">
-          <p className="text-sm text-slate-600">
-            To change your password, we send a secure link to your email. You’ll set a new password from that link.
-          </p>
-          <button
-            type="button"
-            onClick={handleGoToForgotPassword}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-50 border border-red-200/80 transition-colors"
-          >
-            <KeyRound className="w-4 h-4" />
-            Send password reset link
-          </button>
-        </div>
-      </div>
       <div className="rounded-2xl border border-slate-200/80 bg-white shadow-md shadow-slate-200/50 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 to-white flex items-center gap-2">
           <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">

@@ -5,8 +5,7 @@ import {
   BarChart3,
   FileText,
   User,
-  Building2,
-  UsersRound,
+  ClipboardList,
 } from 'lucide-react'
 import DashboardLayout from '../components/DashboardLayout'
 import DashboardPageHeader from '../components/DashboardPageHeader'
@@ -32,6 +31,7 @@ const MAIN_TABS = [
   { id: 'analytics', label: 'System Analytics', icon: BarChart3 },
   { id: 'reports', label: 'Institution Reports', icon: FileText },
   { id: 'users', label: 'User Accounts', icon: User },
+  { id: 'needs-assessment-form', label: 'Needs Assessment Form', icon: ClipboardList },
   // AI Model and AI Performance bypassed until AI is implemented
 ]
 
@@ -103,6 +103,7 @@ export default function AdminDashboard() {
     analytics: { title: 'System Analytics', subtitle: 'Usage and performance metrics' },
     reports: { title: 'Institution Reports', subtitle: 'Reports and exports' },
     users: { title: 'User Accounts', subtitle: 'Manage all user accounts' },
+    'needs-assessment-form': { title: 'Needs Assessment Form', subtitle: 'Configure the student needs assessment form shown in the system' },
   }
   const { title: contentTitle, subtitle: contentSubtitle } = mainTabMeta[mainTab] || mainTabMeta.overview
 
@@ -115,8 +116,10 @@ export default function AdminDashboard() {
       navItems={MAIN_TABS.map((tab) => ({
         label: tab.label,
         icon: tab.icon,
-        active: mainTab === tab.id,
-        onClick: () => navigate(`/admin?tab=${tab.id}`),
+        active: tab.id === 'needs-assessment-form'
+          ? location.pathname === '/admin/needs-assessment-form'
+          : mainTab === tab.id,
+        onClick: () => navigate(tab.id === 'needs-assessment-form' ? '/admin/needs-assessment-form' : `/admin?tab=${tab.id}`),
       }))}
     >
       {showTutorial && <TutorialModal variant="admin" onClose={handleTutorialClose} />}
@@ -139,6 +142,11 @@ export default function AdminDashboard() {
             {mainTab === 'analytics' && <AdminSystemAnalytics />}
             {mainTab === 'reports' && <AdminInstitutionReports />}
             {mainTab === 'users' && <AdminUserAccounts />}
+            {mainTab === 'needs-assessment-form' && (
+              <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm text-slate-600">
+                Open the dedicated page from the sidebar to manage the needs assessment form.
+              </div>
+            )}
           </div>
         </DashboardPageHeader>
       </div>

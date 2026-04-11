@@ -4,7 +4,7 @@ import DashboardLayout from '../components/DashboardLayout'
 import InlineToast from '../components/InlineToast'
 import PredictionResultsModal from '../components/amu-staff/PredictionResultsModal'
 import { useAuth } from '../context/AuthContext'
-import { API_BASE, exportNeedsAssessmentResponses, getAmuStaffReferral, getAmuStaffReferrals, sendNeedsAssessmentInvitation } from '../api'
+import { API_BASE, exportNeedsAssessmentResponses, getAmuStaffReferral, getAmuStaffReferrals, sendNeedsAssessmentInvitationsForAll } from '../api'
 import { getAuthHeaders } from '../lib/authStorage'
 
 function formatRoutingLabel(value) {
@@ -163,7 +163,7 @@ export default function AmuStaffNeedsAssessments() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [toastMessage, setToastMessage] = useState('')
-  const [sendingRefId, setSendingRefId] = useState('')
+  const [isSendingAllForms, setIsSendingAllForms] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [selectedResponsesRefId, setSelectedResponsesRefId] = useState('')
   const [responseDetail, setResponseDetail] = useState(null)
@@ -171,6 +171,7 @@ export default function AmuStaffNeedsAssessments() {
   const [responseError, setResponseError] = useState('')
   const [isPredicting, setIsPredicting] = useState(false)
   const [selectedPredictionRef, setSelectedPredictionRef] = useState(null)
+  const [showSendAllConfirm, setShowSendAllConfirm] = useState(false)
 
   const fetchData = async () => {
     try {
@@ -208,24 +209,20 @@ export default function AmuStaffNeedsAssessments() {
 
   const predictReadyItems = filtered.filter((item) => item.has_needs_assessment)
 
-  const handleSendForm = async (refId) => {
+  const handleSendAllForms = async () => {
     try {
-      setSendingRefId(refId)
-      const result = await sendNeedsAssessmentInvitation(refId)
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === refId
-            ? { ...item, needs_assessment_invitation: result.invitation }
-            : item,
-        ),
-      )
-      setToastMessage('Needs assessment form sent')
+      setIsSendingAllForms(true)
+      const result = await sendNeedsAssessmentInvitationsForAll()
+      setToastMessage(result.message || 'Needs assessment forms sent')
+      await fetchData()
     } catch (err) {
-      setToastMessage(err.message || 'Failed to send form')
+      setToastMessage(err.message || 'Failed to send forms')
     } finally {
-      setSendingRefId('')
+      setIsSendingAllForms(false)
     }
   }
+
+  const pendingReferralCount = items.length
 
   const handleExport = async () => {
     try {
@@ -337,11 +334,15 @@ export default function AmuStaffNeedsAssessments() {
               </div>
             )}
 
-            <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto] lg:items-center">
+            <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:items-center">
               <div className="relative w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input type="search" placeholder="Search by name, student ID, email, or class..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 outline-none transition-colors focus:border-teal-500 focus:bg-white focus:ring-2 focus:ring-teal-500/20" />
               </div>
+              <button type="button" onClick={() => setShowSendAllConfirm(true)} disabled={items.length === 0 || isSendingAllForms || loading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60">
+                <Send className="h-4 w-4" />
+                {isSendingAllForms ? 'Sending forms...' : 'Send forms to all'}
+              </button>
               <button type="button" onClick={handlePredictReady} disabled={predictReadyItems.length === 0 || isPredicting} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60">
                 <Zap className="h-4 w-4" />
                 {isPredicting ? 'Predicting...' : 'Predict'}
@@ -364,7 +365,6 @@ export default function AmuStaffNeedsAssessments() {
                   <tr>
                     <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Student</th>
                     <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Class</th>
-                    <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Send form</th>
                     <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Assessment status</th>
                     <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Prediction</th>
                     <th className="px-5 py-3 text-left text-[12px] font-semibold uppercase tracking-wider text-gray-500">Support routing</th>
@@ -372,9 +372,9 @@ export default function AmuStaffNeedsAssessments() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {loading ? (
-                    <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-500">Loading referred students...</td></tr>
+                    <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">Loading referred students...</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={6} className="px-5 py-8 text-center text-sm text-gray-500">No referred students found.</td></tr>
+                    <tr><td colSpan={5} className="px-5 py-8 text-center text-sm text-gray-500">No referred students found.</td></tr>
                   ) : (
                     filtered.map((r) => {
                       const invitation = r.needs_assessment_invitation || null
@@ -391,17 +391,6 @@ export default function AmuStaffNeedsAssessments() {
                           <td className="align-top px-5 py-4 text-sm text-gray-700">
                             <div className="font-medium text-slate-900">{r.subject_code || '-'}</div>
                             <div className="text-xs text-slate-500">{r.subject_name || '-'}</div>
-                          </td>
-                          <td className="align-top px-5 py-4 text-sm text-gray-700">
-                            <button
-                              type="button"
-                              onClick={() => handleSendForm(r.id)}
-                              disabled={sendingRefId === r.id}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                            >
-                              <Send className="h-3.5 w-3.5 text-teal-600" />
-                              {sendingRefId === r.id ? 'Sending...' : r.has_needs_assessment || invitation?.status === 'sent' ? 'Resend form' : 'Send form'}
-                            </button>
                           </td>
                           <td className="align-top px-5 py-4 text-sm text-gray-700">
                             <div className="space-y-2">
@@ -513,6 +502,45 @@ export default function AmuStaffNeedsAssessments() {
           }}
           onClose={() => setSelectedPredictionRef(null)}
         />
+      ) : null}
+
+      {showSendAllConfirm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.18)]">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Confirm bulk send</p>
+              <h3 className="mt-1 text-base font-semibold text-slate-900">Send needs assessment forms to all referred students?</h3>
+            </div>
+            <div className="space-y-3 px-5 py-4">
+              <p className="text-sm leading-6 text-slate-600">
+                Send forms to all {pendingReferralCount} referred student{pendingReferralCount === 1 ? '' : 's'} assigned to you?
+              </p>
+              <p className="text-xs leading-5 text-slate-500">
+                Students who already received a form will be sent the form again.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setShowSendAllConfirm(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setShowSendAllConfirm(false)
+                  await handleSendAllForms()
+                }}
+                className="inline-flex items-center gap-2 rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800"
+              >
+                <Send className="h-4 w-4" />
+                Confirm send
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </DashboardLayout>
   )

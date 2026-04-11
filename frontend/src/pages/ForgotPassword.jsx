@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Brain, GraduationCap, Mail, ArrowLeft } from 'lucide-react'
+import { Brain, GraduationCap, Mail } from 'lucide-react'
 import { requestPasswordReset } from '../api'
 
 export default function ForgotPassword() {
@@ -115,14 +115,6 @@ export default function ForgotPassword() {
             </>
           )}
         </div>
-
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 mt-6 text-base font-medium text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to login
-        </Link>
       </div>
     </div>
   )

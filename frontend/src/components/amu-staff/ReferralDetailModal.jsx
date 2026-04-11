@@ -2,6 +2,37 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { getAmuStaffReferral } from '../../api'
 
+function buildDisplayReasons(referral) {
+  const reasons = Array.isArray(referral?.referral_reasons) ? [...referral.referral_reasons] : []
+  const seen = new Set(reasons.map((reason) => String(reason).trim().toLowerCase()))
+  const addReason = (reason) => {
+    const normalized = String(reason || '').trim()
+    if (!normalized) return
+    const key = normalized.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    reasons.push(normalized)
+  }
+
+  const midtermGrade = Number(referral?.midterm_grade)
+  if (!Number.isNaN(midtermGrade) && midtermGrade > 0) {
+    if ((midtermGrade <= 5 && midtermGrade <= 2.5) || (midtermGrade > 5 && midtermGrade <= 75)) {
+      addReason('Midterm grade is 2.50 or below')
+    }
+  }
+
+  const attendance = Number(referral?.attendance)
+  if (!Number.isNaN(attendance) && attendance >= 0 && attendance < 75) {
+    addReason('Attendance is below 75%')
+  }
+
+  if (referral?.gpa != null && Number(referral.gpa) >= 2.5) {
+    addReason('GWA is 2.5 or below')
+  }
+
+  return reasons
+}
+
 export default function ReferralDetailModal({ refId, onClose }) {
   const [referral, setReferral] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -42,6 +73,8 @@ export default function ReferralDetailModal({ refId, onClose }) {
   }, [refId])
 
   if (!refId) return null
+
+  const displayReasons = buildDisplayReasons(referral)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -88,13 +121,13 @@ export default function ReferralDetailModal({ refId, onClose }) {
             </div>
 
             {/* Reasons */}
-            {referral.referral_reasons && referral.referral_reasons.length > 0 && (
+            {displayReasons.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-teal-700">
                   Reasons
                 </p>
                 <ul className="space-y-1.5">
-                  {referral.referral_reasons.map((reason, idx) => (
+                  {displayReasons.map((reason, idx) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-slate-700 leading-snug">
                       <span className="mt-1 h-1.5 w-1.5 rounded-full bg-teal-500" />
                       <span>{reason}</span>

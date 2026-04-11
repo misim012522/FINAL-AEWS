@@ -147,6 +147,11 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=1)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=1)
+
+
 # ----- Class (instructor courses) -----
 class ClassCreate(BaseModel):
     section_code: str = Field(..., min_length=1)
@@ -203,6 +208,7 @@ class UpdateEnrollmentRequest(BaseModel):
     part_time_work_affecting_studies: Optional[bool] = None
     mental_health_concerns: Optional[bool] = None
     flagged_for_mentoring: Optional[bool] = None
+    referral_source: Optional[str] = Field(None, max_length=50)
     referral_note: Optional[str] = Field(None, max_length=2000)
     referral_reasons: Optional[dict] = None
     assigned_amu_staff_id: Optional[str] = Field(None, max_length=100)
@@ -217,6 +223,45 @@ class ReferralEmailRequest(BaseModel):
 
 class NeedsAssessmentInvitationRequest(BaseModel):
     custom_message: Optional[str] = Field(None, max_length=5000)
+
+
+class NeedsAssessmentFormField(BaseModel):
+    id: str = Field(..., min_length=1, max_length=100)
+    name: str = Field(..., min_length=1, max_length=100)
+    label: str = Field(..., min_length=1, max_length=300)
+    type: str = Field(..., min_length=1, max_length=30)
+    required: bool = False
+    placeholder: Optional[str] = Field(None, max_length=300)
+    help_text: Optional[str] = Field(None, max_length=1000)
+    options: list[str] = Field(default_factory=list)
+    order: int = 0
+    active: bool = True
+    locked: bool = False
+
+
+class NeedsAssessmentFormSection(BaseModel):
+    id: str = Field(..., min_length=1, max_length=100)
+    title: str = Field(..., min_length=1, max_length=300)
+    description: Optional[str] = Field(None, max_length=1000)
+    order: int = 0
+    fields: list[NeedsAssessmentFormField] = Field(default_factory=list)
+
+
+class NeedsAssessmentFormConfig(BaseModel):
+    key: str = Field(default="default_needs_assessment", min_length=1, max_length=100)
+    title: str = Field(..., min_length=1, max_length=300)
+    description: Optional[str] = Field(None, max_length=1000)
+    version: int = 1
+    status: str = Field(default="draft", min_length=1, max_length=30)
+    is_active: bool = False
+    sections: list[NeedsAssessmentFormSection] = Field(default_factory=list)
+
+
+class NeedsAssessmentFormUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=300)
+    description: Optional[str] = Field(None, max_length=1000)
+    sections: Optional[list[NeedsAssessmentFormSection]] = None
+    status: Optional[str] = Field(None, min_length=1, max_length=30)
 
 
 class PublicNeedsAssessmentSubmission(BaseModel):

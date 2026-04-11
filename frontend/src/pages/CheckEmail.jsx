@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Mail, ArrowLeft } from 'lucide-react'
+import { Mail } from 'lucide-react'
 
 export default function CheckEmail() {
   const location = useLocation()
@@ -40,13 +40,6 @@ export default function CheckEmail() {
             Back to sign in
           </Link>
         </div>
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 mt-6 text-base font-medium text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to login
-        </Link>
       </div>
     </div>
   )

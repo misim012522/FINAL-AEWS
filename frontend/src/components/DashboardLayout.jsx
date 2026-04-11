@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard, Activity } from 'lucide-react'
+import { Bell, Settings, LogOut, HelpCircle, ChevronRight, BookOpen, Users, BarChart2, Clipboard, Activity, ClipboardList } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotifications } from '../context/NotificationsContext'
@@ -58,6 +58,7 @@ export default function DashboardLayout({
         { label: 'System Analytics', icon: BarChart2, onClick: () => navigate(`${basePath}?tab=analytics`), active: location.pathname === `${basePath}` && activeAdminTab === 'analytics' },
         { label: 'Institution Reports', icon: Clipboard, onClick: () => navigate(`${basePath}?tab=reports`), active: location.pathname === `${basePath}` && activeAdminTab === 'reports' },
         { label: 'User Accounts', icon: Users, onClick: () => navigate(`${basePath}?tab=users`), active: location.pathname === `${basePath}` && activeAdminTab === 'users' },
+        { label: 'Needs Assessment Form', icon: ClipboardList, onClick: () => navigate(`${basePath}/needs-assessment-form`), active: location.pathname === `${basePath}/needs-assessment-form` },
       ]
     }
 
@@ -91,6 +92,7 @@ export default function DashboardLayout({
       'System Analytics': BarChart2,
       'Institution Reports': Clipboard,
       'User Accounts': Users,
+      'Needs Assessment Form': ClipboardList,
       'Activity logs': Activity,
     },
     'amu-staff': {

@@ -1,8 +1,9 @@
 """
 Admin-only endpoints for system overview: KPIs, departments (from instructors only),
-students at risk, department stats, instructors list, and trends.
+students at risk, department stats, instructors list, trends, and needs-assessment form config.
 """
-from datetime import datetime
+from datetime import datetime, timezone
+import copy
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends
@@ -14,6 +15,7 @@ from app.ai_model import load_model_metrics
 from app.database import get_db, get_collection_for_role, ROLE_COLLECTIONS
 from app.email_sender import send_account_decision_email
 from app.notification_utils import create_notification
+from app.schemas import NeedsAssessmentFormConfig, NeedsAssessmentFormUpdateRequest
 
 
 # ----- RBAC Helper: Ensure caller is admin -----
@@ -27,6 +29,90 @@ def require_admin_role(actor: dict = Depends(get_current_actor)):
 
 
 router = APIRouter(dependencies=[Depends(require_admin_role)])
+
+NEEDS_ASSESSMENT_FORM_KEY = "default_needs_assessment"
+NEEDS_ASSESSMENT_CORE_FIELDS = [
+    ("general_info", "General Information", "", [
+        {"id": "admission_type", "name": "admission_type", "label": "Admission Type", "type": "text", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "academic_adviser", "name": "academic_adviser", "label": "Academic Adviser", "type": "text", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+    ]),
+    ("previous_term", "GPA/Academic Performance from Previous Term", "", [
+        {"id": "previous_year_semester", "name": "previous_year_semester", "label": "Previous Year & Semester", "type": "text", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "previous_gpa", "name": "previous_gpa", "label": "Previous GPA", "type": "number", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "failed_subject_count", "name": "failed_subject_count", "label": "No. of Subjects Failed (If any)", "type": "number", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+    ]),
+    ("attendance_record", "Attendance Record", "", [
+        {"id": "regular_attendance", "name": "regular_attendance", "label": "Regular Attendance", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "frequently_absent_or_late", "name": "frequently_absent_or_late", "label": "Frequently Absent / Late", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+    ]),
+    ("current_academic_standing", "Current Academic Standing", "", [
+        {"id": "on_probationary_status", "name": "on_probationary_status", "label": "On Probationary Status", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "grade_2_5_or_below", "name": "grade_2_5_or_below", "label": "At least one subject has a grade of 2.5", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "gwa_2_5_or_below", "name": "gwa_2_5_or_below", "label": "GWA is 2.5 lower or below", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "low_midterm_academic_performance", "name": "low_midterm_academic_performance", "label": "Low midterm academic performance", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "difficulty_catching_up", "name": "difficulty_catching_up", "label": "Difficulty with catching up instructions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+    ]),
+    ("previous_support", "Previous Academic Support Received", "", [
+        {"id": "tutoring_sessions", "name": "tutoring_sessions", "label": "Tutoring Sessions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "peer_mentoring", "name": "peer_mentoring", "label": "Peer Mentoring", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "faculty_consultation", "name": "faculty_consultation", "label": "Faculty Consultation", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "counselling_sessions", "name": "counselling_sessions", "label": "Counselling Sessions", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "no_previous_support", "name": "no_previous_support", "label": "None", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+    ]),
+    ("academic_challenges", "Academic Challenges", "", [
+        {"id": "difficulty_understanding_lectures", "name": "difficulty_understanding_lectures", "label": "Difficulty in Understanding Lectures", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "struggles_specific_subjects", "name": "struggles_specific_subjects", "label": "Struggles with Specific Subjects", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "weak_study_habits_time_management", "name": "weak_study_habits_time_management", "label": "Weak Study Habits or Time Management", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "low_motivation_engagement", "name": "low_motivation_engagement", "label": "Low Motivation or Engagement", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "poor_comprehension_writing_skills", "name": "poor_comprehension_writing_skills", "label": "Poor Comprehension or Writing Skills", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+    ]),
+    ("external_factors", "External/Personal Factors Affecting Performance", "", [
+        {"id": "financial_difficulties", "name": "financial_difficulties", "label": "Financial Difficulties", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+        {"id": "physical_health_concerns", "name": "physical_health_concerns", "label": "Physical Health-Related Concerns", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 2, "active": True, "locked": True},
+        {"id": "family_issues", "name": "family_issues", "label": "Family Issues", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 3, "active": True, "locked": True},
+        {"id": "part_time_work_affecting_studies", "name": "part_time_work_affecting_studies", "label": "Part-Time Work Affecting Studies", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 4, "active": True, "locked": True},
+        {"id": "mental_health_concerns", "name": "mental_health_concerns", "label": "Mental Health-Related Concerns", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 5, "active": True, "locked": True},
+        {"id": "internet_issues", "name": "internet_issues", "label": "Internet / Connectivity Issues", "type": "boolean", "required": False, "placeholder": "", "help_text": "", "options": [], "order": 6, "active": True, "locked": True},
+    ]),
+    ("additional_notes", "Additional Notes", "", [
+        {"id": "notes", "name": "notes", "label": "Additional notes", "type": "textarea", "required": False, "placeholder": "Share any details you want AMU staff to know.", "help_text": "", "options": [], "order": 1, "active": True, "locked": True},
+    ]),
+]
+
+
+def _build_default_needs_assessment_form_config() -> dict:
+    sections = []
+    for order, (section_id, title, description, fields) in enumerate(NEEDS_ASSESSMENT_CORE_FIELDS, start=1):
+        sections.append({
+            "id": section_id,
+            "title": title,
+            "description": description,
+            "order": order,
+            "fields": copy.deepcopy(fields),
+        })
+    return {
+        "key": NEEDS_ASSESSMENT_FORM_KEY,
+        "title": "Needs Assessment Form",
+        "description": "Student support follow-up form",
+        "version": 1,
+        "status": "published",
+        "is_active": True,
+        "sections": sections,
+    }
+
+
+def _normalize_form_config(form_doc: dict | None) -> dict:
+    base = copy.deepcopy(_build_default_needs_assessment_form_config())
+    if not isinstance(form_doc, dict):
+        return base
+    base["title"] = str(form_doc.get("title") or base["title"]).strip()
+    base["description"] = str(form_doc.get("description") or base["description"]).strip()
+    base["version"] = int(form_doc.get("version") or base["version"])
+    base["status"] = str(form_doc.get("status") or base["status"]).strip() or "draft"
+    base["is_active"] = bool(form_doc.get("is_active"))
+    if isinstance(form_doc.get("sections"), list):
+        base["sections"] = form_doc["sections"]
+    return base
 
 
 def _instructor_ids_by_department(db, department: str | None):
@@ -54,6 +140,73 @@ def _student_identifier(doc: dict) -> str:
     if student_name:
         return student_name
     return str(doc.get("_id") or "")
+
+
+@router.get("/needs-assessment-form")
+def get_needs_assessment_form_config():
+    try:
+        db = get_db()
+        form_doc = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True})
+        return {"form": _normalize_form_config(form_doc)}
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.patch("/needs-assessment-form")
+def update_needs_assessment_form_config(body: NeedsAssessmentFormUpdateRequest, actor: dict = Depends(get_current_actor)):
+    try:
+        db = get_db()
+        existing = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}) or {}
+        current = _normalize_form_config(existing)
+        payload = body.model_dump(exclude_unset=True)
+        next_form = {
+            **current,
+            **{k: v for k, v in payload.items() if k != "sections"},
+        }
+        if "sections" in payload:
+            next_form["sections"] = payload["sections"]
+        parsed = NeedsAssessmentFormConfig(**next_form).model_dump()
+        version = int(existing.get("version") or current.get("version") or 1)
+        parsed["version"] = version + 1
+        parsed["updated_at"] = datetime.now(timezone.utc)
+        parsed["updated_by_id"] = actor["id"]
+        parsed["updated_by_name"] = actor.get("name", "Admin")
+        parsed["is_active"] = True
+        parsed["key"] = NEEDS_ASSESSMENT_FORM_KEY
+        if not existing:
+            parsed["created_at"] = parsed["updated_at"]
+            parsed["created_by_id"] = actor["id"]
+            parsed["created_by_name"] = actor.get("name", "Admin")
+        else:
+            parsed["created_at"] = existing.get("created_at")
+            parsed["created_by_id"] = existing.get("created_by_id")
+            parsed["created_by_name"] = existing.get("created_by_name")
+        db.needs_assessment_forms.replace_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}, parsed, upsert=True)
+        return {"message": "Needs assessment form updated.", "form": _normalize_form_config(parsed)}
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/needs-assessment-form/reset-default")
+def reset_needs_assessment_form_config(actor: dict = Depends(get_current_actor)):
+    try:
+        db = get_db()
+        default_form = _build_default_needs_assessment_form_config()
+        now = datetime.now(timezone.utc)
+        existing = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}) or {}
+        default_form.update({
+            "version": int(existing.get("version") or 1) + 1,
+            "updated_at": now,
+            "updated_by_id": actor["id"],
+            "updated_by_name": actor.get("name", "Admin"),
+            "created_at": existing.get("created_at", now),
+            "created_by_id": existing.get("created_by_id", actor["id"]),
+            "created_by_name": existing.get("created_by_name", actor.get("name", "Admin")),
+        })
+        db.needs_assessment_forms.replace_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True}, default_form, upsert=True)
+        return {"message": "Needs assessment form reset to default.", "form": default_form}
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
 @router.get("/students/{student_identifier:path}")

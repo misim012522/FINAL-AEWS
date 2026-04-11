@@ -149,6 +149,11 @@ def _build_referral_reasons(doc: dict) -> list[str]:
             "gwa_2_5_or_below": "GWA is 2.5 or below",
             "low_midterm_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
+            "financial_difficulties": "Financial difficulties",
+            "physical_health_concerns": "Physical health concerns",
+            "family_issues": "Family issues",
+            "part_time_work_affecting_studies": "Part-time work affecting studies",
+            "mental_health_concerns": "Mental health concerns",
         }
         for key, label in support_map.items():
             if referral_reasons_dict.get(key):
@@ -162,6 +167,11 @@ def _build_referral_reasons(doc: dict) -> list[str]:
             "gwa_2_5_or_below": "GWA is 2.5 or below",
             "low_midterm_academic_performance": "Low midterm academic performance",
             "difficulty_catching_up": "Difficulty with catching up instructions",
+            "financial_difficulties": "Financial difficulties",
+            "physical_health_concerns": "Physical health concerns",
+            "family_issues": "Family issues",
+            "part_time_work_affecting_studies": "Part-time work affecting studies",
+            "mental_health_concerns": "Mental health concerns",
         }
         for key, label in individual_map.items():
             if doc.get(key):
@@ -174,7 +184,7 @@ def _build_referral_reasons(doc: dict) -> list[str]:
 
     # If no reasons were selected, show a default message
     if not reasons:
-        reasons.append("Instructor referred the student for academic support review.")
+        reasons.append("Instructor referred the student for AMU support review.")
 
     return reasons
 
@@ -656,6 +666,32 @@ def _serialize_public_invitation(doc: dict) -> dict[str, Any]:
         "submitted_at": invitation.get("submitted_at").isoformat() if isinstance(invitation.get("submitted_at"), datetime) else invitation.get("submitted_at"),
         "can_submit": not bool(doc.get("needs_assessment")),
     }
+
+
+def _is_missing_required_needs_assessment_value(field: dict[str, Any], value: Any) -> bool:
+    if field.get("type") == "boolean":
+        return value is not True
+    if field.get("type") == "number":
+        return value in {"", None}
+    return str(value or "").strip() == ""
+
+
+def _collect_missing_required_needs_assessment_fields(payload: dict[str, Any], form: dict[str, Any] | None) -> list[str]:
+    missing: list[str] = []
+    if not isinstance(form, dict):
+        return missing
+    for section in form.get("sections") or []:
+        if not isinstance(section, dict):
+            continue
+        for field in section.get("fields") or []:
+            if not isinstance(field, dict) or not field.get("required") or field.get("active") is False:
+                continue
+            field_name = str(field.get("name") or "").strip()
+            if not field_name:
+                continue
+            if _is_missing_required_needs_assessment_value(field, payload.get(field_name)):
+                missing.append(str(field.get("label") or field_name))
+    return missing
 
 
 def _slugify_needs_assessment_label(value: Any) -> str:
@@ -1197,6 +1233,57 @@ def get_overview(actor: dict = Depends(get_current_actor)):
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
 
+def _send_needs_assessment_invitation_for_doc(db, doc: dict, custom_message: str | None):
+    student_email = _get_referral_contact_email(doc)
+    if not student_email:
+        raise HTTPException(status_code=400, detail="This referred student has no student ID or email on file.")
+
+    student_name = _normalize_referral_value(doc.get("student_name")) or _normalize_referral_value(doc.get("student_id")) or student_email
+    existing_invitation = doc.get("needs_assessment_invitation") or {}
+    token = existing_invitation.get("token") or secrets.token_urlsafe(32)
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+    form_link = f"{frontend_url}/needs-assessment/{token}"
+    now = datetime.now(timezone.utc)
+
+    sent, err = send_needs_assessment_email(
+        student_email,
+        student_name,
+        form_link,
+        custom_message,
+    )
+    if not sent:
+        db.enrollments.update_one(
+            {"_id": doc["_id"]},
+            {
+                "$set": {
+                    "needs_assessment_invitation": {
+                        **existing_invitation,
+                        "token": token,
+                        "email": student_email,
+                        "status": "failed",
+                        "last_error": err or "Failed to send email.",
+                    }
+                }
+            },
+        )
+        raise HTTPException(status_code=500, detail=err or "Failed to send email.")
+
+    invitation = {
+        "token": token,
+        "email": student_email,
+        "status": "completed" if doc.get("needs_assessment") else "sent",
+        "sent_at": now,
+        "submitted_at": existing_invitation.get("submitted_at"),
+        "last_error": None,
+    }
+    db.enrollments.update_one({"_id": doc["_id"]}, {"$set": {"needs_assessment_invitation": invitation}})
+    return {
+        "student_email": student_email,
+        "invitation": invitation,
+        "form_link": form_link,
+    }
+
+
 @router.post("/referrals/{ref_id:path}/needs-assessment/send")
 def send_needs_assessment_invitation(
     ref_id: str,
@@ -1211,49 +1298,7 @@ def send_needs_assessment_invitation(
         if not doc:
             raise HTTPException(status_code=404, detail="Referral not found.")
 
-        student_email = _get_referral_contact_email(doc)
-        if not student_email:
-            raise HTTPException(status_code=400, detail="This referred student has no student ID or email on file.")
-
-        student_name = _normalize_referral_value(doc.get("student_name")) or _normalize_referral_value(doc.get("student_id")) or student_email
-        existing_invitation = doc.get("needs_assessment_invitation") or {}
-        token = existing_invitation.get("token") or secrets.token_urlsafe(32)
-        frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
-        form_link = f"{frontend_url}/needs-assessment/{token}"
-        now = datetime.now(timezone.utc)
-
-        sent, err = send_needs_assessment_email(
-            student_email,
-            student_name,
-            form_link,
-            body.custom_message,
-        )
-        if not sent:
-            db.enrollments.update_one(
-                {"_id": doc["_id"]},
-                {
-                    "$set": {
-                        "needs_assessment_invitation": {
-                            **existing_invitation,
-                            "token": token,
-                            "email": student_email,
-                            "status": "failed",
-                            "last_error": err or "Failed to send email.",
-                        }
-                    }
-                },
-            )
-            raise HTTPException(status_code=500, detail=err or "Failed to send email.")
-
-        invitation = {
-            "token": token,
-            "email": student_email,
-            "status": "completed" if doc.get("needs_assessment") else "sent",
-            "sent_at": now,
-            "submitted_at": existing_invitation.get("submitted_at"),
-            "last_error": None,
-        }
-        db.enrollments.update_one({"_id": doc["_id"]}, {"$set": {"needs_assessment_invitation": invitation}})
+        result = _send_needs_assessment_invitation_for_doc(db, doc, body.custom_message)
 
         create_activity_log(
             db,
@@ -1261,17 +1306,69 @@ def send_needs_assessment_invitation(
             actor_name=actor.get("name", "User"),
             role=actor["role"],
             action="send_needs_assessment_invitation",
-            description=f"Sent needs assessment form to {student_email}.",
+            description=f"Sent needs assessment form to {result['student_email']}.",
             target_type="referral",
             target_id=ref_id,
         )
         return {
-            "message": f"Needs assessment form sent to {student_email}.",
-            "invitation": _serialize_invitation({"needs_assessment_invitation": invitation}),
-            "form_link": form_link,
+            "message": f"Needs assessment form sent to {result['student_email']}.",
+            "invitation": _serialize_invitation({"needs_assessment_invitation": result["invitation"]}),
+            "form_link": result["form_link"],
         }
     except HTTPException:
         raise
+    except ServerSelectionTimeoutError:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+
+@router.post("/needs-assessments/send-all")
+def send_all_needs_assessment_invitations(
+    body: NeedsAssessmentInvitationRequest,
+    actor: dict = Depends(get_current_actor),
+):
+    """Send or resend tokenized needs assessment form links to all current referrals for this AMU staff member."""
+    try:
+        db = get_db()
+        cursor = db.enrollments.find({
+            "flagged_for_mentoring": True,
+            "assigned_amu_staff_id": actor["id"],
+        }).sort("referred_at", -1)
+
+        sent_count = 0
+        failed: list[dict] = []
+
+        for doc in cursor:
+            ref_id = _referral_id(doc["class_id"], _referral_identifier(doc))
+            try:
+                result = _send_needs_assessment_invitation_for_doc(db, doc, body.custom_message)
+                sent_count += 1
+                create_activity_log(
+                    db,
+                    actor_id=actor["id"],
+                    actor_name=actor.get("name", "User"),
+                    role=actor["role"],
+                    action="send_needs_assessment_invitation",
+                    description=f"Sent needs assessment form to {result['student_email']}.",
+                    target_type="referral",
+                    target_id=ref_id,
+                )
+            except HTTPException as exc:
+                failed.append({
+                    "ref_id": ref_id,
+                    "student_name": _normalize_referral_value(doc.get("student_name")) or _normalize_referral_value(doc.get("student_id")) or _get_referral_contact_email(doc) or "Student",
+                    "detail": exc.detail if isinstance(exc.detail, str) else "Failed to send email.",
+                })
+
+        summary = f"Needs assessment forms sent to {sent_count} referred student{'s' if sent_count != 1 else ''}."
+        if failed:
+            summary += f" {len(failed)} failed."
+
+        return {
+            "message": summary,
+            "sent_count": sent_count,
+            "failed_count": len(failed),
+            "failed": failed,
+        }
     except ServerSelectionTimeoutError:
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
@@ -1408,7 +1505,12 @@ def get_public_needs_assessment(token: str):
         doc = db.enrollments.find_one({"needs_assessment_invitation.token": token, "flagged_for_mentoring": True})
         if not doc:
             raise HTTPException(status_code=404, detail="Needs assessment link not found.")
-        return _serialize_public_invitation(doc)
+        from app.routers.admin import NEEDS_ASSESSMENT_FORM_KEY, _build_default_needs_assessment_form_config, _normalize_form_config
+
+        form_doc = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True})
+        invitation = _serialize_public_invitation(doc)
+        invitation["form"] = _normalize_form_config(form_doc) if form_doc else _build_default_needs_assessment_form_config()
+        return invitation
     except HTTPException:
         raise
     except ServerSelectionTimeoutError:
@@ -1416,7 +1518,7 @@ def get_public_needs_assessment(token: str):
 
 
 @public_router.post("/needs-assessments/{token}")
-def submit_public_needs_assessment(token: str, body: PublicNeedsAssessmentSubmission):
+def submit_public_needs_assessment(token: str, body: dict[str, Any]):
     """Submit a tokenized student needs assessment form."""
     try:
         db = get_db()
@@ -1428,7 +1530,24 @@ def submit_public_needs_assessment(token: str, body: PublicNeedsAssessmentSubmis
         if doc.get("needs_assessment") and invitation.get("status") == "completed":
             raise HTTPException(status_code=409, detail="This needs assessment form has already been submitted.")
 
-        payload = _normalize_needs_assessment_payload(body.model_dump())
+        from app.routers.admin import NEEDS_ASSESSMENT_FORM_KEY, _build_default_needs_assessment_form_config, _normalize_form_config
+
+        form_doc = db.needs_assessment_forms.find_one({"key": NEEDS_ASSESSMENT_FORM_KEY, "is_active": True})
+        active_form = _normalize_form_config(form_doc) if form_doc else _build_default_needs_assessment_form_config()
+        payload = _normalize_needs_assessment_payload(body or {})
+        missing_required_fields = _collect_missing_required_needs_assessment_fields(payload, active_form)
+        if missing_required_fields:
+            if len(missing_required_fields) == 1:
+                detail = f"Please complete the required field: {missing_required_fields[0]}."
+            else:
+                detail = "Please complete the required fields: " + ", ".join(missing_required_fields) + "."
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "message": detail,
+                    "missing_required_fields": missing_required_fields,
+                },
+            )
         payload["_submitted_via"] = "public_form"
         now = datetime.now(timezone.utc)
         updated_invitation = {
