@@ -118,6 +118,9 @@ export default function ReferralDetailModal({ refId, onClose }) {
               <p className="text-xs text-slate-600">
                 Referred by <span className="font-medium text-teal-700">{referral.referred_by || 'Unknown'}</span>
               </p>
+              <p className="text-xs text-slate-600">
+                Referral type: <span className="font-medium text-teal-700">{referral.referral_type_label || 'AMU referral'}</span>
+              </p>
             </div>
 
             {/* Reasons */}

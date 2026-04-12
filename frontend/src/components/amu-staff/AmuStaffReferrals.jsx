@@ -183,6 +183,13 @@ export default function AmuStaffReferrals() {
                                 {r.risk_source_label}
                               </span>
                             )}
+                            {r.referral_type_label && (
+                              <div className="mt-1.5">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700 ring-1 ring-teal-100">
+                                  {r.referral_type_label}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>

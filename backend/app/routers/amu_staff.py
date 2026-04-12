@@ -189,6 +189,25 @@ def _build_referral_reasons(doc: dict) -> list[str]:
     return reasons
 
 
+def _build_referral_type_label(doc: dict) -> str:
+    source = _normalize_referral_value(doc.get("referral_source")).lower()
+    if source == "manual_additional_concern":
+        return "Additional concerns referral"
+    if source == "combined":
+        return "Combined automatic and additional concerns referral"
+    if source == "automatic_academic":
+        return "Automatic academic referral"
+    return "AMU referral"
+
+
+def _stale_amu_prediction_unset() -> dict[str, str]:
+    return {
+        "amu_prediction": "",
+        "amu_prediction_generated_at": "",
+        "amu_final_verdict": "",
+    }
+
+
 @router.get("/referrals")
 def list_referrals(risk: str | None = None, search: str | None = None, actor: dict = Depends(get_current_actor)):
     """List all enrollments flagged for mentoring (referrals) with class and instructor info."""
@@ -253,6 +272,8 @@ def list_referrals(risk: str | None = None, search: str | None = None, actor: di
                 "risk_source_label": doc.get("risk_source_label"),
                 "risk_drivers": doc.get("risk_drivers") or [],
                 "referral_note": doc.get("referral_note"),
+                "referral_source": doc.get("referral_source"),
+                "referral_type_label": _build_referral_type_label(doc),
                 "assigned_amu_staff_id": doc.get("assigned_amu_staff_id"),
                 "assigned_amu_staff_name": doc.get("assigned_amu_staff_name"),
                 "assigned_amu_staff_college": doc.get("assigned_amu_staff_college"),
@@ -295,7 +316,7 @@ def delete_all_referrals(actor: dict = Depends(get_current_actor)):
                     "needs_assessment_uploaded_at": "",
                     "amu_prediction": "",
                     "amu_prediction_generated_at": "",
-                    "support_routing": "",
+                    "amu_final_verdict": "",
                 },
             },
         )
@@ -369,6 +390,8 @@ def get_referral(ref_id: str):
             "academic_risk_drivers": doc.get("academic_risk_drivers") or [],
             "external_risk_drivers": doc.get("external_risk_drivers") or [],
             "referral_note": doc.get("referral_note"),
+            "referral_source": doc.get("referral_source"),
+            "referral_type_label": _build_referral_type_label(doc),
             "assigned_amu_staff_id": doc.get("assigned_amu_staff_id"),
             "assigned_amu_staff_name": doc.get("assigned_amu_staff_name"),
             "assigned_amu_staff_college": doc.get("assigned_amu_staff_college"),
@@ -523,7 +546,8 @@ async def upload_needs_assessment(ref_id: str, file: UploadFile = File(...), act
                     "needs_assessment_uploaded_at": datetime.now(timezone.utc),
                     "academic_challenge_score": normalized_needs_assessment.get("academic_challenge_score"),
                     "external_factor_score": normalized_needs_assessment.get("external_factor_score"),
-                }
+                },
+                "$unset": _stale_amu_prediction_unset(),
             },
         )
         create_activity_log(
@@ -1565,7 +1589,8 @@ def submit_public_needs_assessment(token: str, body: dict[str, Any]):
                     "needs_assessment_invitation": updated_invitation,
                     "academic_challenge_score": payload.get("academic_challenge_score"),
                     "external_factor_score": payload.get("external_factor_score"),
-                }
+                },
+                "$unset": _stale_amu_prediction_unset(),
             },
         )
         return {

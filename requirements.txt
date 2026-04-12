@@ -15,11 +15,20 @@ python-dotenv>=1.0.0,<2.0
 # Auth (password hashing)
 bcrypt>=4.1.0,<5.0
  
-# Excel parsing for instructor class list uploads
+# File uploads for FastAPI forms
+python-multipart>=0.0.9,<1.0
+
+# Excel parsing for uploads and training data
 openpyxl>=3.1.0
 
 # Word document parsing
 python-docx>=0.8.11
+
+# ML / data processing
+pandas>=2.0.0,<3.0
 numpy>=1.25.0
 xgboost>=1.7.0
 scikit-learn>=1.2.0
+
+# Test runner
+pytest>=8.0.0,<9.0

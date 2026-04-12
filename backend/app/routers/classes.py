@@ -95,7 +95,7 @@ def _build_auto_referral_reasons(enrollment: dict) -> dict[str, bool]:
     midterm_grade = enrollment.get("midterm_grade")
 
     reasons = {
-        "on_probation_status": False,
+        "on_probation_status": _to_reason_bool(enrollment.get("on_probation_status")),
         "grade_2_5_or_below": _matches_midterm_referral_threshold(midterm_grade),
         "gwa_2_5_or_below": False,
         "low_midterm_performance": _to_reason_bool(enrollment.get("low_midterm_academic_performance")),
@@ -112,13 +112,12 @@ AUTO_REFERRAL_REASON_KEYS = (
     "difficulty_catching_up",
 )
 
-MANUAL_NON_ACADEMIC_REASON_KEYS = (
-    "financial_difficulties",
-    "physical_health_concerns",
-    "family_issues",
-    "part_time_work_affecting_studies",
-    "mental_health_concerns",
+MANUAL_ADDITIONAL_CONCERN_REASON_KEYS = (
+    "on_probation_status",
+    "low_midterm_performance",
 )
+
+MANUAL_REFERRAL_SOURCE_KEYS = {"manual_additional_concern", "combined"}
 
 
 def _normalized_referral_reasons_map(value) -> dict[str, bool]:
@@ -129,6 +128,14 @@ def _normalized_referral_reasons_map(value) -> dict[str, bool]:
 
 def _has_any_referral_reason(reasons: dict, keys: tuple[str, ...]) -> bool:
     return any(bool(reasons.get(key)) for key in keys)
+
+
+def _stale_amu_prediction_unset() -> dict[str, str]:
+    return {
+        "amu_prediction": "",
+        "amu_prediction_generated_at": "",
+        "amu_final_verdict": "",
+    }
 
 
 def _find_amu_staff_for_college(db, college: str) -> dict | None:
@@ -150,11 +157,11 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
     existing_reasons = _normalized_referral_reasons_map(enrollment_doc.get("referral_reasons"))
     already_referred = enrollment_doc.get("flagged_for_mentoring") is True
     referral_source = _normalize_cell(enrollment_doc.get("referral_source")).lower()
-    has_manual_non_academic_reasons = _has_any_referral_reason(existing_reasons, MANUAL_NON_ACADEMIC_REASON_KEYS)
+    has_manual_additional_concerns = referral_source in MANUAL_REFERRAL_SOURCE_KEYS
 
     if not any(reasons.values()):
-        if already_referred and (referral_source in {"manual_non_academic", "combined"} or has_manual_non_academic_reasons):
-            next_source = "manual_non_academic"
+        if already_referred and has_manual_additional_concerns:
+            next_source = "manual_additional_concern"
             if referral_source != next_source:
                 db.enrollments.update_one({"_id": enrollment_doc["_id"]}, {"$set": {"referral_source": next_source}})
             return False
@@ -195,7 +202,7 @@ def _apply_automatic_referral(db, class_doc: dict, enrollment_doc: dict) -> bool
         and _normalize_cell(enrollment_doc.get("assigned_amu_staff_college")) == (assigned_staff_college or "")
     )
     merged_reasons = {**existing_reasons, **reasons}
-    next_source = "combined" if has_manual_non_academic_reasons else "automatic_academic"
+    next_source = "combined" if has_manual_additional_concerns else "automatic_academic"
     same_reasons = existing_reasons == merged_reasons
     if already_referred and already_assigned and same_reasons:
         return False
@@ -2504,6 +2511,7 @@ async def upload_class_files(
                         update_ops["$set"] = update_data
                     if unset_data:
                         update_ops["$unset"] = unset_data
+                    update_ops.setdefault("$unset", {}).update(_stale_amu_prediction_unset())
                     db.enrollments.update_one(
                         {"_id": enrollment["_id"]},
                         update_ops
@@ -2587,7 +2595,7 @@ async def upload_class_files(
                 if update_data:
                     db.enrollments.update_one(
                         {"_id": enrollment["_id"]},
-                        {"$set": update_data}
+                        {"$set": update_data, "$unset": _stale_amu_prediction_unset()}
                     )
                     refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
                     if refreshed:
@@ -3007,6 +3015,7 @@ async def upload_and_create_classlist(
                         update_ops["$set"] = update_data
                     if unset_data:
                         update_ops["$unset"] = unset_data
+                    update_ops.setdefault("$unset", {}).update(_stale_amu_prediction_unset())
                     db.enrollments.update_one(
                         {"_id": enrollment["_id"]},
                         update_ops
@@ -3057,7 +3066,7 @@ async def upload_and_create_classlist(
                 if update_data:
                     db.enrollments.update_one(
                         {"_id": enrollment["_id"]},
-                        {"$set": update_data}
+                        {"$set": update_data, "$unset": _stale_amu_prediction_unset()}
                     )
                     refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
                     if refreshed:
@@ -3927,14 +3936,14 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
         if payload.get("flagged_for_mentoring") is True:
             existing_reasons = _normalized_referral_reasons_map(doc.get("referral_reasons"))
             referral_reasons = _normalized_referral_reasons_map(payload.get("referral_reasons"))
-            selected_manual_non_academic = _has_any_referral_reason(referral_reasons, MANUAL_NON_ACADEMIC_REASON_KEYS)
+            selected_manual_additional_concerns = _has_any_referral_reason(referral_reasons, MANUAL_ADDITIONAL_CONCERN_REASON_KEYS)
             assigned_amu_staff_id = str(payload.get("assigned_amu_staff_id") or "").strip()
             assigned_amu_staff_name = str(payload.get("assigned_amu_staff_name") or "").strip()
             assigned_amu_staff_college = str(payload.get("assigned_amu_staff_college") or "").strip()
             if not assigned_amu_staff_id or not assigned_amu_staff_name:
                 inferred_doc = {**doc, **payload}
                 auto_reasons = _build_auto_referral_reasons(inferred_doc)
-                if any(auto_reasons.values()) and not selected_manual_non_academic:
+                if any(auto_reasons.values()) and not selected_manual_additional_concerns:
                     instructor_doc = None
                     instructor_id = class_doc.get("instructor_id")
                     if instructor_id and ObjectId.is_valid(instructor_id):
@@ -3950,20 +3959,21 @@ def update_enrollment(class_id: str, student_identifier: str, body: UpdateEnroll
                     status_code=400,
                     detail="Please choose an AMU staff member before sending the referral.",
                 )
-            if selected_manual_non_academic:
+            auto_reasons = _build_auto_referral_reasons({**doc, **payload})
+            if selected_manual_additional_concerns:
                 merged_reasons = {**existing_reasons}
-                for key in MANUAL_NON_ACADEMIC_REASON_KEYS:
+                for key in MANUAL_ADDITIONAL_CONCERN_REASON_KEYS:
                     merged_reasons[key] = bool(referral_reasons.get(key))
                 payload["referral_reasons"] = merged_reasons
-                payload["referral_source"] = "combined" if _has_any_referral_reason(merged_reasons, AUTO_REFERRAL_REASON_KEYS) else "manual_non_academic"
+                payload["referral_source"] = "combined" if any(auto_reasons.values()) else "manual_additional_concern"
             payload["assigned_amu_staff_id"] = assigned_amu_staff_id
             payload["assigned_amu_staff_name"] = assigned_amu_staff_name
             payload["assigned_amu_staff_college"] = assigned_amu_staff_college or None
-            if not selected_manual_non_academic:
+            if not selected_manual_additional_concerns:
                 payload["referral_source"] = "automatic_academic"
         db.enrollments.update_one(
             {"_id": doc["_id"]},
-            {"$set": payload},
+            {"$set": payload, "$unset": _stale_amu_prediction_unset()},
         )
         refreshed_doc = db.enrollments.find_one({"_id": doc["_id"]})
         if refreshed_doc:
@@ -4112,6 +4122,7 @@ async def upload_needs_assessment_file(
                 continue
 
             db.enrollments.update_one({"_id": enrollment["_id"]}, {"$set": update_data})
+            db.enrollments.update_one({"_id": enrollment["_id"]}, {"$unset": _stale_amu_prediction_unset()})
             refreshed = db.enrollments.find_one({"_id": enrollment["_id"]})
             if refreshed:
                 _apply_automatic_referral(db, class_doc, refreshed)

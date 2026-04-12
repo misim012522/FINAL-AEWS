@@ -118,6 +118,9 @@ export default function AmuStaffStudentDetail() {
               <p className="text-[10px] text-gray-700 mt-0.5">
                 Referred by <strong>{student.referred_by || '-'}</strong> on {student.referred_at || '-'}
               </p>
+              <p className="text-[10px] text-gray-700 mt-1">
+                Referral type: <strong>{student.referral_type_label || 'AMU referral'}</strong>
+              </p>
               {student.referral_reasons && student.referral_reasons.length > 0 && (
                 <div className="mt-2">
                   <p className="text-[9px] font-semibold text-gray-500 uppercase tracking-wider">Referral reasons</p>
